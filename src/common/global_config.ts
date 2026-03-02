@@ -10,6 +10,9 @@ type MonacoLineNumbersMode = 'off' | 'on' | 'relative';
 
 type GlobalConfigShape = {
   autoupdate: boolean,
+  ui: {
+    disableAnimations: boolean
+  },
   input: {
     disableMiddleClickPaste: boolean
   },
@@ -27,6 +30,9 @@ type GlobalConfigShape = {
 
 const DEFAULTS: GlobalConfigShape = {
   autoupdate: true,
+  ui: {
+    disableAnimations: false
+  },
   input: {
     disableMiddleClickPaste: false
   },
@@ -67,6 +73,9 @@ const GlobalConfig = {
 
     return {
       autoupdate: DEFAULTS.autoupdate,
+      ui: {
+        disableAnimations: DEFAULTS.ui.disableAnimations
+      },
       input: {
         disableMiddleClickPaste: DEFAULTS.input.disableMiddleClickPaste
       },
@@ -118,6 +127,10 @@ const GlobalConfig = {
 
     if ( 'autoupdate' in config ) {
       normalized.autoupdate = !!config.autoupdate;
+    }
+
+    if ( GlobalConfig.isRecord ( config.ui ) && 'disableAnimations' in config.ui ) {
+      normalized.ui.disableAnimations = !!config.ui.disableAnimations;
     }
 
     if ( GlobalConfig.isRecord ( config.input ) && 'disableMiddleClickPaste' in config.input ) {

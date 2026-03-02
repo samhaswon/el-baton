@@ -69,23 +69,66 @@
 }
 
 .sidepanel {
-  flex: 1 1 330px;
+  flex-grow: 1;
+  flex-shrink: 1;
+  flex-basis: 330px;
   min-width: 165px;
   max-width: 520px;
   border-right-width: 1px;
   border-right-style: solid;
+  position: relative;
+  overflow: hidden;
 }
 
 .sidepanel.closed {
-  flex: 0 0 0;
+  flex-grow: 0;
+  flex-shrink: 0;
+  flex-basis: 0;
   min-width: 0;
   max-width: 0;
   overflow: hidden;
   border-right-width: 0;
 }
 
+.sidepanel-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .sidepanel-pane {
+  width: 100%;
   height: 100%;
+}
+
+.sidepanel-stage > .sidepanel-pane {
+  position: absolute;
+  inset: 0;
+  transition: opacity $animation-fast, transform $animation-fast;
+  will-change: opacity, transform;
+}
+
+.sidepanel.animations-disabled .sidepanel-stage > .sidepanel-pane {
+  transition: none;
+  will-change: auto;
+}
+
+.sidepanel-stage > .sidepanel-pane.is-active {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.sidepanel-stage > .sidepanel-pane.is-inactive {
+  opacity: 0;
+  transform: translateX(-10px);
+  pointer-events: none;
+}
+
+.sidepanel.closing .sidepanel-stage > .sidepanel-pane.is-active {
+  opacity: 0;
+  transform: translateX(-10px);
+  pointer-events: none;
 }
 
 .sidepanel-pane.search {

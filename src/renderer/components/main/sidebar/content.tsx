@@ -6,7 +6,7 @@ import * as _ from 'lodash';
 import * as React from 'react';
 import {connect} from 'overstated';
 import Main from '@renderer/containers/main';
-import FixedTree from '@renderer/components/main/structures/fixed_tree';
+import Tree from '@renderer/components/main/structures/tree';
 import Tags, {TagSpecials} from '@renderer/utils/tags';
 import Tag from './tag';
 
@@ -37,9 +37,7 @@ const getExplorerSearchTokens = ( query: string ): string[] => {
 
 };
 
-const isExplorerNoteMatch = ( title: string, query: string ): boolean => {
-
-  const tokens = getExplorerSearchTokens ( query );
+const isExplorerNoteMatch = ( title: string, tokens: string[] ): boolean => {
 
   if ( !tokens.length ) return false;
 
@@ -49,16 +47,16 @@ const isExplorerNoteMatch = ( title: string, query: string ): boolean => {
 
 };
 
-const makeNoteNode = ( note, parentPath: string, query: string = '' ) => ({
+const makeNoteNode = ( note, parentPath: string, query: string = '', queryTokens: string[] = [] ) => ({
   kind: 'note',
   key: `note:${parentPath}:${note.filePath}`,
   filePath: note.filePath,
   parentPath,
   searchQuery: parentPath === ALL ? query : '',
-  isSearchMatch: parentPath === ALL ? isExplorerNoteMatch ( note.metadata.title || '', query ) : false
+  isSearchMatch: parentPath === ALL ? isExplorerNoteMatch ( note.metadata.title || '', queryTokens ) : false
 });
 
-const makeTagNode = ( tag, query: string = '' ) => {
+const makeTagNode = ( tag, query: string = '', queryTokens: string[] = [] ) => {
 
   const childTags = Tags.sort ( Object.values ( tag.tags ) ).map ( childTag => makeTagNode ( childTag, '' ) ),
         childNoteIds = new Set<string> ();
@@ -68,7 +66,7 @@ const makeTagNode = ( tag, query: string = '' ) => {
   });
 
   const directNotes = sortNotes ( tag.notes.filter ( note => !childNoteIds.has ( getNoteId ( note ) ) ) ),
-        noteNodes = directNotes.map ( note => makeNoteNode ( note, tag.path, query ) ),
+        noteNodes = directNotes.map ( note => makeNoteNode ( note, tag.path, query, queryTokens ) ),
         allNoteIds = new Set<string> ( tag.notes.map ( getNoteId ) );
 
   childNoteIds.forEach ( noteId => allNoteIds.add ( noteId ) );
@@ -101,39 +99,50 @@ const explorerSectionsCollapsed: Record<string, boolean> = {};
 
 const Content = ({ isLoading, all, favorites, notebooks, tags, untagged, trash }) => {
 
-  if ( isLoading ) return null;
-
   const [query, setQuery] = React.useState ( '' );
   const [, forceUpdate] = React.useReducer ( ( counter: number ) => counter + 1, 0 );
   const toggleSection = React.useCallback ( ( id: string ) => {
     explorerSectionsCollapsed[id] = !explorerSectionsCollapsed[id];
     forceUpdate ();
   }, [] );
+  const queryTokens = React.useMemo ( () => getExplorerSearchTokens ( query ), [query] ),
+        notesCollapsed = query ? false : !!explorerSectionsCollapsed.notes,
+        notebooksCollapsed = !!explorerSectionsCollapsed.notebooks,
+        tagsCollapsed = !!explorerSectionsCollapsed.tags;
 
-  const allNode = all ? makeTagNode ( all, query ) : undefined,
-        favoritesNode = favorites ? makeTagNode ( favorites ) : undefined,
-        untaggedNode = untagged ? makeTagNode ( untagged ) : undefined,
-        trashNode = trash ? makeTagNode ( trash ) : undefined,
-        notesChildren = [allNode, favoritesNode, untaggedNode, trashNode].filter ( Boolean ),
-        notebooksChildren = notebooks ? makeTagNode ( notebooks ).children : [],
-        tagsChildren = tags ? makeTagNode ( tags ).children : [],
-        firstMatch = allNode?.children?.find ( child => child.kind === 'note' && child.isSearchMatch );
+  const {data, firstMatch} = React.useMemo ( () => {
 
-  let data = [
-    makeSectionNode ( 'notes', 'Notes', notesChildren, query ? false : !!explorerSectionsCollapsed.notes, () => toggleSection ( 'notes' ) ),
-    makeSectionNode ( 'notebooks', 'Notebooks', notebooksChildren, !!explorerSectionsCollapsed.notebooks, () => toggleSection ( 'notebooks' ) ),
-    makeSectionNode ( 'tags', 'Tags', tagsChildren, !!explorerSectionsCollapsed.tags, () => toggleSection ( 'tags' ) )
-  ];
+    if ( isLoading ) return {data: [], firstMatch: undefined};
+
+    const allNode = all ? makeTagNode ( all, query, queryTokens ) : undefined,
+          favoritesNode = favorites ? makeTagNode ( favorites ) : undefined,
+          untaggedNode = untagged ? makeTagNode ( untagged ) : undefined,
+          trashNode = trash ? makeTagNode ( trash ) : undefined,
+          notesChildren = [allNode, favoritesNode, untaggedNode, trashNode].filter ( Boolean ),
+          notebooksChildren = notebooks ? makeTagNode ( notebooks ).children : [],
+          tagsChildren = tags ? makeTagNode ( tags ).children : [],
+          firstMatch = allNode?.children?.find ( child => child.kind === 'note' && child.isSearchMatch ),
+          data = [
+            makeSectionNode ( 'notes', 'Notes', notesChildren, notesCollapsed, () => toggleSection ( 'notes' ) ),
+            makeSectionNode ( 'notebooks', 'Notebooks', notebooksChildren, notebooksCollapsed, () => toggleSection ( 'notebooks' ) ),
+            makeSectionNode ( 'tags', 'Tags', tagsChildren, tagsCollapsed, () => toggleSection ( 'tags' ) )
+          ];
+
+    return {data, firstMatch};
+
+  }, [all, favorites, notebooks, tags, untagged, trash, query, queryTokens, notesCollapsed, notebooksCollapsed, tagsCollapsed, toggleSection]);
 
   React.useEffect ( () => {
-    if ( !query || !firstMatch ) return;
+    if ( isLoading || !query || !firstMatch ) return;
 
     const timeout = setTimeout ( () => {
       $('.list-tags').trigger ( 'scroll-to-item', firstMatch.key );
     }, 0 );
 
     return () => clearTimeout ( timeout );
-  }, [query, firstMatch]);
+  }, [isLoading, query, firstMatch]);
+
+  if ( isLoading ) return null;
 
   return (
     <>
@@ -149,7 +158,7 @@ const Content = ({ isLoading, all, favorites, notebooks, tags, untagged, trash }
           </div>
         </div>
       </div>
-      <FixedTree className="list-tags layout-content" data={data} getHeight={getHeight} getItemChildren={getItemChildren} getItemKey={getItemKey} filterItem={filterItem}>{Tag}</FixedTree>
+      <Tree className="list-tags layout-content" data={data} getHeight={getHeight} getItemChildren={getItemChildren} getItemKey={getItemKey} filterItem={filterItem}>{Tag}</Tree>
     </>
   );
 

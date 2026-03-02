@@ -63,7 +63,7 @@
             - On note save --> write SQLite cache
     - Add option to embed the rendered diagram (SVG) as an attachment.
 - [X] Use natural sorting, not lexicographic sorting, for notes in the explorer view.
-- [ ] Speed up explorer tab opening
+- [X] Speed up explorer tab opening
     - Possibly add a cache for the list
     - See if it has to do with the API used
     - Might have to do with the amount of a given file read. We only need to read the header, so see if we can just capture the first ~10-20 lines and leave it there.

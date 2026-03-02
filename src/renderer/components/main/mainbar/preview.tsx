@@ -10,7 +10,6 @@ import Config from '@common/config';
 
 /* PREVIEW */
 
-const LARGE_PREVIEW_RENDER_THRESHOLD = 60000;
 const MEDIUM_PREVIEW_RENDER_THRESHOLD = 18000;
 const TYPING_DEBOUNCE_MIN = 90;
 const TYPING_DEBOUNCE_MAX = 420;
@@ -26,7 +25,7 @@ const isBracketMathEndLine = ( line: string ) => line.trim () === '\\]';
 
 const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocused, getMonaco, sourceFilePath, enableWorker = true, largeRenderMode = 'always', syncScroll = false }) => {
   const effectiveContent = content,
-        isLargeDocument = content.length >= LARGE_PREVIEW_RENDER_THRESHOLD,
+        isLargeDocument = content.length >= Config.preview.largeDocumentThreshold,
         largeNoteFullRenderDelay = _.clamp ( Number ( Config.preview.largeNoteFullRenderDelay ) || DEFAULT_LARGE_NOTE_FULL_RENDER_DELAY, 0, 5000 ),
         [html, setHtml] = React.useState<string> ( '' ),
         [isRendering, setIsRendering] = React.useState<boolean> ( true ),

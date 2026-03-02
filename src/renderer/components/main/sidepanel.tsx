@@ -28,6 +28,7 @@ type MenuSectionProps = {
 };
 
 type FilePanelProps = {
+  paneStateClassName?: string;
   hasNote: boolean;
   isEditing: boolean;
   isSplit: boolean;
@@ -78,11 +79,14 @@ type FilePanelProps = {
 };
 
 type TodoPanelProps = {
+  paneStateClassName?: string;
   title: string;
 };
 
 type SidepanelProps = {
   panel?: string;
+  isClosing: boolean;
+  animationsDisabled: boolean;
   isFocus: boolean;
   isZen: boolean;
   hasSidebar: boolean;
@@ -103,6 +107,7 @@ const MenuSection = ({ title, children }: MenuSectionProps ) => (
 );
 
 const FilePanel = ({
+  paneStateClassName,
   hasNote,
   isEditing,
   isSplit,
@@ -151,7 +156,7 @@ const FilePanel = ({
   setTheme,
   tutorialDialog
 }: FilePanelProps ) => (
-  <div className="sidepanel-pane layout column">
+  <div className={`sidepanel-pane layout column ${paneStateClassName || ''}`}>
     <div className="layout-header toolbar">
       <span className="small">File</span>
     </div>
@@ -206,8 +211,12 @@ const FilePanel = ({
   </div>
 );
 
-const ExplorerPanel = () => (
-  <div className="sidepanel-pane explorer layout column">
+type ExplorerPanelProps = {
+  paneStateClassName?: string;
+};
+
+const ExplorerPanel = ({ paneStateClassName }: ExplorerPanelProps ) => (
+  <div className={`sidepanel-pane explorer layout column ${paneStateClassName || ''}`}>
     <div className="layout-header toolbar">
       <span className="small">Explorer</span>
     </div>
@@ -215,8 +224,12 @@ const ExplorerPanel = () => (
   </div>
 );
 
-const SearchPanel = () => (
-  <div className="sidepanel-pane search layout column">
+type SearchPanelProps = {
+  paneStateClassName?: string;
+};
+
+const SearchPanel = ({ paneStateClassName }: SearchPanelProps ) => (
+  <div className={`sidepanel-pane search layout column ${paneStateClassName || ''}`}>
     <div className="layout-header toolbar">
       <Search />
     </div>
@@ -224,8 +237,8 @@ const SearchPanel = () => (
   </div>
 );
 
-const TodoPanel = ({ title }: TodoPanelProps ) => (
-  <div className="sidepanel-pane layout column">
+const TodoPanel = ({ title, paneStateClassName }: TodoPanelProps ) => (
+  <div className={`sidepanel-pane layout column ${paneStateClassName || ''}`}>
     <div className="layout-header toolbar">
       <span className="small">{title}</span>
     </div>
@@ -235,23 +248,31 @@ const TodoPanel = ({ title }: TodoPanelProps ) => (
   </div>
 );
 
-const Sidepanel = ({ panel, isFocus, isZen, hasSidebar, ...actions }: SidepanelProps ) => {
+const Sidepanel = ({ panel, isClosing, animationsDisabled, isFocus, isZen, hasSidebar, ...actions }: SidepanelProps ) => {
 
   if ( isFocus || isZen || !hasSidebar ) return null;
 
-  let content: React.ReactNode = null;
+  const isExplorerPanel = panel === 'explorer',
+        explorerStateClassName = isExplorerPanel ? 'is-active' : 'is-inactive',
+        shouldRenderStage = !!panel || isClosing;
 
-  if ( panel === 'file' ) content = <FilePanel {...actions} hasSidebar={hasSidebar} isZen={isZen} />;
-  if ( panel === 'explorer' ) content = <ExplorerPanel />;
-  if ( panel === 'search' ) content = <SearchPanel />;
-  if ( panel === 'graph' ) content = <TodoPanel title="Graph" />;
-  if ( panel === 'info' ) content = <InfoPane className="sidepanel-pane-info" />;
-  if ( panel === 'help' ) content = <TodoPanel title="Help" />;
-  if ( panel === 'settings' ) content = <TodoPanel title="Settings" />;
+  let activePanel: React.ReactNode = null;
+
+  if ( panel === 'file' ) activePanel = <FilePanel {...actions} paneStateClassName="is-active" hasSidebar={hasSidebar} isZen={isZen} />;
+  if ( panel === 'search' ) activePanel = <SearchPanel paneStateClassName="is-active" />;
+  if ( panel === 'graph' ) activePanel = <TodoPanel paneStateClassName="is-active" title="Graph" />;
+  if ( panel === 'info' ) activePanel = <InfoPane className="sidepanel-pane-info sidepanel-pane is-active" />;
+  if ( panel === 'help' ) activePanel = <TodoPanel paneStateClassName="is-active" title="Help" />;
+  if ( panel === 'settings' ) activePanel = <TodoPanel paneStateClassName="is-active" title="Settings" />;
 
   return (
-    <div className={`sidepanel layout column ${panel ? '' : 'closed'}`}>
-      {content}
+    <div className={`sidepanel layout column ${panel ? '' : 'closed'} ${isClosing ? 'closing' : ''} ${animationsDisabled ? 'animations-disabled' : ''}`}>
+      {!shouldRenderStage ? null : (
+        <div className="sidepanel-stage">
+          <ExplorerPanel paneStateClassName={explorerStateClassName} />
+          {isExplorerPanel ? null : activePanel}
+        </div>
+      )}
     </div>
   );
 
@@ -261,7 +282,8 @@ const Sidepanel = ({ panel, isFocus, isZen, hasSidebar, ...actions }: SidepanelP
 
 export default connect ({
   container: Main,
-  selector: ({ container, panel }) => ({
+  selector: ({ container, panel, isClosing, animationsDisabled }) => ({
+    animationsDisabled,
     hasNote: !!container.note.get (),
     isAttachmentsEditing: container.attachments.isEditing (),
     isDeleted: container.note.isDeleted (),
@@ -272,6 +294,7 @@ export default connect ({
     isMultiEditing: container.multiEditor.isEditing (),
     isTemplate: !!container.note.getTags ( undefined, TEMPLATES ).length,
     panel,
+    isClosing,
     hasSidebar: container.window.hasSidebar (),
     isFocus: container.window.isFocus (),
     isPinned: container.note.isPinned (),

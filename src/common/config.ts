@@ -14,6 +14,11 @@ const Config = {
   get autoupdate () {
     return Config.global.autoupdate;
   },
+  ui: {
+    get disableAnimations () {
+      return Config.global.ui.disableAnimations;
+    }
+  },
   get cwd () {
     return Settings.get ( 'cwd' );
   },
@@ -23,6 +28,7 @@ const Config = {
     }
   },
   preview: {
+    largeDocumentThreshold: 60000,
     get largeNoteFullRenderDelay () {
       return Config.global.preview.largeNoteFullRenderDelay;
     }

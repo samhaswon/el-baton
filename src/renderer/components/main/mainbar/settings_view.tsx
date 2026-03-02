@@ -10,6 +10,7 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue }) => {
 
   const canEdit = !!filePath;
   const toggleAutoupdate = () => setConfigValue ( 'autoupdate', !config.autoupdate );
+  const toggleDisableAnimations = () => setConfigValue ( 'ui.disableAnimations', !config.ui.disableAnimations );
   const toggleMiddleClickPaste = () => setConfigValue ( 'input.disableMiddleClickPaste', !config.input.disableMiddleClickPaste );
   const setLargeNoteFullRenderDelay = ( value: string ) => setConfigValue ( 'preview.largeNoteFullRenderDelay', Number ( value ) );
 
@@ -49,6 +50,19 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue }) => {
                 </div>
                 <div className="settings-control">
                   <button type="button" className={`settings-switch ${config.autoupdate ? 'active' : ''}`} aria-pressed={config.autoupdate} aria-label="Toggle automatic update checks" disabled={!canEdit} onClick={toggleAutoupdate}>
+                    <span className="settings-switch-ui">
+                      <span className="settings-switch-thumb"></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Disable animations</div>
+                  <div className="settings-field-copy xsmall">Turns off UI motion and transitions. Large notes also force animations off automatically.</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className={`settings-switch ${config.ui.disableAnimations ? 'active' : ''}`} aria-pressed={config.ui.disableAnimations} aria-label="Toggle UI animations" disabled={!canEdit} onClick={toggleDisableAnimations}>
                     <span className="settings-switch-ui">
                       <span className="settings-switch-thumb"></span>
                     </span>
