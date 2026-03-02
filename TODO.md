@@ -86,7 +86,7 @@
     - [ ] Add a test to see roughly where it doesn't matter or even hurts.
         - KaTeX is pretty fast, but can still get expensive.
     - [ ] Based on where memoization helps/hurts, adjust the memoziation.
-- [ ] Use the React Compiler, likely `react-compiler-webpack` for this implementation
+- [X] Use the React Compiler
 - [ ] Option to turn off script sanitization, with a clear danger warning.
 - [ ] Make local search support:
     - [ ] Regex

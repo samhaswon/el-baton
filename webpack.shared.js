@@ -8,12 +8,29 @@ const webpack = require ( 'webpack' );
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const electronTarget = process.env.NOTABLE_ELECTRON_TARGET || '30.0';
+const rendererSourcePath = path.resolve ( __dirname, 'src/renderer' );
+const sourcePath = path.resolve ( __dirname, 'src' );
 
 const babelPresetEnv = [ '@babel/preset-env', {
   targets: {
     electron: electronTarget
   }
 } ];
+
+let reactCompilerPlugins = [];
+
+try {
+  require.resolve ( 'babel-plugin-react-compiler' );
+  require.resolve ( 'react-compiler-runtime' );
+  reactCompilerPlugins = [[
+    'babel-plugin-react-compiler',
+    {
+      target: '18'
+    }
+  ]];
+} catch ( error ) {
+  console.warn ( '[webpack] React Compiler packages not installed; skipping compiler transforms for renderer sources.' );
+}
 
 const shared = {
   mode: isDevelopment ? 'development' : 'production',
@@ -48,7 +65,25 @@ const shared = {
       },
       {
         test: /\.tsx?$/,
-        include: /src/,
+        include: rendererSourcePath,
+        use: {
+          loader: 'babel-loader',
+          options: {
+            cacheDirectory: true,
+            presets: [
+              babelPresetEnv,
+              '@babel/preset-react',
+              '@babel/preset-typescript'
+            ],
+            // React Compiler must run first in the Babel plugin pipeline.
+            plugins: reactCompilerPlugins
+          }
+        }
+      },
+      {
+        test: /\.tsx?$/,
+        include: sourcePath,
+        exclude: rendererSourcePath,
         use: {
           loader: 'babel-loader',
           options: {

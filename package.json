@@ -151,8 +151,8 @@
     "@electron/remote": "^2.1.2",
     "asciimath2tex": "^1.5.0",
     "calls-batch": "^1.2.0",
-    "cmark-gfm": "^0.9.0",
     "chokidar": "3.6.0",
+    "cmark-gfm": "^0.9.0",
     "crc-32": "^1.2.2",
     "critically": "1.1.1",
     "diff": "^8.0.3",
@@ -187,8 +187,8 @@
     "react-router-static": "^1.0.0",
     "react-window": "^1.8.11",
     "sha1": "^1.1.1",
-    "unstated": "^2.1.1",
-    "tiny-glob": "^0.2.9"
+    "tiny-glob": "^0.2.9",
+    "unstated": "^2.1.1"
   },
   "optionalDependencies": {
     "fsevents": "^2.3.3"
@@ -231,6 +231,7 @@
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "babel-loader": "^8.4.1",
+    "babel-plugin-react-compiler": "^1.0.0",
     "cash-dom": "^8.1.5",
     "concurrently": "^9.2.1",
     "copy-webpack-plugin": "^12.0.2",
@@ -242,6 +243,7 @@
     "electron-builder-squirrel-windows": "^26.8.1",
     "execa": "^9.6.1",
     "html-webpack-plugin": "^5.6.4",
+    "react-compiler-runtime": "^1.0.0",
     "react-log-updates": "^1.0.7",
     "sass": "^1.93.2",
     "showdown": "^2.1.0",
