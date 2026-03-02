@@ -6,7 +6,7 @@ Please note that this project is released with a [Code of Conduct](https://githu
 
 ### Submit an issue
 
-Submitting an issue, be it a bug report or a feature request, is one of the best ways to contribute to this project.
+Submitting an issue, be it a bug report or a feature request, is one of the best ways to contribute to this project. Checking if everything works in your system and if the [latest commits](https://github.com/notable/notable/commits/master) work properly for you are both good ways to find bugs.
 
 Please search existing issues to avoid creating duplicates, we'd rather work on improving Notable than deal with duplicates.
 
@@ -24,10 +24,24 @@ We also consider the number of ":+1:" an issue has when deciding if we are going
 
 We have a [subreddit](https://www.reddit.com/r/notable). Feel free to join us there, discussions not strictly related to the issue tracker are done there.
 
-### Become a sponsor
+### Join the Patreon
 
-At least until Notable becomes self-sustaining I plan to maintain a [Sponsorship page](https://github.com/sponsors/fabiospampinato) on GitHub, feel free to support me there.
+At least until Notable becomes self-sustaining I plan to maintain a [Patreon page](https://www.patreon.com/fabiospampinato), feel free to support me there.
 
 ### Submit a pull request
 
-Even though newer versions of the app are no longer open-source I should still be able to port over most PRs you might want to submit against any of the published open-source versions. Read more about this [here](https://github.com/notable/notable/blob/master/SOURCE_CODE.md).
+Pull requests are especially welcome for issues labeled as [`bug`](https://github.com/notable/notable/issues?q=is%3Aissue+is%3Aopen+label%3Abug) or [`help wanted`](https://github.com/notable/notable/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22). Pull requests for other issues can be considered too but before working on them you should let us know that you'd like to submit one, so that we can tell you if a pull request can be considered for that particular issue, what the pull request should actually implement and how.
+
+Follow these steps in order to get Notable ready for development:
+
+```bash
+git clone https://github.com/notable/notable.git
+cd notable
+npm install
+npm run svelto:dev
+npm run monaco
+npm run iconfont
+npm run tutorial
+npm run dev # Terminal 1
+npm run svelto:dev:watch # Terminal 2
+```
