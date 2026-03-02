@@ -268,7 +268,9 @@ const MarkdownRenderHelpers = {
 
   },
 
-  sanitizeUnsafeHtml ( html: string ): string {
+  sanitizeUnsafeHtml ( html: string, enabled: boolean = true ): string {
+
+    if ( !enabled ) return html;
 
     return html
       .replace ( /<(script|style|title|textarea|xmp|noembed|noframes|plaintext)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '' )

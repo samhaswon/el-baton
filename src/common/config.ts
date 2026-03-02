@@ -29,6 +29,9 @@ const Config = {
   },
   preview: {
     largeDocumentThreshold: 60000,
+    get disableScriptSanitization () {
+      return Config.global.preview.disableScriptSanitization;
+    },
     get largeNoteFullRenderDelay () {
       return Config.global.preview.largeNoteFullRenderDelay;
     }

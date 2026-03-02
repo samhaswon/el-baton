@@ -87,7 +87,7 @@
         - KaTeX is pretty fast, but can still get expensive.
     - [ ] Based on where memoization helps/hurts, adjust the memoziation.
 - [X] Use the React Compiler
-- [ ] Option to turn off script sanitization, with a clear danger warning.
+- [X] Option to turn off script sanitization, with a clear danger warning.
 - [ ] Make local search support:
     - [ ] Regex
     - [ ] Find and replace (including with regex, specifically the match)

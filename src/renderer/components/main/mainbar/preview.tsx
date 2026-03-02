@@ -23,7 +23,7 @@ const isDollarMathDelimiterLine = ( line: string ) => line.trim () === '$$';
 const isBracketMathStartLine = ( line: string ) => line.trim () === '\\[';
 const isBracketMathEndLine = ( line: string ) => line.trim () === '\\]';
 
-const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocused, getMonaco, sourceFilePath, enableWorker = true, largeRenderMode = 'always', syncScroll = false }) => {
+const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocused, getMonaco, sourceFilePath, disableScriptSanitization, enableWorker = true, largeRenderMode = 'always', syncScroll = false }) => {
   const effectiveContent = content,
         isLargeDocument = content.length >= Config.preview.largeDocumentThreshold,
         largeNoteFullRenderDelay = _.clamp ( Number ( Config.preview.largeNoteFullRenderDelay ) || DEFAULT_LARGE_NOTE_FULL_RENDER_DELAY, 0, 5000 ),
@@ -62,8 +62,9 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
     notesExt: Config.notes.ext,
     notesReSource: Config.notes.re.source,
     notesReFlags: Config.notes.re.flags,
+    disableScriptSanitization,
     katex: Config.katex
-  }), [sourceFilePath] );
+  }), [disableScriptSanitization, sourceFilePath] );
 
   React.useEffect ( () => {
     Markdown.setRuntimeConfig ( runtimeConfig );
@@ -435,6 +436,28 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
     $.$window.trigger ( 'preview:rendered', [renderMetaRef.current] );
   }, [html, isRendering] );
 
+  React.useEffect ( () => {
+    if ( isRendering || !disableScriptSanitization ) return;
+
+    const container = resolvedPreviewRef.current;
+
+    if ( !container ) return;
+
+    const scripts = Array.from ( container.querySelectorAll ( '.preview-content script' ) ) as HTMLScriptElement[];
+
+    scripts.forEach ( script => {
+      const replacement = document.createElement ( 'script' );
+
+      for ( let index = 0, l = script.attributes.length; index < l; index++ ) {
+        const attribute = script.attributes[index];
+        replacement.setAttribute ( attribute.name, attribute.value );
+      }
+
+      replacement.textContent = script.textContent;
+      script.replaceWith ( replacement );
+    });
+  }, [disableScriptSanitization, html, isRendering, resolvedPreviewRef] );
+
   const onClick = React.useCallback ( ( event: React.MouseEvent<HTMLDivElement> ) => {
     const container = resolvedPreviewRef.current,
           target = event.target as Element | null,
@@ -478,6 +501,7 @@ export default connect ({
   container: Main,
   selector: ({ container, content, onScroll, onAnchorNavigate, previewRef, enableWorker, largeRenderMode, syncScroll }) => ({
     content: content || container.note.getPlainContent (),
+    disableScriptSanitization: container.appConfig.get ().preview.disableScriptSanitization,
     onScroll,
     onAnchorNavigate,
     previewRef,

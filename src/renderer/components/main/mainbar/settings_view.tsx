@@ -12,6 +12,7 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue }) => {
   const toggleAutoupdate = () => setConfigValue ( 'autoupdate', !config.autoupdate );
   const toggleDisableAnimations = () => setConfigValue ( 'ui.disableAnimations', !config.ui.disableAnimations );
   const toggleMiddleClickPaste = () => setConfigValue ( 'input.disableMiddleClickPaste', !config.input.disableMiddleClickPaste );
+  const toggleDisableScriptSanitization = () => setConfigValue ( 'preview.disableScriptSanitization', !config.preview.disableScriptSanitization );
   const setLargeNoteFullRenderDelay = ( value: string ) => setConfigValue ( 'preview.largeNoteFullRenderDelay', Number ( value ) );
 
   return (
@@ -109,6 +110,19 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue }) => {
                       <option value="2000">2 seconds</option>
                     </select>
                   </div>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label text-warning">Disable script sanitization (Unsafe)</div>
+                  <div className="settings-field-copy xsmall text-warning">Danger: the preview will allow and execute arbitrary JavaScript from note HTML, including inline scripts, event handlers, and unsafe URLs.</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className={`settings-switch ${config.preview.disableScriptSanitization ? 'active' : ''}`} aria-pressed={config.preview.disableScriptSanitization} aria-label="Toggle script sanitization" disabled={!canEdit} onClick={toggleDisableScriptSanitization}>
+                    <span className="settings-switch-ui">
+                      <span className="settings-switch-thumb"></span>
+                    </span>
+                  </button>
                 </div>
               </div>
             </div>

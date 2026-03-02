@@ -26,6 +26,7 @@ type MarkdownRuntimeConfig = {
   notesRe: RegExp;
   notesReSource?: string;
   notesReFlags?: string;
+  disableScriptSanitization: boolean;
   katex: {
     throwOnError: boolean;
     strict: 'ignore' | 'warn' | 'error';
@@ -60,6 +61,7 @@ const Markdown = {
     tagsToken: '@tag',
     notesExt: '.md',
     notesRe: /\.(?:md|mkd|mdwn|mdown|markdown|markdn|mdtxt|mdtext|txt)$/,
+    disableScriptSanitization: false,
     katex: {
       throwOnError: false,
       strict: 'ignore',
@@ -230,7 +232,7 @@ const Markdown = {
           withMacros = MarkdownRenderHelpers.renderMacros ( withBaseTransforms ),
           withFinalTransforms = Markdown.applyTransforms ( withMacros, outputExtensionsAfterMacros as any, 'output' );
 
-    return MarkdownRenderHelpers.sanitizeUnsafeHtml ( withFinalTransforms );
+    return MarkdownRenderHelpers.sanitizeUnsafeHtml ( withFinalTransforms, !Markdown._runtimeConfig.disableScriptSanitization );
 
   },
 
@@ -303,7 +305,7 @@ const Markdown = {
       }
     }
 
-    return MarkdownRenderHelpers.sanitizeUnsafeHtml ( output );
+    return MarkdownRenderHelpers.sanitizeUnsafeHtml ( output, !Markdown._runtimeConfig.disableScriptSanitization );
 
   },
 

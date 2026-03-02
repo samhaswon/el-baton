@@ -36,7 +36,8 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
         disableMiddleClickPaste: false
       },
       preview: {
-        largeNoteFullRenderDelay: 1000
+        largeNoteFullRenderDelay: 1000,
+        disableScriptSanitization: false
       },
       monaco: {
         editorOptions: {
@@ -53,6 +54,7 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
       '  disableMiddleClickPaste: true',
       'preview:',
       '  largeNoteFullRenderDelay: 750',
+      '  disableScriptSanitization: true',
       'monaco:',
       '  editorOptions:',
       '    lineNumbers: relative'
@@ -64,6 +66,7 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
     assert.equal ( config.ui.disableAnimations, true );
     assert.equal ( config.input.disableMiddleClickPaste, true );
     assert.equal ( config.preview.largeNoteFullRenderDelay, 750 );
+    assert.equal ( config.preview.disableScriptSanitization, true );
     assert.equal ( config.monaco.editorOptions.lineNumbers, 'relative' );
 
   });
@@ -93,7 +96,8 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
       disableAnimations: 'yes'
     },
     preview: {
-      largeNoteFullRenderDelay: -40
+      largeNoteFullRenderDelay: -40,
+      disableScriptSanitization: 'yes'
     },
     monaco: {
       editorOptions: {
@@ -106,6 +110,7 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
   assert.equal ( config.ui.disableAnimations, true );
   assert.equal ( config.input.disableMiddleClickPaste, true );
   assert.equal ( config.preview.largeNoteFullRenderDelay, 0 );
+  assert.equal ( config.preview.disableScriptSanitization, true );
   assert.equal ( config.monaco.editorOptions.lineNumbers, 'on' );
 
 });
@@ -123,7 +128,8 @@ test ( 'write: persists normalized config and read returns the saved values', ()
         disableMiddleClickPaste: true
       },
       preview: {
-        largeNoteFullRenderDelay: 1500
+        largeNoteFullRenderDelay: 1500,
+        disableScriptSanitization: true
       },
       monaco: {
         editorOptions: {
@@ -141,6 +147,7 @@ test ( 'write: persists normalized config and read returns the saved values', ()
     assert.equal ( config.ui.disableAnimations, true );
     assert.equal ( config.input.disableMiddleClickPaste, true );
     assert.equal ( config.preview.largeNoteFullRenderDelay, 1500 );
+    assert.equal ( config.preview.disableScriptSanitization, true );
     assert.equal ( config.monaco.editorOptions.lineNumbers, 'relative' );
 
   });

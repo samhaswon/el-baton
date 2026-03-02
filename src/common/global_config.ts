@@ -18,6 +18,7 @@ type GlobalConfigShape = {
   },
   preview: {
     largeNoteFullRenderDelay: number
+    disableScriptSanitization: boolean
   },
   monaco: {
     editorOptions: {
@@ -37,7 +38,8 @@ const DEFAULTS: GlobalConfigShape = {
     disableMiddleClickPaste: false
   },
   preview: {
-    largeNoteFullRenderDelay: 500
+    largeNoteFullRenderDelay: 500,
+    disableScriptSanitization: false
   },
   monaco: {
     editorOptions: {
@@ -80,7 +82,8 @@ const GlobalConfig = {
         disableMiddleClickPaste: DEFAULTS.input.disableMiddleClickPaste
       },
       preview: {
-        largeNoteFullRenderDelay: DEFAULTS.preview.largeNoteFullRenderDelay
+        largeNoteFullRenderDelay: DEFAULTS.preview.largeNoteFullRenderDelay,
+        disableScriptSanitization: DEFAULTS.preview.disableScriptSanitization
       },
       monaco: {
         editorOptions: {
@@ -143,6 +146,10 @@ const GlobalConfig = {
       if ( Number.isFinite ( delay ) ) {
         normalized.preview.largeNoteFullRenderDelay = Math.max ( 0, Math.min ( 5000, Math.round ( delay ) ) );
       }
+    }
+
+    if ( GlobalConfig.isRecord ( config.preview ) && 'disableScriptSanitization' in config.preview ) {
+      normalized.preview.disableScriptSanitization = !!config.preview.disableScriptSanitization;
     }
 
     if ( GlobalConfig.isRecord ( config.monaco ) && GlobalConfig.isRecord ( config.monaco.editorOptions ) && 'lineNumbers' in config.monaco.editorOptions ) {
