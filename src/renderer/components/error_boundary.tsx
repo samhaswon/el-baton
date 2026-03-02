@@ -52,19 +52,22 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, { error?: Error 
 
     if ( !error ) return this.props.children;
 
-    const isMacOS = is.macos;
+    const isMacOS = is.macos,
+          errorCode = ( error as Error & { code?: number } ).code,
+          errorTitle = errorCode ? `Error ${errorCode}` : 'An Error Occurred!';
 
     return (
       <div className="error-boundary app-wrapper layout">
         {!isMacOS ? null : (
           <div className="layout-header titlebar">
-            <span className="title">An Error Occurred!</span>
+            <span className="title">{errorTitle}</span>
           </div>
         )}
         <div className="layout-content container sharp">
           {isMacOS ? null : (
-            <h1 className="text-center">An Error Occurred!</h1>
+            <h1 className="text-center">{errorTitle}</h1>
           )}
+          <h2 className="text-center">{error.message}</h2>
           <pre className="error-stack">{error.stack}</pre>
         </div>
         <div className="layout-footer toolbar">

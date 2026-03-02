@@ -1,6 +1,16 @@
 /* TYPES */
 
 type EmojiEntry = { shortcode: string, emoji?: string };
+type EmojiEasterEggMatch = {
+  encodedShortcode: string;
+  alertNumber: number;
+  message: ( invalidShortcode: string, replacement: string, alertNumber: number ) => string;
+};
+type EmojiEasterEggRule = {
+  invalidMatches: EmojiEasterEggMatch[];
+  replacementShortcode?: string;
+  replacementText?: string;
+};
 
 /* DATA */
 
@@ -279,10 +289,64 @@ const GITHUB_ONLY_SHORTCODES = [
   'trollface'
 ];
 
+const EASTER_EGG_RULES: EmojiEasterEggRule[] = [
+  {
+    invalidMatches: [
+      {
+        encodedShortcode: 'frnubefr',
+        alertNumber: 65,
+        message: ( invalidShortcode, replacement ) => `:${invalidShortcode}: is a myth. Have a ${replacement} instead.`
+      },
+      {
+        encodedShortcode: 'gsovcfgsg',
+        alertNumber: 66,
+        message: ( invalidShortcode, replacement ) => `:${invalidShortcode}: are still a myth. Have a ${replacement} instead.`
+      }
+    ],
+    replacementShortcode: 'unicorn',
+  },
+  {
+    invalidMatches: [
+      {
+        encodedShortcode: 'qrcuna',
+        alertNumber: 9,
+        message: ( invalidShortcode, replacement ) => "Nein!"
+      }
+    ],
+    replacementShortcode: 'skull',
+  },
+  {
+    invalidMatches: [
+      {
+        encodedShortcode: 'certanag_zna',
+        alertNumber: 65,
+        message: ( invalidShortcode, replacement ) => `:${invalidShortcode}: caused a parser error. Using ${replacement} instead.`
+      }
+    ],
+    replacementShortcode: 'pregnant_woman',
+  }
+];
+
 let cachedEntries: EmojiEntry[] | undefined;
 let cachedLookup: Record<string, EmojiEntry> | undefined;
 
 /* HELPERS */
+
+const decodeEasterEggShortcode = ( encodedShortcode: string, alertNumber: number ): string => {
+
+  const normalizedShortcode = String ( encodedShortcode || '' ).trim ().toLowerCase (),
+        shift = alertNumber % 26;
+
+  if ( !normalizedShortcode ) return '';
+  if ( !shift ) return normalizedShortcode;
+
+  return normalizedShortcode.replace ( /[a-z]/g, character => {
+    const code = character.charCodeAt ( 0 ) - 97;
+
+    return String.fromCharCode ( ( ( code - shift + 26 ) % 26 ) + 97 );
+  });
+
+};
 
 const getGemojiEntries = (): EmojiEntry[] => {
 
@@ -399,6 +463,32 @@ const Emoji = {
   getAllShortcodes (): string[] {
 
     return getEntries ().map ( entry => entry.shortcode );
+
+  },
+
+  getEasterEgg ( shortcode: string ): undefined | { invalidShortcode: string, replacement: string, message: string, alertNumber: number } {
+
+    const normalizedShortcode = String ( shortcode || '' ).trim ().toLowerCase ();
+
+    if ( !normalizedShortcode ) return;
+
+    for ( let index = 0, length = EASTER_EGG_RULES.length; index < length; index++ ) {
+      const rule = EASTER_EGG_RULES[index];
+      const invalidMatch = rule.invalidMatches.find ( invalidEntry => decodeEasterEggShortcode ( invalidEntry.encodedShortcode, invalidEntry.alertNumber ) === normalizedShortcode );
+
+      if ( !invalidMatch ) continue;
+
+      const replacement = rule.replacementText || ( rule.replacementShortcode ? Emoji.get ( rule.replacementShortcode ) : '' );
+
+      if ( !replacement ) return;
+
+      return {
+        invalidShortcode: normalizedShortcode,
+        replacement,
+        alertNumber: invalidMatch.alertNumber,
+        message: invalidMatch.message ( normalizedShortcode, replacement, invalidMatch.alertNumber )
+      };
+    }
 
   }
 

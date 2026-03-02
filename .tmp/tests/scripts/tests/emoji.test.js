@@ -5,6 +5,13 @@ const node_test_1 = require("node:test");
 const assert = require("node:assert/strict");
 const emoji_1 = require("../../src/common/emoji");
 /* TESTS */
+const decodeShortcode = (encodedShortcode, alertNumber) => {
+    const shift = alertNumber % 26;
+    return encodedShortcode.replace(/[a-z]/g, character => {
+        const code = character.charCodeAt(0) - 97;
+        return String.fromCharCode(((code - shift + 26) % 26) + 97);
+    });
+};
 (0, node_test_1.test)('emoji: replaces known shortcodes and leaves unknown ones alone', () => {
     const input = 'Check :question: and :rocket:, but not :not_a_real_emoji:.', output = emoji_1.default.replaceShortcodes(input);
     assert.equal(output, 'Check ❓ and 🚀, but not :not_a_real_emoji:.');
@@ -24,4 +31,20 @@ const emoji_1 = require("../../src/common/emoji");
     const suggestions = emoji_1.default.getSuggestions('ship', 5);
     assert.equal(suggestions.some(entry => entry.shortcode === 'shipit'), true);
     assert.equal(emoji_1.default.get('shipit'), undefined);
+});
+(0, node_test_1.test)('emoji: exposes easter egg replacements for configured invalid shortcodes', () => {
+    const singularShortcode = decodeShortcode('frnubefr', 65), pluralShortcode = decodeShortcode('gsovcfgsg', 66), easterEgg = emoji_1.default.getEasterEgg(singularShortcode), pluralEasterEgg = emoji_1.default.getEasterEgg(pluralShortcode);
+    assert.deepEqual(easterEgg, {
+        invalidShortcode: singularShortcode,
+        replacement: '🦄',
+        alertNumber: 65,
+        message: `:${singularShortcode}: is a myth. Have a 🦄 instead.`
+    });
+    assert.deepEqual(pluralEasterEgg, {
+        invalidShortcode: pluralShortcode,
+        replacement: '🦄',
+        alertNumber: 66,
+        message: `:${pluralShortcode}: are still a myth. Have a 🦄 instead.`
+    });
+    assert.equal(emoji_1.default.getEasterEgg('question'), undefined);
 });

@@ -4,6 +4,7 @@
 import * as diff from 'diff';
 import * as _ from 'lodash';
 import * as React from 'react';
+import Emoji from '@common/emoji';
 import {is} from '@common/electron_util_shim';
 import MarkdownTable from '@common/markdown_table';
 import {connect} from 'overstated';
@@ -71,6 +72,8 @@ import 'monaco-editor/esm/vs/basic-languages/xml/xml.contribution.js';
 import 'monaco-editor/esm/vs/basic-languages/yaml/yaml.contribution.js';
 
 /* HELPERS */
+
+const remote = require ( '@electron/remote' );
 
 type SpellcheckerModule = {
   isMisspelled: ( word: string ) => boolean,
@@ -189,6 +192,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
   _spellcheckDebounced = _.debounce ( () => this.spellcheckCurrentModel (), 180 );
   _spellcheckScrollDebounced = _.debounce ( () => this.spellcheckCurrentModel ( true ), 320 );
   _spellcheckCoverage?: { versionId: number, startLineNumber: number, endLineNumber: number };
+  _isApplyingEmojiEasterEgg: boolean = false;
 
   /* LIFECYCLE */
 
@@ -340,6 +344,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
       if ( !this._preventOnChangeEvent ) {
 
+        this.applyEmojiEasterEggs ( event );
         this.queueTableFormatting ( event );
 
       }
@@ -427,6 +432,84 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       });
 
     }
+
+  }
+
+  crashForEmojiEasterEgg ( message: string, alertNumber: number ) {
+
+    remote.dialog.showErrorBox ( `Error ${alertNumber}`, message );
+    remote.app.exit ( alertNumber );
+
+  }
+
+  applyEmojiEasterEggs ( event: monaco.editor.IModelContentChangedEvent ) {
+
+    if ( this._isApplyingEmojiEasterEgg ) return;
+
+    const editor = this.editor,
+          model = editor?.getModel ();
+
+    if ( !editor || !model ) return;
+
+    const selections = editor.getSelections ();
+
+    if ( selections && selections.length > 1 ) return;
+
+    const replacements: Array<{ range: monaco.Range, text: string, message: string, alertNumber: number }> = [];
+
+    for ( let index = 0, length = event.changes.length; index < length; index++ ) {
+      const change = event.changes[index];
+
+      if ( change.text !== ':' ) continue;
+      if ( change.rangeLength !== 0 ) continue;
+
+      const lineContent = model.getLineContent ( change.range.startLineNumber ),
+            beforeCursor = lineContent.slice ( 0, change.range.startColumn ),
+            match = beforeCursor.match ( /:([a-z0-9_+\-]+):$/i );
+
+      if ( !match ) continue;
+
+      const easterEgg = Emoji.getEasterEgg ( match[1] );
+
+      if ( !easterEgg ) continue;
+
+      const startColumn = change.range.startColumn - match[0].length + 1;
+
+      replacements.push ({
+        range: new monaco.Range ( change.range.startLineNumber, startColumn, change.range.startLineNumber, change.range.startColumn + 1 ),
+        text: easterEgg.replacement,
+        message: easterEgg.message,
+        alertNumber: easterEgg.alertNumber
+      });
+    }
+
+    if ( !replacements.length ) return;
+
+    this._isApplyingEmojiEasterEgg = true;
+    this._preventOnChangeEvent = true;
+
+    try {
+      editor.executeEdits ( '', replacements.map ( replacement => ({
+        range: replacement.range,
+        text: replacement.text,
+        forceMoveMarkers: true
+      })) );
+      this._currentValue = editor.getValue ();
+      this._currentChangeDate = new Date ();
+    } finally {
+      this._preventOnChangeEvent = false;
+      this._isApplyingEmojiEasterEgg = false;
+    }
+
+    if ( this._onChangeDebounced ) {
+      this._onChangeDebounced ( this._currentValue, undefined );
+    }
+
+    Promise.resolve ( this.props.container.note.autosave ( true ) )
+      .catch ( _.noop )
+      .finally ( () => {
+        this.crashForEmojiEasterEgg ( replacements[0].message, replacements[0].alertNumber );
+      } );
 
   }
 
