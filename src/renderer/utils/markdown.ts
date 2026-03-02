@@ -51,6 +51,7 @@ const Markdown = {
   _mathPlaceholders: [] as { tex: string, displayMode: boolean }[],
   _katexCache: new Map<string, string> (),
   _katexCacheMax: 3000,
+  _katexCacheMinTexLength: 8,
   _renderAbortName: 'MarkdownRenderAborted',
   _runtimeConfig: {
     cwd: undefined,
@@ -86,8 +87,9 @@ const Markdown = {
 
   renderKatex ( tex: string, displayMode: boolean ): string {
 
-    const cacheKey = `${displayMode ? '1' : '0'}::${tex}`,
-          cached = Markdown._katexCache.get ( cacheKey );
+    const shouldMemoize = MarkdownRenderHelpers.shouldMemoizeKatex ( tex, Markdown._katexCacheMinTexLength ),
+          cacheKey = `${displayMode ? '1' : '0'}::${tex}`,
+          cached = shouldMemoize ? Markdown._katexCache.get ( cacheKey ) : undefined;
 
     if ( _.isString ( cached ) ) {
       // LRU bump
@@ -101,6 +103,8 @@ const Markdown = {
       ...Markdown._runtimeConfig.katex,
       displayMode
     });
+
+    if ( !shouldMemoize ) return rendered;
 
     Markdown._katexCache.set ( cacheKey, rendered );
 

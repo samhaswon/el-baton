@@ -194,6 +194,9 @@ const MarkdownRenderHelpers = {
                 return '';
             return match;
         });
+    },
+    shouldMemoizeKatex(tex, minLength = 0) {
+        return tex.trim().length >= Math.max(0, minLength);
     }
 };
 /* EXPORT */

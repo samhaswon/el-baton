@@ -54,6 +54,19 @@ test ( 'katex placeholders: keeps unknown placeholders unchanged', () => {
 
 });
 
+test ( 'katex memoization threshold: only memoizes expressions at or above the lower bound', () => {
+
+  const minLength = 8;
+
+  assert.equal ( MarkdownRenderHelpers.shouldMemoizeKatex ( 'x^2', minLength ), false );
+  assert.equal ( MarkdownRenderHelpers.shouldMemoizeKatex ( '  x^2  ', minLength ), false );
+  assert.equal ( MarkdownRenderHelpers.shouldMemoizeKatex ( '\\frac{a}{b}', minLength ), true );
+  assert.equal ( MarkdownRenderHelpers.shouldMemoizeKatex ( '1234567', minLength ), false );
+  assert.equal ( MarkdownRenderHelpers.shouldMemoizeKatex ( '12345678', minLength ), true );
+  assert.equal ( MarkdownRenderHelpers.shouldMemoizeKatex ( '   ', 1 ), false );
+
+});
+
 test ( 'katex parsing: keeps escaped currency markers while still replacing adjacent inline math', () => {
 
   const markdown = 'Home price = (\\$ $\\times$ sqft) + (\\$ $\\times$ quality) - $\\pm$',

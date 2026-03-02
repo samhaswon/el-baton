@@ -292,6 +292,12 @@ const MarkdownRenderHelpers = {
         return match;
       });
 
+  },
+
+  shouldMemoizeKatex ( tex: string, minLength: number = 0 ): boolean {
+
+    return tex.trim ().length >= Math.max ( 0, minLength );
+
   }
 
 };

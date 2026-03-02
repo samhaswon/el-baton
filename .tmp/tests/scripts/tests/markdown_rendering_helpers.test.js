@@ -36,6 +36,15 @@ const renderMathPipeline = (markdown) => {
     const html = 'MDKATEXPLACEHOLDER9END', rendered = markdown_render_helpers_1.default.renderKatexPlaceholders(html, [], () => 'nope');
     assert.equal(rendered, html);
 });
+(0, node_test_1.test)('katex memoization threshold: only memoizes expressions at or above the lower bound', () => {
+    const minLength = 8;
+    assert.equal(markdown_render_helpers_1.default.shouldMemoizeKatex('x^2', minLength), false);
+    assert.equal(markdown_render_helpers_1.default.shouldMemoizeKatex('  x^2  ', minLength), false);
+    assert.equal(markdown_render_helpers_1.default.shouldMemoizeKatex('\\frac{a}{b}', minLength), true);
+    assert.equal(markdown_render_helpers_1.default.shouldMemoizeKatex('1234567', minLength), false);
+    assert.equal(markdown_render_helpers_1.default.shouldMemoizeKatex('12345678', minLength), true);
+    assert.equal(markdown_render_helpers_1.default.shouldMemoizeKatex('   ', 1), false);
+});
 (0, node_test_1.test)('katex parsing: keeps escaped currency markers while still replacing adjacent inline math', () => {
     const markdown = 'Home price = (\\$ $\\times$ sqft) + (\\$ $\\times$ quality) - $\\pm$', output = markdown_render_helpers_1.default.replaceMathDelimiters(markdown, (tex, displayMode) => `<math mode="${displayMode ? 'display' : 'inline'}">${tex}</math>`);
     assert.equal(output, 'Home price = (\\$ <math mode="inline">\\times</math> sqft) + (\\$ <math mode="inline">\\times</math> quality) - <math mode="inline">\\pm</math>');

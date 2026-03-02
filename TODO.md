@@ -82,10 +82,7 @@
         - A column formatted `|:-:|` should be turned into `| :-: |`, with the middle hyphen count being determined by the width of the column. Specifically, the maximum character count of the column should line up with the character count of the format specifier (`:-:`) for the column.
         - Similar tests should be done for all column format specifiers.
     - [ ] Add a configurable delay between typing and table formatting.
-- [ ] Add a lower bound to KaTeX memoization.
-    - [ ] Add a test to see roughly where it doesn't matter or even hurts.
-        - KaTeX is pretty fast, but can still get expensive.
-    - [ ] Based on where memoization helps/hurts, adjust the memoziation.
+- [X] Add a lower bound to KaTeX memoization.
 - [X] Use the React Compiler
 - [X] Option to turn off script sanitization, with a clear danger warning.
 - [ ] Make local search support:
