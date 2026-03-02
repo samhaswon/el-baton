@@ -93,6 +93,7 @@
 - [ ] Make notes tabs look like tabs on a manila folder.
 - [ ] Cheat sheets, including for KaTeX supported functions (https://katex.org/docs/supported.html)
 - [ ] Ensure that spell checker localization is a thing. It might be automatic, so this is mostly audit and fix if broken.
+- [ ] Implement a presentation mode similar to whatever pandoc has.
 
 ## Mobile App
 

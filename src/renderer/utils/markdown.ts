@@ -5,7 +5,6 @@ import * as _ from 'lodash';
 import {AllHtmlEntities as entities} from 'html-entities';
 import * as isAbsoluteUrl from 'is-absolute-url';
 import * as path from 'path';
-import * as showdown from 'showdown';
 import MarkdownPath from '@common/markdown_path';
 import MarkdownRenderHelpers from '@common/markdown_render_helpers';
 import AsciiMath from './asciimath';
@@ -15,9 +14,6 @@ import Utils from './utils';
 const cmark = require ( 'cmark-gfm' );
 
 const {encodeFilePath} = Utils;
-
-delete showdown.helper.emojis['octocat']; // Special emoji, removing it
-delete showdown.helper.emojis['showdown']; // Special emoji, removing it
 
 type MarkdownRuntimeConfig = {
   cwd?: string;
@@ -311,6 +307,16 @@ const Markdown = {
 
   },
 
+  renderStripCmark ( str: string ): string {
+
+    const transforms = Markdown.extensions.strip () as MarkdownTransformRule[],
+          preprocessed = Markdown.applyTransforms ( str, transforms, 'language' ),
+          html = cmark.renderHtmlSync ( preprocessed, Markdown._cmarkOptions );
+
+    return Markdown.applyTransforms ( html, transforms, 'output' );
+
+  },
+
   isRenderAbortError ( error: any ): boolean {
 
     return !!error && error.name === Markdown._renderAbortName;
@@ -484,18 +490,16 @@ const Markdown = {
 
     strip () {
 
-      const {emojis} = showdown.helper;
-
       return [
         { // Standalone syntax => Removing all of it
           type: 'language',
           regex: /--+|==+|```+|~~~+/gm,
           replace: () => ''
         },
-        { // Emoji => Rendering it
+        { // Emoji shortcodes => Keep the shortcode readable in plain text
           type: 'language',
           regex: /:(\S+?):/gm,
-          replace: ( match, $1 ) => emojis[$1] || ''
+          replace: ( match, $1 ) => $1
         },
         { // Wrap syntax => Removing only the wrapping syntax
           type: 'language',
@@ -944,40 +948,13 @@ const Markdown = {
 
   converters: {
 
-    preview: _.memoize ( () => {
+    preview: _.memoize ( () => ({
+      makeHtml: ( str: string ) => Markdown.renderPreviewCmark ( str )
+    })),
 
-      const {asciimath2tex, katex, mermaid, mermaidOpenExternal, highlight, copy, checkbox, targetBlankLinks, resolveRelativeLinks, encodeSpecialLinks, attachment, note, tag, noProtocolLinks, wikilink} = Markdown.extensions;
-
-      const converter = new showdown.Converter ({
-        metadata: true,
-        extensions: [asciimath2tex (), katex (), mermaid (), mermaidOpenExternal (), highlight (), copy (), checkbox (), targetBlankLinks (), resolveRelativeLinks (), encodeSpecialLinks (), attachment (), wikilink (), note (), tag (), noProtocolLinks ()]
-      });
-
-      converter.setFlavor ( 'github' );
-
-      converter.setOption ( 'disableForced4SpacesIndentedSublists', true );
-      converter.setOption ( 'ghMentions', false );
-      converter.setOption ( 'smartIndentationFix', true );
-      converter.setOption ( 'smoothLivePreview', true );
-
-      return converter;
-
-    }),
-
-    strip: _.memoize ( () => {
-
-      const {strip} = Markdown.extensions;
-
-      const converter = new showdown.Converter ({
-        metadata: true,
-        extensions: [strip]
-      });
-
-      converter.setFlavor ( 'github' );
-
-      return converter;
-
-    })
+    strip: _.memoize ( () => ({
+      makeHtml: ( str: string ) => Markdown.renderStripCmark ( str )
+    }))
 
   },
 
