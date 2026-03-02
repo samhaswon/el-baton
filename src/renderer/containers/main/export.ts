@@ -3,19 +3,22 @@
 
 import * as _ from 'lodash';
 import critically from 'critically';
-import {ipcRenderer as ipc, remote} from 'electron';
+import {ipcRenderer as ipc} from 'electron';
 import Dialog from 'electron-dialog';
 import * as mime from 'mime-types';
 import * as os from 'os';
 import {Container, autosuspend} from 'overstated';
 import * as path from 'path';
-import stringMatches from 'string-matches';
 import * as sha1 from 'sha1';
 import File from '@renderer/utils/file';
 import Markdown from '@renderer/utils/markdown';
 import Path from '@renderer/utils/path';
 
 /* EXPORT */
+
+declare const __non_webpack_require__: NodeRequire;
+
+const remote = require ( '@electron/remote' );
 
 class Export extends Container<ExportState, MainCTX> {
 
@@ -53,6 +56,25 @@ class Export extends Container<ExportState, MainCTX> {
 
   }
 
+  _stringMatches = ( str: string, re: RegExp ): RegExpExecArray[] => {
+
+    const flags = re.flags.includes ( 'g' ) ? re.flags : `${re.flags}g`,
+          matchRe = new RegExp ( re.source, flags ),
+          matches: RegExpExecArray[] = [];
+
+    let match: RegExpExecArray | null;
+
+    while (( match = matchRe.exec ( str ) )) {
+      matches.push ( match );
+      if ( match.index === matchRe.lastIndex ) {
+        matchRe.lastIndex += 1;
+      }
+    }
+
+    return matches;
+
+  }
+
   /* RENDERERS */
 
   renderers = {
@@ -66,7 +88,7 @@ class Export extends Container<ExportState, MainCTX> {
         `${__static}/css/notable.min.css`
       ]);
 
-      let content = Markdown.render ( note.plainContent, Infinity ),
+      let content = Markdown.render ( note.plainContent, Infinity, notePath ),
           metadata: string[] = [];
 
       if ( options.metadata ) {
@@ -111,7 +133,7 @@ class Export extends Container<ExportState, MainCTX> {
 
       if ( options.base64 ) { // Images
         const re = /<img([^>]*?)src="file:\/\/([^"]*)"/gi;
-        const matches = stringMatches ( html, re );
+        const matches = this._stringMatches ( html, re );
         for ( let match of matches ) {
           const type = mime.lookup ( match[2] );
           const base64 = await File.read ( match[2], 'base64' );
@@ -123,7 +145,7 @@ class Export extends Container<ExportState, MainCTX> {
 
       if ( options.base64 ) { // Fonts
         const re = /url\("?([^)]*?\.woff2[^)]*?)"?\)/gi;
-        const matches = stringMatches ( html, re );
+        const matches = this._stringMatches ( html, re );
         for ( let match of matches ) {
           const filePath = /katex/i.test ( match[1] ) ? __non_webpack_require__.resolve ( `katex/dist/${match[1]}` ): `${__static}/fonts/IconFont.woff2`; // Simply using `require` won't work with WebPack //UGLY
           const base64 = await File.read ( filePath, 'base64' );
@@ -224,7 +246,7 @@ class Export extends Container<ExportState, MainCTX> {
 
   dialog = () => {
 
-    const folderPaths = remote.dialog.showOpenDialog ({
+    const folderPaths = remote.dialog.showOpenDialogSync ({
       title: 'Export Notes',
       buttonLabel : 'Export',
       properties: ['openDirectory', 'createDirectory'],

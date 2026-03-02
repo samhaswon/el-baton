@@ -3,8 +3,7 @@
 
 import * as _ from 'lodash';
 import CallsBatch from 'calls-batch';
-import watcher from 'chokidar-watcher';
-import {remote} from 'electron';
+import watcher from '@renderer/utils/chokidar_watcher';
 import glob from 'tiny-glob';
 import {Container, autosuspend} from 'overstated';
 import Config from '@common/config';
@@ -12,6 +11,8 @@ import File from '@renderer/utils/file';
 import Utils from '@renderer/utils/utils';
 
 /* ATTACHMENTS */
+
+const remote = require ( '@electron/remote' );
 
 class Attachments extends Container<AttachmentsState, MainCTX> {
 
@@ -145,7 +146,7 @@ class Attachments extends Container<AttachmentsState, MainCTX> {
 
   dialog = (): string[] => {
 
-    const filePaths = remote.dialog.showOpenDialog ({
+    const filePaths = remote.dialog.showOpenDialogSync ({
       title: 'Select Files to Add',
       buttonLabel: 'Add',
       properties: ['openFile', 'multiSelections'],

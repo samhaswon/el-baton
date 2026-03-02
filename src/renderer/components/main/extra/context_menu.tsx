@@ -2,23 +2,37 @@
 /* IMPORT */
 
 import * as _ from 'lodash';
-import {MenuItem, MenuItemConstructorOptions} from 'electron';
-import contextMenu from 'electron-context-menu';
+import {MenuItemConstructorOptions} from 'electron';
 import Dialog from 'electron-dialog';
-import {is} from 'electron-util';
+import {is} from '@common/electron_util_shim';
 import {connect} from 'overstated';
 import * as path from 'path';
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js';
 import {Component} from 'react-component-renderless';
 import Main from '@renderer/containers/main';
 import Tags, {TagSpecials} from '@renderer/utils/tags';
 
 /* CONTEXT MENU */
 
+const remote = require ( '@electron/remote' );
+
+type Selector = string | (( x: number, y: number ) => boolean | Element | undefined);
+
+interface ContextMenuConfig {
+  selector: Selector,
+  items: MenuItemConstructorOptions[],
+  itemsUpdater: ( items: MenuItemConstructorOptions[] ) => void
+}
+
 class ContextMenu extends Component<{ container: IMain }, {}> {
 
   /* VARIABLES */
 
   ele; attachment; note; tag; // Globals pointing to the current element/attachment/note/tag object
+  menus: ContextMenuConfig[] = [];
+  _editorSpellMarker?: monaco.editor.IMarker;
+  _editorSpellWord?: string;
+  _editorSpellSuggestions: string[] = [];
 
   /* SPECIAL */
 
@@ -33,6 +47,14 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
     this.initEditorMenu ();
     this.initFallbackMenu ();
 
+    window.addEventListener ( 'contextmenu', this._onContextMenu );
+
+  }
+
+  componentWillUnmount () {
+
+    window.removeEventListener ( 'contextmenu', this._onContextMenu );
+
   }
 
   /* HELPERS */
@@ -45,24 +67,43 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
 
   }
 
-  _makeMenu = ( selector: string | Function = '*', items: MenuItemConstructorOptions[] = [], itemsUpdater = _.noop ) => {
+  _makeMenu = ( selector: Selector = '*', items: MenuItemConstructorOptions[] = [], itemsUpdater = _.noop ) => {
 
-    contextMenu ({
-      prepend: () => items as MenuItem[], //TSC: Looks like a bug in `electron-context-menu`?
-      shouldShowMenu: ( event, { x, y } ) => {
+    this.menus.push ({ selector, items, itemsUpdater });
 
-        const ele = _.isString ( selector ) ? this._getItem ( x, y, selector ) : selector ( x, y );
+  }
 
-        if ( !ele ) return false;
+  _onContextMenu = ( event: MouseEvent ) => {
 
-        this.ele = ele;
+    const x = event.clientX,
+          y = event.clientY;
 
-        itemsUpdater ( items );
+    for ( let menuData of this.menus ) {
 
-        return true;
+      let ele: boolean | Element | undefined;
 
+      if ( _.isString ( menuData.selector ) ) {
+        ele = this._getItem ( x, y, menuData.selector );
+      } else {
+        ele = menuData.selector ( x, y );
       }
-    });
+
+      if ( !ele ) continue;
+
+      this.ele = ( ele === true ) ? event.target as Element : ele;
+
+      menuData.itemsUpdater ( menuData.items );
+
+      if ( menuData.items.length ) {
+        const menu = remote.Menu.buildFromTemplate ( menuData.items );
+        menu.popup ({ window: remote.getCurrentWindow () });
+      }
+
+      event.preventDefault ();
+
+      break;
+
+    }
 
   }
 
@@ -122,7 +163,13 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
 
   initInputMenu = () => {
 
-    this._makeMenu ( ( x, y ) => this._getItem ( x, y, 'input, textarea' ) );
+    this._makeMenu ( ( x, y ) => this._getItem ( x, y, 'input, textarea' ), [
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      { type: 'separator' },
+      { role: 'selectAll' }
+    ]);
 
   }
 
@@ -247,7 +294,7 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
 
   /* UPDATE */
 
-  updateAttachmentMenu = ( items: MenuItem[] ) => {
+  updateAttachmentMenu = ( items: MenuItemConstructorOptions[] ) => {
 
     const fileName = $(this.ele).data ( 'filename' );
 
@@ -255,18 +302,47 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
 
   }
 
-  updateEditorMenu = ( items: MenuItem[] ) => {
+  updateEditorMenu = ( items: MenuItemConstructorOptions[] ) => {
 
     const canCopy = !!this.props.container.editor._getSelectedText (),
-          canPaste = !!this.props.container.clipboard.get ();
+          canPaste = !!this.props.container.clipboard.get (),
+          context = this.getEditorSpellcheckContext ();
 
+    items.length = 3;
     items[0].enabled = canCopy;
     items[1].enabled = canCopy;
     items[2].enabled = canPaste;
 
+    if ( !context ) return;
+
+    this._editorSpellMarker = context.marker;
+    this._editorSpellWord = context.word;
+    this._editorSpellSuggestions = context.suggestions;
+
+    items.push ({ type: 'separator' });
+
+    if ( context.suggestions.length ) {
+      context.suggestions.forEach ( suggestion => {
+        items.push ({
+          label: `Replace with "${suggestion}"`,
+          click: () => this.replaceEditorMarkerWord ( suggestion )
+        });
+      });
+    } else {
+      items.push ({
+        label: 'No suggestions available',
+        enabled: false
+      });
+    }
+
+    items.push ({
+      label: `Add "${context.word}" to Dictionary (Session)`,
+      click: () => this.addWordToSessionDictionary ()
+    });
+
   }
 
-  updateNoteMenu = ( items: MenuItem[] ) => {
+  updateNoteMenu = ( items: MenuItemConstructorOptions[] ) => {
 
     const filePath = $(this.ele).data ( 'filepath' );
 
@@ -284,13 +360,13 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
 
   }
 
-  updateNoteTagMenu = ( items: MenuItem[] ) => {
+  updateNoteTagMenu = ( items: MenuItemConstructorOptions[] ) => {
 
     this.tag = $(this.ele).data ( 'tag' );
 
   }
 
-  updateTagMenu = ( items: MenuItem[] ) => {
+  updateTagMenu = ( items: MenuItemConstructorOptions[] ) => {
 
     this.tag = $(this.ele).data ( 'tag' );
 
@@ -305,9 +381,68 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
 
   }
 
-  updateTrashMenu = ( items: MenuItem[] ) => {
+  updateTrashMenu = ( items: MenuItemConstructorOptions[] ) => {
 
     items[0].enabled = !this.props.container.trash.isEmpty ();
+
+  }
+
+  getEditorSpellcheckContext = (): { marker: monaco.editor.IMarker, word: string, suggestions: string[] } | undefined => {
+
+    const editor = this.props.container.editor.getMonaco ();
+
+    if ( !editor ) return;
+
+    const model = editor.getModel (),
+          position = ( editor as any ).spellcheckContextMenuPosition || editor.getPosition ();
+
+    if ( !model || !position ) return;
+
+    const markers = monaco.editor.getModelMarkers ({ owner: 'spellcheck', resource: model.uri }),
+          marker = markers.find ( marker => (
+            marker.startLineNumber <= position.lineNumber &&
+            marker.endLineNumber >= position.lineNumber &&
+            ( marker.startLineNumber !== position.lineNumber || marker.startColumn <= position.column ) &&
+            ( marker.endLineNumber !== position.lineNumber || marker.endColumn >= position.column )
+          ));
+
+    if ( !marker ) return;
+
+    const wordMatch = marker.message.match ( /Possible misspelling:\s*\"([^\"]+)\"/i ),
+          word = wordMatch ? wordMatch[1] : model.getValueInRange ( new monaco.Range ( marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn ) ),
+          suggestionsMatch = marker.message.match ( /Suggestions:\s*(.+)$/i ),
+          suggestions = suggestionsMatch ? suggestionsMatch[1].split ( /\s*,\s*/g ).filter ( Boolean ) : [];
+
+    if ( !word ) return;
+
+    return { marker, word, suggestions };
+
+  }
+
+  replaceEditorMarkerWord = ( replacement: string ) => {
+
+    const marker = this._editorSpellMarker,
+          editor = this.props.container.editor.getMonaco ();
+
+    if ( !marker || !editor ) return;
+
+    const range = new monaco.Range ( marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn );
+
+    editor.executeEdits ( 'spellcheck', [{ range, text: replacement, forceMoveMarkers: true }] );
+    editor.focus ();
+    editor.spellcheckRescan?.();
+
+  }
+
+  addWordToSessionDictionary = () => {
+
+    const editor = this.props.container.editor.getMonaco (),
+          word = this._editorSpellWord;
+
+    if ( !editor || !word ) return;
+
+    editor.spellcheckAddToDictionary?.( word );
+    editor.spellcheckRescan?.();
 
   }
 

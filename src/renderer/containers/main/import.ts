@@ -1,7 +1,6 @@
 
 /* IMPORT */
 
-import {remote} from 'electron';
 import Dialog from 'electron-dialog';
 import {Container, autosuspend} from 'overstated';
 import * as path from 'path';
@@ -14,6 +13,7 @@ import Path from '@renderer/utils/path';
 /* IMPORT LAZY */
 
 const laxy = require ( 'laxy' ),
+      remote = require ( '@electron/remote' ),
       EnexDump = laxy ( () => require ( 'enex-dump' ) )();
 
 /* IMPORT */
@@ -132,7 +132,7 @@ class Import extends Container<ImportState, MainCTX> {
 
   dialog = (): string[] => {
 
-    const filePaths = remote.dialog.showOpenDialog ({
+    const filePaths = remote.dialog.showOpenDialogSync ({
       title: 'Import Notes',
       buttonLabel: 'Import',
       filters: [

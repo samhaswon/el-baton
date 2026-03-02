@@ -1,20 +1,22 @@
 
 /* IMPORT */
 
-import {ipcRenderer as ipc, remote, shell} from 'electron';
+import {ipcRenderer as ipc, shell} from 'electron';
 import Dialog from 'electron-dialog';
 import * as fs from 'fs';
-import * as mkdirp from 'mkdirp';
 import * as os from 'os';
-import {Container, autosuspend, compose} from 'overstated';
+import {Container, autosuspend} from 'overstated';
 import * as path from 'path';
 import * as pify from 'pify';
 import Config from '@common/config';
 import Settings from '@common/settings';
 import Tutorial from '@renderer/containers/main/tutorial';
+import compose from '@renderer/utils/compose';
 import File from '@renderer/utils/file';
 
 /* CWD */
+
+const remote = require ( '@electron/remote' );
 
 class CWD extends Container<CWDState, CWDCTX> {
 
@@ -44,7 +46,7 @@ class CWD extends Container<CWDState, CWDCTX> {
 
       const hadTutorial = !!Settings.get ( 'tutorial' );
 
-      await pify ( mkdirp )( folderPath );
+      await pify ( fs.mkdir )( folderPath, { recursive: true } );
 
       await pify ( fs.access )( folderPath, fs.constants.F_OK );
 
@@ -96,7 +98,11 @@ class CWD extends Container<CWDState, CWDCTX> {
 
     if ( !cwd ) return Dialog.alert ( 'No data directory set' );
 
-    shell.openItem ( cwd );
+    if (( shell as any ).openPath ) {
+      ( shell as any ).openPath ( cwd );
+    } else {
+      ( shell as any ).openItem ( cwd );
+    }
 
   }
 
@@ -105,7 +111,7 @@ class CWD extends Container<CWDState, CWDCTX> {
     const cwd = Config.cwd,
           defaultPath = cwd ? path.dirname ( cwd ) : os.homedir ();
 
-    const folderPaths = remote.dialog.showOpenDialog ({
+    const folderPaths = remote.dialog.showOpenDialogSync ({
       title: 'Select Data Directory',
       buttonLabel: 'Select',
       properties: ['openDirectory', 'createDirectory', 'showHiddenFiles'],
@@ -124,4 +130,4 @@ class CWD extends Container<CWDState, CWDCTX> {
 
 export default compose ({
   tutorial: Tutorial
-})( CWD ) as ICWD;
+})( CWD ) as unknown as ICWD;

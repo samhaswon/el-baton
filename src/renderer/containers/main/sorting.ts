@@ -4,6 +4,7 @@
 import * as _ from 'lodash';
 import {Container, autosuspend} from 'overstated';
 import Config from '@common/config';
+import NaturalSort from '@common/natural_sort';
 import Settings from '@common/settings';
 import {SortingBys, SortingTypes} from '@renderer/utils/sorting';
 
@@ -80,10 +81,17 @@ class Sorting extends Container<SortingState, MainCTX> {
 
     const iteratee = iteratees[by],
           [pinned, unpinned] = _.partition ( notes, this.ctx.note.isPinned ),
-          pinnedSortedBy = _.sortBy ( pinned, iteratee ),
-          unpinnedSortedBy = _.sortBy ( unpinned, iteratee ),
-          pinnedSortedByType = ( type === SortingTypes.ASC ) ? pinnedSortedBy : pinnedSortedBy.reverse (),
-          unpinnedSortedByType = ( type === SortingTypes.ASC ) ? unpinnedSortedBy : unpinnedSortedBy.reverse ();
+          direction = type === SortingTypes.ASC ? 'ascending' : 'descending',
+          sortByTitle = ( bucket: NoteObj[] ) => NaturalSort.sortBy ( bucket, note => this.ctx.note.getTitle ( note ), direction ),
+          sortBucket = ( bucket: NoteObj[] ) => {
+            if ( by === SortingBys.TITLE ) return sortByTitle ( bucket );
+
+            const sorted = _.sortBy ( bucket, iteratee );
+
+            return type === SortingTypes.ASC ? sorted : sorted.reverse ();
+          },
+          pinnedSortedByType = sortBucket ( pinned ),
+          unpinnedSortedByType = sortBucket ( unpinned );
 
     return pinnedSortedByType.concat ( unpinnedSortedByType );
 

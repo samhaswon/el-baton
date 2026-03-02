@@ -44,11 +44,11 @@ const Utils = {
 
     let iteration = 0;
 
-    return new Promise ( resolve => {
+    return new Promise<Cash | undefined> ( resolve => {
 
       const loop = () => {
 
-        if ( iteration++ >= 2500 ) return resolve (); // Something unexpected probably happened, stop checking
+        if ( iteration++ >= 2500 ) return resolve ( undefined ); // Something unexpected probably happened, stop checking
 
         const $ele = $(selector, context);
 

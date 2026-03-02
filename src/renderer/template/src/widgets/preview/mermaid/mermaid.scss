@@ -5,6 +5,12 @@
 
     text-align: center;
 
+    svg {
+      max-width: 100%;
+      height: auto;
+      background-color: transparent !important;
+    }
+
     text[font-size="14"] { // Otherwise the configurated value does not get set
       font-size: 14px !important;
     }

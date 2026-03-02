@@ -3,6 +3,53 @@
 
 @mixin theme-window-main-sidebar ( $theme ) {
 
+  .activitybar {
+    background-color: map-get( $theme, 'sidebar.background' );
+    color: map-get( $theme, 'sidebar.foreground' );
+    border-right-color: map-get( $theme, 'sidebar.list.item.border' );
+
+    .activitybar-item {
+      border-color: map-get( $theme, 'sidebar.list.item.border' );
+    }
+
+    .activitybar-item:hover,
+    .activitybar-item.active {
+      background-color: map-get( $theme, 'sidebar.list.item.backgroundActive' );
+      opacity: 1;
+    }
+  }
+
+  .sidepanel {
+    background-color: map-get( $theme, 'sidebar.background' );
+    color: map-get( $theme, 'sidebar.foreground' );
+    border-right-color: map-get( $theme, 'sidebar.list.item.border' );
+  }
+
+  .menu-item {
+    color: map-get( $theme, 'sidebar.list.item.foreground' );
+  }
+
+  .menu-item:hover,
+  .menu-item.active {
+    background-color: map-get( $theme, 'sidebar.list.item.backgroundHover' );
+  }
+
+  .sidepanel {
+    .chip {
+      border-color: map-get( $theme, 'sidebar.list.item.border' );
+      background-color: map-get( $theme, 'sidebar.list.item.background' );
+    }
+
+    .info-divider {
+      background-color: map-get( $theme, 'sidebar.list.item.border' );
+    }
+
+    .action:hover,
+    .toc-item:hover {
+      background-color: map-get( $theme, 'sidebar.list.item.backgroundHover' );
+    }
+  }
+
   .sidebar {
 
     background-color: map-get( $theme, 'sidebar.background' );

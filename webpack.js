@@ -3,7 +3,16 @@
 
 const TerserPlugin = require ( 'terser-webpack-plugin' ),
       TSConfigPathsPlugin = require ( 'tsconfig-paths-webpack-plugin' ),
+      path = require ( 'path' ),
       webpack = require ( 'webpack' );
+
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
+const babelPresetEnv = [ '@babel/preset-env', {
+  targets: {
+    electron: '5.0'
+  }
+} ];
 
 /* PLUGINS */
 
@@ -21,12 +30,51 @@ function PluginSkeletonOptimization ( compiler ) { // Loading heavy resources af
 /* CONFIG */
 
 const config = {
+  devtool: isDevelopment ? 'eval-source-map' : false,
+  devServer: {
+    allowedHosts: [ 'localhost', '127.0.0.1' ],
+    disableHostCheck: true
+  },
   resolve: {
     alias: {
-      'react-dom': process.env.NODE_ENV !== 'production' ? '@hot-loader/react-dom' : 'react-dom'
+      'create-react-context': path.resolve ( __dirname, 'src/common/create_react_context_shim.ts' ),
+      'electron-util': path.resolve ( __dirname, 'src/common/electron_util_shim.ts' )
     },
+    extensions: [ '.ts', '.tsx', '.js', '.json' ],
     plugins: [
       new TSConfigPathsPlugin ()
+    ]
+  },
+  module: {
+    rules: [
+      {
+        test: /\.m?js$/,
+        include: /node_modules\/mermaid\/dist/,
+        use: {
+          loader: 'babel-loader',
+          options: {
+            cacheDirectory: true,
+            presets: [
+              babelPresetEnv
+            ]
+          }
+        }
+      },
+      {
+        test: /\.tsx?$/,
+        include: /src/,
+        use: {
+          loader: 'babel-loader',
+          options: {
+            cacheDirectory: true,
+            presets: [
+              babelPresetEnv,
+              '@babel/preset-react',
+              '@babel/preset-typescript'
+            ]
+          }
+        }
+      }
     ]
   },
   plugins: [
@@ -39,7 +87,7 @@ const config = {
     minimizer: [
       new TerserPlugin ({
         parallel: true,
-        sourceMap: true,
+        sourceMap: isDevelopment,
         terserOptions: {
           keep_fnames: true
         }

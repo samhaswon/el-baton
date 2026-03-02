@@ -2,7 +2,6 @@
 /* IMPORT */
 
 import * as fs from 'fs';
-import * as mkdirp from 'mkdirp';
 import * as path from 'path';
 import * as pify from 'pify';
 
@@ -51,7 +50,7 @@ const File = {
 
     if ( e.code === 'ENOENT' ) {
 
-      await pify ( mkdirp )( path.dirname ( filePath ) );
+      await pify ( fs.mkdir )( path.dirname ( filePath ), { recursive: true } );
 
       return method ( ...args );
 

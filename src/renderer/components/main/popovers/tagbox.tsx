@@ -3,17 +3,19 @@
 
 import * as _ from 'lodash';
 import * as React from 'react';
-import * as ReactDOM from 'react-dom';
 
 /* TAGBOXY */
 
 class Tagbox extends React.PureComponent<{ onChange: Function, tags: string[], className?: string }, {}> {
 
   $tagbox;
+  tagboxRef = React.createRef<HTMLDivElement> ();
 
   componentDidMount () {
 
-    this.$tagbox = $(ReactDOM.findDOMNode ( this ));
+    if ( !this.tagboxRef.current ) return;
+
+    this.$tagbox = $(this.tagboxRef.current);
 
     this.$tagbox.widgetize ();
 
@@ -36,7 +38,7 @@ class Tagbox extends React.PureComponent<{ onChange: Function, tags: string[], c
     const {className, tags} = this.props;
 
     return (
-      <div className={`tagbox card-footer bordered ${className || ''}`}>
+      <div ref={this.tagboxRef} className={`tagbox card-footer bordered ${className || ''}`}>
         <input defaultValue={tags} className="hidden" />
         <input autoFocus={true} placeholder="Add tags..." className="tagbox-partial autogrow autofocus compact small" />
       </div>

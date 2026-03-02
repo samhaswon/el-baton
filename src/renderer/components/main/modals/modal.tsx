@@ -2,17 +2,29 @@
 /* IMPORT */
 
 import * as React from 'react';
-import * as ReactDOM from 'react-dom';
 
 /* MODAL */
 
-class Modal extends React.Component<{ open: boolean, onBeforeOpen?: Function, onOpen?: Function, onBeforeClose?: Function, onClose?: Function, className?: string }, {}> {
+type ModalProps = {
+  open: boolean;
+  onBeforeOpen?: Function;
+  onOpen?: Function;
+  onBeforeClose?: Function;
+  onClose?: Function;
+  className?: string;
+  children?: React.ReactNode;
+};
+
+class Modal extends React.Component<ModalProps, {}> {
 
   $modal;
+  modalRef = React.createRef<HTMLDivElement> ();
 
   componentDidMount () {
 
-    this.$modal = $(ReactDOM.findDOMNode ( this ));
+    if ( !this.modalRef.current ) return;
+
+    this.$modal = $(this.modalRef.current);
 
     this.$modal.widgetize ();
 
@@ -33,6 +45,8 @@ class Modal extends React.Component<{ open: boolean, onBeforeOpen?: Function, on
 
   update () {
 
+    if ( !this.$modal ) return;
+
     this.$modal.modal ( 'toggle', this.props.open ).trigger ( 'change' );
 
   }
@@ -42,7 +56,7 @@ class Modal extends React.Component<{ open: boolean, onBeforeOpen?: Function, on
     const {className, children} = this.props;
 
     return (
-      <div className={`modal card bordered ${className || ''}`}>
+      <div ref={this.modalRef} className={`modal card bordered ${className || ''}`}>
         {children}
       </div>
     );

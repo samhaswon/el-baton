@@ -3,7 +3,7 @@
 
 import {app, ipcMain as ipc, Event, Menu, MenuItemConstructorOptions, shell} from 'electron';
 import {autoUpdater as updater} from 'electron-updater';
-import {enforceMacOSAppLocation, is} from 'electron-util';
+import {enforceMacOSAppLocation, is} from '@common/electron_util_shim';
 import * as fs from 'fs';
 import pkg from '@root/package.json';
 import Config from '@common/config';
@@ -67,10 +67,6 @@ class App {
   async initDebug () {
 
     if ( !Environment.isDevelopment ) return;
-
-    const {default: installExtension, REACT_DEVELOPER_TOOLS} = await import ( 'electron-devtools-installer' );
-
-    installExtension ( REACT_DEVELOPER_TOOLS );
 
   }
 

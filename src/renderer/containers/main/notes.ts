@@ -3,7 +3,7 @@
 
 import * as _ from 'lodash';
 import CallsBatch from 'calls-batch';
-import watcher from 'chokidar-watcher';
+import watcher from '@renderer/utils/chokidar_watcher';
 import Dialog from 'electron-dialog';
 import glob from 'tiny-glob';
 import {Container, autosuspend} from 'overstated';

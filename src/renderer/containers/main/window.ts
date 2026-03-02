@@ -1,10 +1,12 @@
 
 /* IMPORT */
 
-import {remote} from 'electron';
 import {Container, autosuspend} from 'overstated';
+import Settings from '@common/settings';
 
 /* WINDOW */
+
+const remote = require ( '@electron/remote' );
 
 class Window extends Container<WindowState, MainCTX> {
 
@@ -13,8 +15,8 @@ class Window extends Container<WindowState, MainCTX> {
   state = {
     focus: false,
     fullscreen: remote.getCurrentWindow ().isFullScreen (),
-    sidebar: true,
-    zen: false
+    sidebar: Settings.get ( 'window.sidebar' ),
+    zen: Settings.get ( 'window.zen' )
   };
 
   /* CONSTRUCTOR */
@@ -61,6 +63,8 @@ class Window extends Container<WindowState, MainCTX> {
 
   toggleZen = ( zen: boolean = !this.state.zen ) => {
 
+    Settings.set ( 'window.zen', zen );
+
     return this.setState ({ zen });
 
   }
@@ -72,6 +76,8 @@ class Window extends Container<WindowState, MainCTX> {
   }
 
   toggleSidebar = ( sidebar: boolean = !this.state.sidebar ) => {
+
+    Settings.set ( 'window.sidebar', sidebar );
 
     return this.setState ({ sidebar });
 

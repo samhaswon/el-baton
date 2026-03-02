@@ -3,6 +3,7 @@
 
 import * as _ from 'lodash';
 import {Container, autosuspend} from 'overstated';
+import Settings from '@common/settings';
 import Utils from '@renderer/utils/utils';
 
 /* EDITOR */
@@ -17,8 +18,8 @@ class Editor extends Container<EditorState, MainCTX> {
 
   state = {
     monaco: undefined as MonacoEditor | undefined,
-    editing: false,
-    split: false
+    editing: Settings.get ( 'editor.editing' ),
+    split: Settings.get ( 'editor.split' )
   };
 
   /* CONSTRUCTOR */
@@ -189,9 +190,13 @@ class Editor extends Container<EditorState, MainCTX> {
 
       if ( !$preview.length || !note ) return;
 
+      const previewNode = $preview[0];
+
+      if ( !previewNode ) return;
+
       return {
         filePath: note.filePath,
-        scrollTop: $preview[0].scrollTop
+        scrollTop: previewNode.scrollTop
       };
 
     },
@@ -202,7 +207,11 @@ class Editor extends Container<EditorState, MainCTX> {
 
       if ( !$preview ) return false;
 
-      $preview[0].scrollTop = state.scrollTop;
+      const previewNode = $preview[0];
+
+      if ( !previewNode ) return false;
+
+      previewNode.scrollTop = state.scrollTop;
 
       return true;
 
@@ -309,6 +318,8 @@ class Editor extends Container<EditorState, MainCTX> {
 
     }
 
+    Settings.set ( 'editor.editing', editing );
+
     return this.setState ({ editing });
 
   }
@@ -329,6 +340,9 @@ class Editor extends Container<EditorState, MainCTX> {
     this.previewingState.save ();
 
     if ( !split ) this.ctx.note.autosave ();
+
+    Settings.set ( 'editor.editing', editing );
+    Settings.set ( 'editor.split', split );
 
     return this.setState ({ editing, split });
 

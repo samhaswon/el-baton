@@ -9,6 +9,13 @@
     border-color: map-get( $theme, 'preview.border' );
     color: map-get( $theme, 'preview.foreground' );
 
+    .preview-loading-state {
+      padding: 12px 8px;
+      font-size: 0.875rem;
+      opacity: 0.75;
+      text-align: center;
+    }
+
     h1,
     h2,
     h3,

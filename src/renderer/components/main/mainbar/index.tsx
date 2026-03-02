@@ -6,9 +6,9 @@ import Content from './content';
 
 /* MAINBAR */
 
-const Mainbar = () => (
+const Mainbar = ({ panel }) => (
   <div className="mainbar layout column">
-    <Content />
+    <Content panel={panel} />
   </div>
 );
 

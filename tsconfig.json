@@ -24,13 +24,18 @@
     "strictFunctionTypes": true,
     "strictNullChecks": true,
     "strictPropertyInitialization": true,
-    "target": "es5",
+    "target": "es2017",
     "paths": {
+      "asciimath2tex/asciimath2tex.js": ["types/asciimath2tex"],
       "@common/*": ["common/*"],
       "@main/*": ["main/*"],
       "@renderer/*": ["renderer/*"],
       "@root/*": ["../*"],
-      "@static/*": ["renderer/template/dist/*"]
+      "@static/*": ["renderer/template/dist/*"],
+      "electron-util": ["common/electron_util_shim"]
     }
-  }
+  },
+  "exclude": [
+    "extracted"
+  ]
 }

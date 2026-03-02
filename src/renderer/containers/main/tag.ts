@@ -38,10 +38,15 @@ class Tag extends Container<TagState, MainCTX> {
 
   get = ( tag: string = this.state.tag ): TagObj | undefined => {
 
-    const tags = tag.split ( SEPARATOR ),
-          obj = tags.reduce ( ( acc, tag ) => acc.tags && acc.tags[tag] || {}, { tags: this.ctx.tags.get () } );
+    const parts = tag.split ( SEPARATOR );
+    let current: any = { tags: this.ctx.tags.get () };
 
-    return _.isEmpty ( obj ) ? undefined : obj as TagObj; //FIXME: This type casting looks wrong
+    for ( const part of parts ) {
+      if ( !current || !current.tags || !current.tags[part] ) return undefined;
+      current = current.tags[part];
+    }
+
+    return current;
 
   }
 
@@ -83,41 +88,28 @@ class Tag extends Container<TagState, MainCTX> {
 
   toggleCollapse = async ( tag: string = this.state.tag, force: boolean = !this.isCollapsed ( tag ) ) => {
 
-    const obj = _.clone ( this.get ( tag ) );
+    const tags = _.cloneDeep ( this.ctx.tags.get () ),
+          parts = tag.split ( SEPARATOR );
 
-    if ( !obj || _.isEmpty ( obj.tags ) ) return;
+    let current: any = { tags };
 
-    obj.collapsed = force;
-
-    const tags = _.clone ( this.ctx.tags.get () ),
-          parentParts = obj.path.split ( SEPARATOR ).slice ( 0, -1 ),
-          parentPartRoot = parentParts[0] || obj.path,
-          parent = parentParts.reduce ( ( acc, tag ) => acc.tags && ( acc.tags[tag] = _.clone ( acc.tags[tag] ) ) || {}, {tags} ); // It's important to clone the parents too
-
-    if ( !_.isEmpty ( parent ) ) {
-
-      if ( tag === TAGS ) {
-
-        parent.tags[TAGS] = obj;
-
-      } else {
-
-        parent.tags[obj.name] = obj;
-
-        const isSpecial = ( tag === NOTEBOOKS ) || ( tag === TEMPLATES ) || tag.startsWith ( `${NOTEBOOKS}${Tags.SEPARATOR}` ) || tag.startsWith ( `${TEMPLATES}${Tags.SEPARATOR}` );
-
-        if ( !isSpecial ) { // It's important to update the TAGS tag too
-
-          tags[TAGS].tags[parentPartRoot] = tags[parentPartRoot];
-          tags[TAGS] = _.clone ( tags[TAGS] );
-
-        }
-
-      }
-
-      await this.ctx.tags.set ( tags );
-
+    for ( const part of parts ) {
+      if ( !current || !current.tags || !current.tags[part] ) return;
+      current = current.tags[part];
     }
+
+    if ( _.isEmpty ( current.tags ) && _.isEmpty ( current.notes ) ) return;
+
+    current.collapsed = force;
+
+    const root = parts[0],
+          isSpecialRoot = [ALL, FAVORITES, NOTEBOOKS, TAGS, TEMPLATES, UNTAGGED, TRASH].includes ( root as any );
+
+    if ( !isSpecialRoot && tags[TAGS] && tags[TAGS].tags && tags[root] ) {
+      tags[TAGS].tags[root] = tags[root]; // Keep mirrored roots in "__TAGS__" in sync
+    }
+
+    await this.ctx.tags.set ( tags );
 
     if ( this.state.tag.startsWith ( `${tag}${Tags.SEPARATOR}` ) ) { // The current tag is inside a collapsed one
 
@@ -131,9 +123,12 @@ class Tag extends Container<TagState, MainCTX> {
 
     if ( !tag ) return;
 
-    if ( _.isString ( tag ) ) return this.scrollTo ( this.get ( tag ) );
+    if ( _.isString ( tag ) ) {
+      $('.list-tags').trigger ( 'scroll-to-item', `tag:${tag}` );
+      return;
+    }
 
-    $('.list-tags').trigger ( 'scroll-to-item', tag );
+    $('.list-tags').trigger ( 'scroll-to-item', `tag:${tag.path}` );
 
   }
 

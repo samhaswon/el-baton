@@ -1,9 +1,161 @@
 
 @mixin theme-window-main-mainbar ( $theme ) {
 
+  $mainbar-bg: map-get( $theme, 'mainbar.background' );
+  $mainbar-fg: map-get( $theme, 'mainbar.foreground' );
+  $mainbar-fg-color: map-get( $theme, 'body.foreground' );
+
+  @if type-of( $mainbar-fg ) == 'color' {
+    $mainbar-fg-color: $mainbar-fg;
+  }
+  $settings-surface: color.mix( $mainbar-fg-color, $mainbar-bg, 14% );
+  $settings-surface-strong: color.mix( $mainbar-fg-color, $mainbar-bg, 18% );
+  $settings-surface-active: #F26D21;
+  $settings-surface-hero-top: color.mix( $mainbar-fg-color, $mainbar-bg, 11% );
+  $settings-surface-hero-bottom: color.mix( $mainbar-fg-color, $mainbar-bg, 8% );
+  $settings-border: color.mix( $mainbar-fg-color, $mainbar-bg, 22% );
+  $settings-border-strong: color.mix( $mainbar-fg-color, $mainbar-bg, 34% );
+  $settings-border-soft: rgba( $mainbar-fg-color, .08 );
+  $settings-muted: rgba( $mainbar-fg-color, .68 );
+  $settings-muted-strong: rgba( $mainbar-fg-color, .82 );
+  $settings-highlight: rgba( $mainbar-fg-color, .03 );
+  $settings-toggle-thumb: #FFFFFF;
+  $settings-is-dark: color.channel( $mainbar-bg, 'lightness', $space: hsl ) < 50;
+
   .mainbar {
-    background-color: map-get( $theme, 'mainbar.background' );
-    color: map-get( $theme, 'mainbar.foreground' );
+    background-color: $mainbar-bg;
+    color: $mainbar-fg;
+
+    .mainbar-pane-info {
+      border-left-color: map-get( $theme, 'middlebar.list.item.border' );
+    }
+
+    .note-tabs {
+      border-bottom-color: map-get( $theme, 'middlebar.list.item.border' );
+    }
+
+    .note-tab {
+      border-color: map-get( $theme, 'middlebar.list.item.border' );
+    }
+
+    .note-tab:hover,
+    .note-tab.active {
+      background-color: map-get( $theme, 'middlebar.list.item.backgroundHover' );
+    }
+
+    .note-tab-close:hover {
+      background-color: map-get( $theme, 'middlebar.list.item.background' );
+    }
+
+    .chip {
+      border-color: map-get( $theme, 'middlebar.list.item.border' );
+      background-color: map-get( $theme, 'middlebar.list.item.background' );
+    }
+
+    .info-divider {
+      background-color: map-get( $theme, 'middlebar.list.item.border' );
+    }
+
+    .settings-section {
+      color: $mainbar-fg;
+    }
+
+    .settings-hero,
+    .settings-group {
+      border-color: $settings-border;
+      background-color: $settings-surface;
+      box-shadow: inset 0 1px 0 $settings-border-soft;
+    }
+
+    .settings-hero {
+      background-image: linear-gradient(180deg, $settings-surface-hero-top 0%, $settings-surface-hero-bottom 100%);
+    }
+
+    .settings-field + .settings-field {
+      border-top-color: $settings-border;
+    }
+
+    .settings-path-block {
+      border-color: $settings-border;
+      background-color: $settings-surface-strong;
+    }
+
+    .settings-section-copy,
+    .settings-copy,
+    .settings-path-label,
+    .settings-field-copy,
+    .settings-footnote,
+    .settings-section-name {
+      color: $settings-muted;
+    }
+
+    .settings-section-name,
+    .settings-label,
+    .settings-hero-title {
+      color: $mainbar-fg;
+    }
+
+    .settings-hero-copy,
+    .settings-path {
+      color: $settings-muted-strong;
+    }
+
+    .settings-field {
+      background-image: linear-gradient(180deg, rgba(255,255,255,0) 0%, $settings-highlight 100%);
+    }
+
+    .settings-switch {
+      color: $mainbar-fg;
+      background-color: transparent;
+    }
+
+    .settings-switch-ui,
+    .settings-select-wrap::after {
+      color: $mainbar-fg;
+    }
+
+    .settings-switch-ui {
+      border-color: $settings-border-strong;
+      background-color: color.mix( $mainbar-fg-color, $mainbar-bg, 28% );
+    }
+
+    .settings-switch-thumb {
+      background-color: $settings-toggle-thumb;
+      box-shadow: 0 1px 2px rgba( 0, 0, 0, .22 );
+    }
+
+    .settings-switch.active .settings-switch-ui {
+      background-color: $settings-surface-active;
+      border-color: rgba( $settings-surface-active, .9 );
+    }
+
+    .settings-select {
+      color: $mainbar-fg;
+      background-color: $settings-surface-strong;
+      border-color: $settings-border;
+      @if $settings-is-dark {
+        color-scheme: dark;
+      } @else {
+        color-scheme: light;
+      }
+    }
+
+    .settings-select option,
+    .settings-select optgroup {
+      color: $mainbar-fg-color;
+      background-color: $settings-surface-strong;
+    }
+
+    .settings-select:focus,
+    .settings-switch:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba( $mainbar-fg-color, .08 );
+    }
+
+    .action:hover,
+    .toc-item:hover {
+      background-color: map-get( $theme, 'middlebar.list.item.backgroundHover' );
+    }
   }
 
 }

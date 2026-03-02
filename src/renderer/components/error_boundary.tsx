@@ -1,14 +1,18 @@
 
 /* IMPORT */
 
-import {is, openNewGitHubIssue} from 'electron-util';
+import {is, openNewGitHubIssue} from '@common/electron_util_shim';
 import * as os from 'os';
 import * as React from 'react';
 import pkg from '@root/package.json';
 
 /* ERROR BOUNDARY */
 
-class ErrorBoundary extends React.Component<{}, { error?: Error }> {
+type ErrorBoundaryProps = {
+  children?: React.ReactNode;
+};
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, { error?: Error }> {
 
   /* STATE */
 

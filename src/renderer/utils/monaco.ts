@@ -7,6 +7,7 @@ import {Command, EditorCommand} from 'monaco-editor/esm/vs/editor/browser/editor
 import {EditorContextKeys} from 'monaco-editor/esm/vs/editor/common/editorContextKeys.js';
 import * as LanguageMarkdown from 'monaco-editor/esm/vs/basic-languages/markdown/markdown.js';
 import * as path from 'path';
+import Config from '@common/config';
 import Settings from '@common/settings';
 import ThemeLight from './monaco_light';
 import ThemeDark from './monaco_dark';
@@ -36,7 +37,7 @@ const Monaco = {
     },
     lineDecorationsWidth: 3,
     lineHeight: 16 * .875 * 1.5,
-    lineNumbers: 'off',
+    lineNumbers: 'on',
     minimap: {
       enabled: Settings.get ( 'monaco.editorOptions.minimap.enabled' )
     },
@@ -52,7 +53,7 @@ const Monaco = {
       verticalScrollbarSize: 12
     },
     scrollBeyondLastColumn: 0,
-    scrollBeyondLastLine: false,
+    scrollBeyondLastLine: true,
     snippetSuggestions: 'none',
     wordWrap: Settings.get ( 'monaco.editorOptions.wordWrap' ),
     wordWrapColumn: 1000000,
@@ -114,7 +115,7 @@ const Monaco = {
 
         Settings.set ( 'monaco.editorOptions.minimap.enabled', Monaco.editorOptions.minimap.enabled );
 
-        editor.updateOptions ( Monaco.editorOptions );
+        editor.updateOptions ( Monaco.getEditorOptions ( editor ) );
 
       }
     },
@@ -134,7 +135,7 @@ const Monaco = {
 
         Settings.set ( 'monaco.editorOptions.wordWrap', Monaco.editorOptions.wordWrap );
 
-        editor.updateOptions ( Monaco.editorOptions );
+        editor.updateOptions ( Monaco.getEditorOptions ( editor ) );
 
       }
     },
@@ -242,6 +243,44 @@ const Monaco = {
 
   }),
 
+  getConfiguredLineNumbersMode (): import ( '@common/global_config' ).MonacoLineNumbersMode {
+
+    const configured = Config.monaco.editorOptions.lineNumbers || Settings.get ( 'monaco.editorOptions.lineNumbers' ),
+          normalized = String ( configured || 'on' ).toLowerCase ();
+
+    if ( normalized === 'off' || normalized === 'relative' || normalized === 'on' ) return normalized;
+
+    return 'on';
+
+  },
+
+  getLineNumbersOption ( editor?: MonacoEditor ): monaco.editor.IEditorOptions['lineNumbers'] {
+
+    const mode = Monaco.getConfiguredLineNumbersMode ();
+
+    if ( mode === 'off' ) return 'off';
+
+    if ( mode === 'relative' ) {
+      return ( lineNumber: number ) => {
+        const currentLine = editor?.getPosition ()?.lineNumber || lineNumber,
+              distance = Math.abs ( currentLine - lineNumber );
+
+        return String ( distance || lineNumber );
+      };
+    }
+
+    return 'on';
+
+  },
+
+  getEditorOptions ( editor?: MonacoEditor ): monaco.editor.IEditorOptions {
+
+    return _.merge ( {}, Monaco.editorOptions, {
+      lineNumbers: Monaco.getLineNumbersOption ( editor )
+    });
+
+  },
+
   initEnvironment () {
 
     self['MonacoEnvironment'] = {
@@ -295,10 +334,93 @@ const Monaco = {
 
   initTokenizers () {
 
-    LanguageMarkdown.language.tokenizer.root.shift ();
-    LanguageMarkdown.language.tokenizer.root.unshift (
+    const tokenizer = LanguageMarkdown.language.tokenizer as any;
+
+    tokenizer.root.shift ();
+    tokenizer.root.unshift (
       [/^(\s{0,3})(#+)((?:[^\\#]|@escapes)+)((?:#+)?)/, ['white', 'keyword.title', 'title', 'keyword.title']],
     );
+
+    // Custom KaTeX/LaTeX fenced blocks in markdown source.
+    tokenizer.root.unshift (
+      [/^\s*~~~\s*(?:katex|latex|tex)\s*$/i, { token: 'keyword.math.fence', next: '@mathblock' }],
+      [/^\s*```\s*(?:katex|latex|tex)\s*$/i, { token: 'keyword.math.fence', next: '@mathblock' }]
+    );
+
+    // Display math blocks delimited by $$ ... $$.
+    tokenizer.root.unshift (
+      [/^\s*\$\$\s*$/, { token: 'keyword.math.fence', next: '@mathdollarblock' }]
+    );
+
+    // Quote blocks should be visually distinct in markdown source.
+    tokenizer.root.unshift (
+      [/^(\s{0,3}> ?)(.*)$/, ['comment.quote', 'string.quote']]
+    );
+
+    // Heading lines containing inline math should still highlight the math span.
+    tokenizer.root.unshift (
+      [/^(\s{0,3}#{1,6}\s(?:[^$\\]|\\.)*?)(\$\$(?:\\.|[^\$\\])+\$\$|\$(?!\$)(?:\\.|[^\$\\])+\$)(.*)$/, ['keyword.title', 'string.math.inline', 'keyword.title']]
+    );
+
+    // Inline math highlighting in markdown source.
+    tokenizer.linecontent.unshift (
+      [/<!--(?:-?[^-]|-[^-])*-->/, 'comment'],
+      [/<\/?(?:[A-Za-z][\w:-]*)(?:\s+[^<>]*?)?\/?>/, 'tag'],
+      [/\\\$/, 'string'],
+      [/\$\$(?!\s*$)/, { token: 'keyword.math.delimiter', next: '@mathinlineblock' }],
+      [/\$(?!\$)/, { token: 'keyword.math.delimiter', next: '@mathinline' }]
+    );
+
+    tokenizer.mathinline = [
+      [/%.*$/, 'comment.math'],
+      [/\\[a-zA-Z@]+/, 'keyword.math'],
+      [/\\./, 'string.escape.math'],
+      [/[{}[\]()]/, 'delimiter.math'],
+      [/-?\d+(?:\.\d+)?/, 'number.math'],
+      [/[&^_=+\-*/<>|]/, 'operator.math'],
+      [/\$(?!\$)/, { token: 'keyword.math.delimiter', next: '@pop' }],
+      [/$/, '', '@pop'],
+      [/[^\\$%{}[\]()&^_=+\-*/<>|0-9]+/, 'string.math'],
+      [/./, 'string.math']
+    ];
+
+    tokenizer.mathinlineblock = [
+      [/%.*$/, 'comment.math'],
+      [/\\[a-zA-Z@]+/, 'keyword.math'],
+      [/\\./, 'string.escape.math'],
+      [/[{}[\]()]/, 'delimiter.math'],
+      [/-?\d+(?:\.\d+)?/, 'number.math'],
+      [/[&^_=+\-*/<>|]/, 'operator.math'],
+      [/\$\$/, { token: 'keyword.math.delimiter', next: '@pop' }],
+      [/$/, '', '@pop'],
+      [/[^\\$%{}[\]()&^_=+\-*/<>|0-9]+/, 'string.math'],
+      [/./, 'string.math']
+    ];
+
+    tokenizer.mathblock = [
+      [/^\s*~~~\s*$/, { token: 'keyword.math.fence', next: '@pop' }],
+      [/^\s*```\s*$/, { token: 'keyword.math.fence', next: '@pop' }],
+      [/%.*$/, 'comment.math'],
+      [/\\[a-zA-Z@]+/, 'keyword.math'],
+      [/\\./, 'string.escape.math'],
+      [/[{}[\]()]/, 'delimiter.math'],
+      [/-?\d+(?:\.\d+)?/, 'number.math'],
+      [/[&^_=+\-*/<>|]/, 'operator.math'],
+      [/[^\\%{}[\]()&^_=+\-*/<>|0-9]+/, 'string.math'],
+      [/./, 'string.math']
+    ];
+
+    tokenizer.mathdollarblock = [
+      [/^\s*\$\$\s*$/, { token: 'keyword.math.fence', next: '@pop' }],
+      [/%.*$/, 'comment.math'],
+      [/\\[a-zA-Z@]+/, 'keyword.math'],
+      [/\\./, 'string.escape.math'],
+      [/[{}[\]()]/, 'delimiter.math'],
+      [/-?\d+(?:\.\d+)?/, 'number.math'],
+      [/[&^_=+\-*/<>|]/, 'operator.math'],
+      [/[^\\%{}[\]()&^_=+\-*/<>|0-9]+/, 'string.math'],
+      [/./, 'string.math']
+    ];
 
   },
 

@@ -1,33 +1,36 @@
 
 /* IMPORT */
 
-import '@static/css/notable.min.css';
-import '@static/javascript/notable.min.js';
-
 import * as React from 'react';
-import {render as renderDOM} from 'react-dom';
-import Identity from 'react-component-identity';
+import {createRoot, Root} from 'react-dom/client';
 import {Router} from 'react-router-static';
 import {Provider} from 'overstated';
-import Environment from '@common/environment';
+import '@static/css/notable.min.css';
+import '@static/javascript/notable.min.js';
 import Routes from './routes';
 import ErrorBoundary from './components/error_boundary';
 
 /* RENDER */
 
+const ROOT_KEY = '__notable_react_root__';
+
 async function render () {
 
-  const AppContainer = Environment.isDevelopment ? ( await import ( 'react-hot-loader' ) ).AppContainer : Identity;
+  const rootElement = document.getElementsByClassName ( 'app' )[0] as HTMLElement | undefined;
 
-  renderDOM (
-    <AppContainer>
+  if ( !rootElement ) return;
+
+  const globalWindow = window as unknown as Window & Record<string, Root | undefined>;
+  const root = globalWindow[ROOT_KEY] || ( globalWindow[ROOT_KEY] = createRoot ( rootElement ) );
+
+  root.render (
+    <>
       <Provider>
         <ErrorBoundary>
           <Router routes={Routes} />
         </ErrorBoundary>
       </Provider>
-    </AppContainer>,
-    document.getElementsByClassName ( 'app' )[0]
+    </>,
   );
 
 }

@@ -25,7 +25,7 @@ class QuickPanel extends Container<QuickPanelState, MainCTX> {
 
   _searchBy = ( query: string ): QuickPanelResults => {
 
-    const notes = this.ctx.search._searchBy ( TagSpecials.ALL, false, query, 'quick-panel' ),
+    const notes = this.ctx.search._searchBy ( this.ctx.tag.getNotes ( TagSpecials.ALL ), 'title', query, 'quick-panel' ),
           attachments = this.ctx.search._filterAttachmentsByQuery ( Object.values ( this.ctx.attachments.get () ), query ); //OPTIMIZE: Optimize attachments search like we are optimizing notes searches
 
     return {

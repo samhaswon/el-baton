@@ -22,13 +22,13 @@ class Search extends React.Component<{ query: string, setQuery: Function, clear:
 
   }
 
-  onChange = _.debounce ( () => {
+  onChange = () => {
 
     if ( !this.ref.current ) return;
 
     this.props.setQuery ( this.ref.current.value );
 
-  }, 25 )
+  }
 
   render () {
 

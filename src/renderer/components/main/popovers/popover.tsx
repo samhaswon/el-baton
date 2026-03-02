@@ -2,17 +2,30 @@
 /* IMPORT */
 
 import * as React from 'react';
-import * as ReactDOM from 'react-dom';
 
 /* POPOVER */
 
-class Popover extends React.Component<{ open: boolean, anchor: string, className?: string, onBeforeOpen?: Function, onOpen?: Function, onBeforeClose?: Function, onClose?: Function }, {}> {
+type PopoverProps = {
+  open: boolean;
+  anchor: string;
+  className?: string;
+  onBeforeOpen?: Function;
+  onOpen?: Function;
+  onBeforeClose?: Function;
+  onClose?: Function;
+  children?: React.ReactNode;
+};
+
+class Popover extends React.Component<PopoverProps, {}> {
 
   $popover;
+  popoverRef = React.createRef<HTMLDivElement> ();
 
   componentDidMount () {
 
-    this.$popover = $(ReactDOM.findDOMNode ( this ));
+    if ( !this.popoverRef.current ) return;
+
+    this.$popover = $(this.popoverRef.current);
     this.$popover.widgetize ();
 
     if ( this.props.onBeforeOpen ) this.$popover.on ( 'popover:beforeopen', this.props.onBeforeOpen );
@@ -32,6 +45,8 @@ class Popover extends React.Component<{ open: boolean, anchor: string, className
 
   update () {
 
+    if ( !this.$popover ) return;
+
     this.$popover.popover ( 'toggle', this.props.open, $(this.props.anchor)[0] ).trigger ( 'change' );
 
   }
@@ -41,7 +56,7 @@ class Popover extends React.Component<{ open: boolean, anchor: string, className
     const {children, className} = this.props;
 
     return (
-      <div className={`popover card bordered ${className || ''}`}>
+      <div ref={this.popoverRef} className={`popover card bordered ${className || ''}`}>
         {children}
       </div>
     );

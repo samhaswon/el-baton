@@ -1,7 +1,6 @@
 
 /* IMPORT */
 
-import {ipcRenderer as ipc} from 'electron';
 import * as React from 'react';
 import {connect} from 'overstated';
 import Main from '@renderer/containers/main';
@@ -9,21 +8,20 @@ import Monaco from './monaco';
 
 /* EDITOR */
 
-class Editor extends React.Component<{ onChange: Function, onUpdate: Function, filePath: string, content: string, theme: string, autosave: Function, getMonaco: Function, setMonaco: Function, hasFocus: Function, forget: Function, focus: Function, save: Function, restore: Function, reset: Function }, {}> {
+class Editor extends React.Component<{ onChange: Function, onUpdate: Function, onScroll?: Function, filePath: string, content: string, theme: string, autosave: Function, getMonaco: Function, setMonaco: Function, hasFocus: Function, forget: Function, focus: Function, save: Function, restore: Function, reset: Function }, {}> {
 
   _wasWindowBlurred: boolean = false;
 
   componentDidMount () {
 
     this.props.focus ();
-
-    ipc.addListener ( 'window-blur', this.__windowBlur );
+    window.addEventListener ( 'blur', this.__windowBlur );
 
   }
 
   componentWillUnmount () {
 
-    ipc.removeListener ( 'window-blur', this.__windowBlur );
+    window.removeEventListener ( 'blur', this.__windowBlur );
 
   }
 
@@ -79,11 +77,13 @@ class Editor extends React.Component<{ onChange: Function, onUpdate: Function, f
 
   }
 
-  __scroll = () => {
+  __scroll = ( event?: any ) => {
 
-    if ( !this.props.getMonaco () || ( !this._wasWindowBlurred && this.props.hasFocus () ) ) return;
+    if ( !this.props.getMonaco () ) return;
 
-    this.props.forget ();
+    if ( this._wasWindowBlurred || !this.props.hasFocus () ) this.props.forget ();
+
+    if ( this.props.onScroll ) this.props.onScroll ( event );
 
   }
 
@@ -111,13 +111,14 @@ class Editor extends React.Component<{ onChange: Function, onUpdate: Function, f
 
 export default connect ({
   container: Main,
-  selector: ({ container, onChange, onUpdate }) => {
+  selector: ({ container, onChange, onUpdate, onScroll }) => {
 
     const note = container.note.get ();
 
     return {
       onChange,
       onUpdate,
+      onScroll,
       filePath: note.filePath,
       content: container.note.getPlainContent ( note ),
       theme: container.theme.get (),

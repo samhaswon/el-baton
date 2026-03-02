@@ -34,7 +34,9 @@ type AttachmentsObj = {
 
 type MonacoEditor = import ( 'monaco-editor/esm/vs/editor/editor.api.js' ).editor.ICodeEditor & {
   getChangeDate: () => Date | undefined,
-  getFilePath: () => string
+  getFilePath: () => string,
+  spellcheckAddToDictionary?: ( word: string ) => Promise<void> | void,
+  spellcheckRescan?: () => Promise<void> | void
 };
 
 type NoteMetadataObj = {
@@ -97,6 +99,11 @@ type TagsObj = {
 
 type AttachmentState = {};
 
+type AppConfigState = {
+  config: import ( '@common/global_config' ).GlobalConfigShape,
+  filePath?: string
+};
+
 type AttachmentsState = {
   attachments: AttachmentsObj
   editing: boolean
@@ -151,7 +158,12 @@ type QuickPanelState = {
 
 type SearchState = {
   query: string,
-  notes: NoteObj[]
+  mode: import ( '@renderer/containers/main/search' ).SearchMode,
+  notes: NoteObj[],
+  results: import ( '@renderer/containers/main/search' ).SearchResult[],
+  localQuery: string,
+  localOpen: boolean,
+  localTarget: 'editor' | 'preview'
 };
 
 type SkeletonState = {};
@@ -193,6 +205,7 @@ type WindowState = {
 
 type MainState = {
   attachment: AttachmentState,
+  appConfig: AppConfigState,
   attachments: AttachmentsState,
   clipboard: ClipboardState,
   editor: EditorState,
@@ -226,6 +239,7 @@ type MainCTX = {
   listen (),
   waitIdle (),
   attachment: import ( '@renderer/containers/main/attachment' ).default,
+  appConfig: import ( '@renderer/containers/main/app_config' ).default,
   attachments: import ( '@renderer/containers/main/attachments' ).default,
   clipboard: import ( '@renderer/containers/main/clipboard' ).default,
   editor: import ( '@renderer/containers/main/editor' ).default,

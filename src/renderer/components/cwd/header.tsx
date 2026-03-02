@@ -2,7 +2,7 @@
 /* IMPORT */
 
 import * as React from 'react';
-import {is} from 'electron-util';
+import {is} from '@common/electron_util_shim';
 
 /* HEADER */
 

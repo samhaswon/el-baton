@@ -4,13 +4,15 @@
 import * as _ from 'lodash';
 import * as path from 'path';
 import {BrowserWindow, BrowserWindowConstructorOptions} from 'electron';
-import {is} from 'electron-util';
+import {is} from '@common/electron_util_shim';
 import * as windowStateKeeper from 'electron-window-state';
 import pkg from '@root/package.json';
 import Environment from '@common/environment';
 import Settings from '@common/settings';
 
 /* WINDOW */
+
+const remoteMain = require ( '@electron/remote/main' );
 
 class Window {
 
@@ -62,9 +64,14 @@ class Window {
 
     this.win.webContents.on ( 'devtools-opened', () => {
 
+      if ( !this.win || this.win.isDestroyed () ) return;
+
       this.win.focus ();
 
-      setImmediate ( () => this.win.focus () );
+      setImmediate ( () => {
+        if ( !this.win || this.win.isDestroyed () ) return;
+        this.win.focus ();
+      });
 
     });
 
@@ -84,7 +91,19 @@ class Window {
 
   cleanup () {
 
-    this.win.removeAllListeners ();
+    const win = this.win;
+
+    if ( !win ) return;
+
+    const webContents = typeof win.isDestroyed === 'function' && !win.isDestroyed () ? win.webContents : undefined;
+
+    if ( webContents && typeof webContents.isDestroyed === 'function' && !webContents.isDestroyed () ) {
+      webContents.removeAllListeners ();
+    }
+
+    if ( typeof win.isDestroyed === 'function' && !win.isDestroyed () ) {
+      win.removeAllListeners ();
+    }
 
   }
 
@@ -97,6 +116,8 @@ class Window {
   }
 
   __didFinishLoad = () => {
+
+    if ( !this.win || this.win.isDestroyed () ) return;
 
     if ( this._didFocus ) return;
 
@@ -117,7 +138,7 @@ class Window {
 
     this.cleanup ();
 
-    delete this.win;
+    delete ( this as any ).win;
 
   }
 
@@ -130,6 +151,8 @@ class Window {
   }
 
   __focused = () => {
+
+    if ( !this.win || this.win.isDestroyed () ) return;
 
     this._didFocus = true;
 
@@ -158,12 +181,18 @@ class Window {
       title: pkg.productName,
       titleBarStyle: 'hiddenInset',
       webPreferences: {
+        devTools: true,
         nodeIntegration: true,
-        webSecurity: false
+        nodeIntegrationInWorker: true,
+        contextIsolation: false,
+        webSecurity: false,
+        spellcheck: true
       }
     }, options );
 
     const win = new BrowserWindow ( options );
+
+    remoteMain.enable ( win.webContents );
 
     state.manage ( win );
 

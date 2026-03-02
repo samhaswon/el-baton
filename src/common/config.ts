@@ -2,14 +2,30 @@
 /* IMPORT */
 
 import * as path from 'path';
+import GlobalConfig from './global_config';
 import Settings from './settings';
 
 /* CONFIG */
 
 const Config = {
-  autoupdate: true,
+  get global () {
+    return GlobalConfig.read ( Config.cwd );
+  },
+  get autoupdate () {
+    return Config.global.autoupdate;
+  },
   get cwd () {
     return Settings.get ( 'cwd' );
+  },
+  input: {
+    get disableMiddleClickPaste () {
+      return Config.global.input.disableMiddleClickPaste;
+    }
+  },
+  preview: {
+    get largeNoteFullRenderDelay () {
+      return Config.global.preview.largeNoteFullRenderDelay;
+    }
   },
   attachments: {
     get path () {
@@ -40,8 +56,16 @@ const Config = {
     by: Settings.get ( 'sorting.by' ),
     type: Settings.get ( 'sorting.type' )
   },
+  monaco: {
+    editorOptions: {
+      get lineNumbers () {
+        return Config.global.monaco.editorOptions.lineNumbers;
+      }
+    }
+  },
   katex: {
-    throwOnError: true,
+    throwOnError: false,
+    strict: 'ignore' as const,
     displayMode: false,
     errorColor: '#F44336'
   },

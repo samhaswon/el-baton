@@ -16,6 +16,7 @@ class Tree extends React.Component<{ children, data: any[], className?: string, 
   listRef = React.createRef<FixedSizeList> ();
   innerRef = React.createRef<HTMLElement> ();
   outerRef = React.createRef<HTMLElement> ();
+  fixedOuterRef = React.createRef<HTMLDivElement> ();
 
   /* STATE */
 
@@ -44,13 +45,17 @@ class Tree extends React.Component<{ children, data: any[], className?: string, 
 
   }
 
-  componentWillReceiveProps ( propsNext ) {
+  componentDidUpdate ( propsPrev ) {
 
-    this.update ( propsNext );
+    if ( propsPrev.data !== this.props.data ) {
+      this.update ( this.props );
+    }
 
   }
 
   shouldComponentUpdate ( propsNext, stateNext ) {
+
+    if ( propsNext.data !== this.props.data ) return true;
 
     return this.state.height !== stateNext.height || !isShallowEqual ( this.state.items, stateNext.items );
 
@@ -60,9 +65,13 @@ class Tree extends React.Component<{ children, data: any[], className?: string, 
 
   scrollToItem = ( event: Event, index: number ) => {
 
-    if ( !this.listRef.current || !this.outerRef.current ) return;
+    const hasVirtualList = !!this.listRef.current && !!this.outerRef.current;
+    const hasFixedList = !!this.fixedOuterRef.current;
 
-    if ( !this.outerRef.current.contains ( event.target as Node ) ) return; //TSC
+    if ( !hasVirtualList && !hasFixedList ) return;
+
+    if ( hasVirtualList && this.outerRef.current && !this.outerRef.current.contains ( event.target as Node ) ) return; //TSC
+    if ( !hasVirtualList && hasFixedList && this.fixedOuterRef.current && !this.fixedOuterRef.current.contains ( event.target as Node ) ) return; //TSC
 
     if ( !_.isNumber ( index ) ) {
 
@@ -72,14 +81,33 @@ class Tree extends React.Component<{ children, data: any[], className?: string, 
 
     }
 
-    this.listRef.current.scrollToItem ( index, 'auto' );
+    if ( hasVirtualList && this.listRef.current ) {
 
-    if ( index === 0 ) { //FIXME: https://github.com/bvaughn/react-window/issues/136
-      setTimeout ( () => {
-        if ( !this.outerRef.current ) return;
-        this.outerRef.current.scrollTop = 0
-      });
+      this.listRef.current.scrollToItem ( index, 'auto' );
+
+      if ( index === 0 ) { //FIXME: https://github.com/bvaughn/react-window/issues/136
+        setTimeout ( () => {
+          if ( !this.outerRef.current ) return;
+          this.outerRef.current.scrollTop = 0
+        });
+      }
+
+      return;
+
     }
+
+    if ( !this.fixedOuterRef.current ) return;
+
+    if ( index === 0 ) {
+      this.fixedOuterRef.current.scrollTop = 0;
+      return;
+    }
+
+    const row = this.fixedOuterRef.current.querySelector ( `.multiple.vertical.joined > *:nth-child(${index + 1})` ) as HTMLElement | null;
+
+    if ( !row ) return;
+
+    row.scrollIntoView ({ block: 'nearest' });
 
   }
 
@@ -107,7 +135,26 @@ class Tree extends React.Component<{ children, data: any[], className?: string, 
 
   getItemIndex = ( item ) => {
 
-    return this.state.items.indexOf ( item );
+    const index = this.state.items.indexOf ( item );
+
+    if ( index >= 0 ) return index;
+
+    if ( this.props.getItemKey ) {
+
+      const getItemKey = this.props.getItemKey,
+            itemKey = _.isObject ( item ) ? getItemKey ( item ) : item;
+
+      if ( !_.isUndefined ( itemKey ) ) {
+        return this.state.items.findIndex ( entry => getItemKey ( entry ) === itemKey );
+      }
+
+    }
+
+    if ( _.isString ( item ) ) {
+      return this.state.items.findIndex ( entry => entry && ( entry.key === item || entry.path === item || entry.filePath === item ) );
+    }
+
+    return -1;
 
   }
 
@@ -236,11 +283,14 @@ class Tree extends React.Component<{ children, data: any[], className?: string, 
     } else if ( isFixed ) {
 
       return (
-        <div className={`tree list ${className || ''}`}>
+        <div ref={this.fixedOuterRef} className={`tree list ${className || ''}`}>
           <div className="multiple vertical joined">
-            {items.map ( ( item, index ) => (
-              createElement ( children, { key: index, item })
-            ))}
+            {items.map ( ( item, index ) => {
+              const itemKey = this.getItemKey ( item );
+              const level = this.getItemLevel ( index );
+              const isLeaf = this.getItemIsLeaf ( index );
+              return createElement ( children, { key: itemKey || index, item, itemKey, level, isLeaf });
+            })}
           </div>
         </div>
       );

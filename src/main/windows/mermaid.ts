@@ -2,7 +2,7 @@
 /* IMPORT */
 
 import {BrowserWindowConstructorOptions, Menu, MenuItemConstructorOptions} from 'electron';
-import {is} from 'electron-util';
+import {is} from '@common/electron_util_shim';
 import * as windowStateKeeper from 'electron-window-state';
 import pkg from '@root/package.json';
 import Environment from '@common/environment';
@@ -47,9 +47,9 @@ class Mermaid extends Route {
           { role: 'cut' },
           { role: 'copy' },
           { role: 'paste' },
-          { role: 'pasteandmatchstyle' },
+          { role: 'pasteAndMatchStyle' },
           { role: 'delete' },
-          { role: 'selectall' },
+          { role: 'selectAll' },
           {
             type: 'separator',
             visible: is.macos
@@ -57,8 +57,8 @@ class Mermaid extends Route {
           {
             label: 'Speech',
             submenu: [
-              { role: 'startspeaking' },
-              { role: 'stopspeaking' }
+              { role: 'startSpeaking' },
+              { role: 'stopSpeaking' }
             ],
             visible: is.macos
           }
@@ -72,16 +72,21 @@ class Mermaid extends Route {
             visible: Environment.isDevelopment
           },
           {
-            role: 'forcereload',
+            role: 'forceReload',
             visible: Environment.isDevelopment
           },
           {
             type: 'separator',
             visible: Environment.isDevelopment
           },
-          { role: 'resetzoom' },
-          { role: 'zoomin' },
-          { role: 'zoomout' }
+          { role: 'resetZoom' },
+          { role: 'zoomIn' },
+          { role: 'zoomOut' },
+          { type: 'separator' },
+          {
+            role: 'toggleDevTools',
+            accelerator: 'Alt+CommandOrControl+I'
+          }
         ]
       },
       {

@@ -3,10 +3,9 @@
 
 import * as _ from 'lodash';
 import {BrowserWindowConstructorOptions, Event, ipcMain as ipc, BrowserWindow, Menu, MenuItemConstructorOptions, shell} from 'electron';
-import {is} from 'electron-util';
+import {is} from '@common/electron_util_shim';
 import * as windowStateKeeper from 'electron-window-state';
 import * as fs from 'fs';
-import * as mkdirp from 'mkdirp';
 import * as path from 'path';
 import pkg from '@root/package.json';
 import Environment from '@common/environment';
@@ -23,6 +22,7 @@ class Main extends Route {
 
   _prevContextFlags: ContextFlags | false = false;
   _prevUpdateCheckTimestamp: number = 0;
+  _isRendererAvailable: boolean = true;
 
   /* CONSTRUCTOR */
 
@@ -103,7 +103,7 @@ class Main extends Route {
             visible: is.macos
           },
           {
-            role: 'hideothers',
+            role: 'hideOthers',
             visible: is.macos
           },
           {
@@ -261,9 +261,9 @@ class Main extends Route {
           { role: 'cut' },
           { role: 'copy' },
           { role: 'paste' },
-          { role: 'pasteandmatchstyle' },
+          { role: 'pasteAndMatchStyle' },
           { role: 'delete' },
-          { role: 'selectall' },
+          { role: 'selectAll' },
           {
             type: 'separator'
           },
@@ -296,8 +296,8 @@ class Main extends Route {
           {
             label: 'Speech',
             submenu: [
-              { role: 'startspeaking' },
-              { role: 'stopspeaking' }
+              { role: 'startSpeaking' },
+              { role: 'stopSpeaking' }
             ],
             visible: is.macos
           }
@@ -311,16 +311,16 @@ class Main extends Route {
             visible: Environment.isDevelopment
           },
           {
-            role: 'forcereload',
+            role: 'forceReload',
             visible: Environment.isDevelopment
           },
           {
             type: 'separator',
             visible: Environment.isDevelopment
           },
-          { role: 'resetzoom' },
-          { role: 'zoomin' },
-          { role: 'zoomout' },
+          { role: 'resetZoom' },
+          { role: 'zoomIn' },
+          { role: 'zoomOut' },
           { type: 'separator' },
           {
             label: 'Toggle Focus Mode',
@@ -438,8 +438,8 @@ class Main extends Route {
           },
           { type: 'separator' },
           {
-            role: 'toggledevtools',
-            accelerator: ''
+            role: 'toggleDevTools',
+            accelerator: 'Alt+CommandOrControl+I'
           }
         ]
       }
@@ -455,13 +455,13 @@ class Main extends Route {
 
     super.events ();
 
-    this.___blur ();
     this.___close ();
-    this.___focus ();
     this.___forceClose ();
     this.___fullscreenEnter ();
     this.___fullscreenLeave ();
     this.___flagsUpdate ();
+    this.___rendererGone ();
+    this.___rendererReady ();
     this.___navigateUrl ();
     this.___printPDF ();
     this.___mermaidOpen ();
@@ -470,28 +470,54 @@ class Main extends Route {
 
   cleanup () {
 
-    super.cleanup ();
-
     ipc.removeListener ( 'force-close', this.__forceClose );
     ipc.removeListener ( 'flags-update', this.__flagsUpdate );
     ipc.removeListener ( 'print-pdf', this.__printPDF );
 
-  }
+    const win = this.win;
+    const webContents = win && typeof win.isDestroyed === 'function' && !win.isDestroyed () ? win.webContents : undefined;
 
-  /* BLUR */
+    if ( webContents && typeof webContents.isDestroyed === 'function' && !webContents.isDestroyed () ) {
+      webContents.removeListener ( 'render-process-gone', this.__rendererGone );
+      webContents.removeListener ( 'did-finish-load', this.__rendererReady );
+    }
 
-  ___blur = () => {
-
-    this.win.on ( 'blur', this.__blur );
-
-  }
-
-  __blur = () => {
-
-    this.win.webContents.send ( 'window-blur' );
+    super.cleanup ();
 
   }
 
+  sendToRenderer = ( channel: string, ...args: any[] ) => {
+
+    if ( !this.win || this.win.isDestroyed () ) return false;
+
+    const webContents = this.win.webContents;
+
+    if ( !webContents || webContents.isDestroyed () || !this._isRendererAvailable ) return false;
+
+    const mainFrame = ( webContents as any ).mainFrame;
+
+    if ( mainFrame ) {
+      if ( typeof mainFrame.isDestroyed === 'function' && mainFrame.isDestroyed () ) return false;
+      if ( typeof mainFrame.isDisposed === 'function' && mainFrame.isDisposed () ) return false;
+    }
+
+    try {
+      if ( mainFrame && typeof mainFrame.send === 'function' ) {
+        mainFrame.send ( channel, ...args );
+      } else {
+        webContents.send ( channel, ...args );
+      }
+      return true;
+    } catch ( error ) {
+      const message = error instanceof Error ? error.message : String ( error );
+
+      if ( /Render frame was disposed/i.test ( message ) ) return false;
+
+      console.error ( `Error sending "${channel}" to renderer:`, error );
+      return false;
+    }
+
+  }
 
   /* CLOSE */
 
@@ -513,21 +539,10 @@ class Main extends Route {
 
     event.preventDefault ();
 
-    this.win.webContents.send ( 'window-close' );
+    if ( this.sendToRenderer ( 'window-close' ) ) return;
 
-  }
-
-  /* FOCUS */
-
-  ___focus = () => {
-
-    this.win.on ( 'focus', this.__focus );
-
-  }
-
-  __focus = () => {
-
-    this.win.webContents.send ( 'window-focus' );
+    this.___close_off ();
+    this.win.close ();
 
   }
 
@@ -557,7 +572,7 @@ class Main extends Route {
 
   __fullscreenEnter = () => {
 
-    this.win.webContents.send ( 'window-fullscreen-set', true );
+    this.sendToRenderer ( 'window-fullscreen-set', true );
 
   }
 
@@ -571,7 +586,7 @@ class Main extends Route {
 
   __fullscreenLeave = () => {
 
-    this.win.webContents.send ( 'window-fullscreen-set', false );
+    this.sendToRenderer ( 'window-fullscreen-set', false );
 
   }
 
@@ -589,21 +604,74 @@ class Main extends Route {
 
   }
 
+  /* RENDERER STATE */
+
+  ___rendererGone = () => {
+
+    this.win.webContents.on ( 'render-process-gone', this.__rendererGone );
+
+  }
+
+  __rendererGone = ( event?: Event, details?: { reason?: string, exitCode?: number } ) => {
+
+    this._isRendererAvailable = false;
+
+    console.error ( '[main] Renderer process gone', {
+      reason: details && details.reason,
+      exitCode: details && details.exitCode
+    } );
+
+  }
+
+  ___rendererReady = () => {
+
+    this.win.webContents.on ( 'did-finish-load', this.__rendererReady );
+
+  }
+
+  __rendererReady = () => {
+
+    this._isRendererAvailable = true;
+
+  }
+
   /* NAVIGATE URL */
 
   ___navigateUrl = () => {
 
-    this.win.webContents.on ( 'new-window', this.__navigateUrl );
+    this.__navigateUrl ();
 
   }
 
-  __navigateUrl = ( event: Event, url: string ) => {
+  __navigateUrl = () => {
 
-    if ( url === this.win.webContents.getURL () ) return;
+    const webContents = this.win.webContents as any;
 
-    event.preventDefault ();
+    if ( webContents.setWindowOpenHandler ) {
 
-    shell.openExternal ( url );
+      webContents.setWindowOpenHandler (({url}: {url: string}) => {
+
+        if ( url !== this.win.webContents.getURL () ) {
+          shell.openExternal ( url );
+        }
+
+        return { action: 'deny' };
+
+      });
+
+    } else {
+
+      ( this.win.webContents as any ).on ( 'new-window', ( event: Event, url: string ) => {
+
+        if ( url === this.win.webContents.getURL () ) return;
+
+        event.preventDefault ();
+
+        shell.openExternal ( url );
+
+      });
+
+    }
 
   }
 
@@ -643,23 +711,43 @@ class Main extends Route {
     };
 
     win.webContents.on ( 'did-finish-load', () => {
-      win.webContents.printToPDF ( optionsPDF, ( err, data ) => {
-        if ( err ) return console.error ( err );
+
+      const onData = ( data: Buffer ) => {
+
         fs.writeFile ( options.dst, data, err => {
-          if ( err ) {
-            if ( err.code === 'ENOENT' ) {
-              mkdirp ( path.dirname ( options.dst ), ( err: Error ) => {
-                if ( err ) return console.error ( err );
-                fs.writeFile ( options.dst, data, err => {
-                  if ( err ) return console.error ( err );
-                });
-              });
-            } else {
-              return console.error ( err );
-            }
+          if ( !err ) {
+            win.destroy ();
+            return;
           }
+          if ( err.code === 'ENOENT' ) {
+            fs.mkdir ( path.dirname ( options.dst ), { recursive: true }, ( err: NodeJS.ErrnoException | null ) => {
+              if ( err ) return console.error ( err );
+              fs.writeFile ( options.dst, data, err => {
+                if ( err ) return console.error ( err );
+                win.destroy ();
+              });
+            });
+            return;
+          }
+          console.error ( err );
+          win.destroy ();
         });
-      });
+
+      };
+
+      const onError = ( err: Error ) => {
+        console.error ( err );
+        win.destroy ();
+      };
+
+      const printToPDF = ( win.webContents as any ).printToPDF;
+
+      if ( printToPDF.length >= 2 ) {
+        printToPDF.call ( win.webContents, optionsPDF, ( err: Error, data: Buffer ) => err ? onError ( err ) : onData ( data ) );
+      } else {
+        printToPDF.call ( win.webContents, optionsPDF ).then ( onData ).catch ( onError );
+      }
+
     });
 
   }

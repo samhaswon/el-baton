@@ -29,7 +29,7 @@ class Route extends Window {
     } else {
 
       this.win.loadURL ( formatURL ({
-        pathname: path.join ( __dirname, 'index.html' ),
+        pathname: path.join ( __dirname, '..', 'renderer', 'index.html' ),
         protocol: 'file',
         slashes: true,
         query: {

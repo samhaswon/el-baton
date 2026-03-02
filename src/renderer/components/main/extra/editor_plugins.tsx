@@ -11,10 +11,12 @@ class EditorPlugins extends Component<{}, {}> {
 
   /* SPECIAL */
 
-  componentWillMount () {
+  componentDidMount () {
 
     $.$window.on ( 'resize', this.__editorUpdate );
     $.$document.on ( 'layoutresizable:resize', this.__editorUpdate );
+
+    this.__editorUpdate ();
 
   }
 

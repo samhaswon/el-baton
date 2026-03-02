@@ -1,11 +1,10 @@
 
 /* IMPORT */
 
-import {is} from 'electron-util';
+import {is} from '@common/electron_util_shim';
 import * as React from 'react';
 import {connect} from 'overstated';
 import Main from '@renderer/containers/main';
-import Search from './toolbar_search';
 import NewButton from './toolbar_button_new';
 
 /* TOOLBAR */
@@ -16,7 +15,7 @@ const Toolbar = ({ isFullscreen, hasSidebar }) => (
       {isFullscreen || hasSidebar || !is.macos ? null : (
         <div className="toolbar-semaphore-spacer"></div>
       )}
-      <Search />
+      <div className="spacer"></div>
       <NewButton />
     </div>
   </div>

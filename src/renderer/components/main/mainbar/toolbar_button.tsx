@@ -6,9 +6,19 @@ import * as React from 'react';
 
 /* TOOLBAR BUTTON */
 
-const ToolbarButton = ({ icon, title, onClick = _.noop, isActive = false, color = '', className = '' }) => (
+type ToolbarButtonProps = {
+  icon?: string;
+  title: string;
+  onClick?: (...args: any[]) => void;
+  isActive?: boolean;
+  color?: string;
+  className?: string;
+  children?: React.ReactNode;
+};
+
+const ToolbarButton = ({ icon, title, onClick = _.noop, isActive = false, color = '', className = '', children }: ToolbarButtonProps ) => (
   <div className={`${isActive ? 'active text-accent' : ''} button bordered xsmall ${color} ${className}`} title={title} onClick={onClick}>
-    <i className="icon">{icon}</i>
+    {children || <i className="icon">{icon}</i>}
   </div>
 );
 

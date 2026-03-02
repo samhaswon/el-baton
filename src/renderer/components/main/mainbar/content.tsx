@@ -8,24 +8,33 @@ import PopoverNoteAttachments from '@renderer/components/main/popovers/popover_n
 import PopoverTagsAttachments from '@renderer/components/main/popovers/popover_note_tags';
 import Editor from './editor';
 import MultiEditor from './multi_editor';
+import NoteTabs from './note_tabs';
 import Preview from './preview';
+import SettingsView from './settings_view';
 import SplitEditor from './split_editor';
+import LocalSearch from './local_search';
 import Toolbar from './toolbar';
 
 /* CONTENT */
 
-const Content = ({ hasNote, isLoading, isEditing, isMultiEditing, isSplit }) => {
+const Content = ({ hasNote, isLoading, isEditing, isMultiEditing, isSplit, panel }) => {
+
+  if ( panel === 'settings' ) return <SettingsView />;
 
   if ( isLoading || !hasNote ) return <Toolbar />;
-
-  if ( isMultiEditing ) return <MultiEditor />;
 
   return (
     <>
       <PopoverNoteAttachments />
       <PopoverTagsAttachments />
       <Toolbar />
-      {isSplit ? <SplitEditor /> : ( isEditing ? <Editor /> : <Preview /> )}
+      <NoteTabs />
+      <LocalSearch />
+      <div className="mainbar-body layout horizontal">
+        <div className="mainbar-pane-main layout column">
+          {isMultiEditing ? <MultiEditor /> : ( isSplit ? <SplitEditor /> : ( isEditing ? <Editor /> : <Preview /> ) )}
+        </div>
+      </div>
     </>
   );
 
@@ -35,7 +44,8 @@ const Content = ({ hasNote, isLoading, isEditing, isMultiEditing, isSplit }) => 
 
 export default connect ({
   container: Main,
-  selector: ({ container }) => ({
+  selector: ({ container, panel }) => ({
+    panel,
     hasNote: !!container.note.get (),
     isLoading: container.loading.get (),
     isEditing: container.editor.isEditing (),

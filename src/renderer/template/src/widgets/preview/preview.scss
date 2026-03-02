@@ -5,8 +5,33 @@
 
   user-select: text !important;
   padding: $preview-spacing !important;
+  padding-bottom: calc(#{$preview-spacing} + 35vh) !important;
   font-size: $preview-font-size;
   line-height: $preview-line-height;
+  position: relative;
+  overflow-anchor: none;
+
+  > .preview-content {
+    min-width: 0;
+    position: relative;
+  }
+
+  > .preview-content > *:first-child {
+    margin-top: 0 !important;
+  }
+
+  > .preview-content > *:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  &.preview-large-document > .preview-content > * {
+    contain: style paint;
+  }
+
+  &.preview-large-document:not(.preview-sync-scroll) > .preview-content > * {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 220px;
+  }
 
   /* SPACING */
 
@@ -235,6 +260,50 @@
     border-left-style: solid;
     margin-left: 0;
     margin-right: 0;
+  }
+
+  /* MACROS */
+
+  .macro-toc {
+    margin-bottom: 16px;
+  }
+
+  .macro-toc-title {
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+
+  .macro-toc-list,
+  .macro-toc-list .macro-toc-list {
+    margin: 0 0 0 1.25em;
+    padding-left: 0.75em;
+  }
+
+  .macro-toc-list {
+    list-style: disc;
+  }
+
+  .macro-toc-list .macro-toc-list {
+    margin-top: 6px;
+  }
+
+  .macro-toc-list li {
+    margin: 0.25em 0;
+  }
+
+  .macro-toc .toc-item {
+    line-height: 1.7;
+    word-break: break-word;
+  }
+
+  hr.pagebreak {
+    margin: 24px 0;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .mermaid-error {
+    margin-bottom: 16px;
   }
 
   blockquote > :first-child {

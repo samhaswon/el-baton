@@ -3,7 +3,8 @@
 
 import * as _ from 'lodash';
 import {ipcRenderer as ipc} from 'electron';
-import {Container, autosuspend, compose} from 'overstated';
+import {Container, autosuspend} from 'overstated';
+import AppConfig from './app_config';
 import Attachment from './attachment';
 import Attachments from './attachments';
 import Clipboard from './clipboard';
@@ -25,6 +26,7 @@ import Themes from './themes';
 import Trash from './trash';
 import Tutorial from './tutorial';
 import Window from './window';
+import compose from '@renderer/utils/compose';
 import File from '@renderer/utils/file';
 import {TagSpecials} from '@renderer/utils/tags';
 
@@ -151,6 +153,8 @@ class Main extends Container<MainState, MainCTX> {
 
   refresh = async () => {
 
+    await this.ctx.appConfig.refresh ();
+
     await this.ctx.theme.update ();
 
     await this.ctx.attachments.refresh ();
@@ -195,6 +199,7 @@ class Main extends Container<MainState, MainCTX> {
 
 export default compose ({
   attachment: Attachment,
+  appConfig: AppConfig,
   attachments: Attachments,
   clipboard: Clipboard,
   editor: Editor,
@@ -215,4 +220,4 @@ export default compose ({
   trash: Trash,
   tutorial: Tutorial,
   window: Window
-})( Main ) as IMain;
+})( Main ) as unknown as IMain;

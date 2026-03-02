@@ -1,7 +1,7 @@
 
 /* IMPORT */
 
-import {is} from 'electron-util';
+import {is} from '@common/electron_util_shim';
 import * as React from 'react';
 import {connect} from 'overstated';
 import Main from '@renderer/containers/main';
