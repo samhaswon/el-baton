@@ -34,6 +34,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
         workerRef = React.useRef<Worker | undefined> ( undefined ),
         workerMsgIdRef = React.useRef<number> ( 0 ),
         activeWorkerMsgIdRef = React.useRef<number | undefined> ( undefined ),
+        mainThreadRenderTokenRef = React.useRef<number> ( 0 ),
         workerPendingRef = React.useRef<Map<number, { resolve: ( html: string ) => void, reject: ( error: any ) => void, timeoutId?: number }>> ( new Map () ),
         workerInitStartedRef = React.useRef<boolean> ( false ),
         workerUnavailableRef = React.useRef<boolean> ( false ),
@@ -134,9 +135,11 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
 
   React.useEffect ( () => {
     return () => {
-      const activeId = activeWorkerMsgIdRef.current;
-      if ( activeId && workerRef.current ) {
-        workerRef.current.postMessage ({ type: 'cancel', id: activeId });
+      mainThreadRenderTokenRef.current++;
+      if ( workerRef.current ) {
+        for ( const id of workerPendingRef.current.keys () ) {
+          workerRef.current.postMessage ({ type: 'cancel', id });
+        }
       }
       rejectPendingWorker ( new Error ( 'Markdown worker terminated' ) );
       workerRef.current?.terminate ();
@@ -146,17 +149,24 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
   }, [rejectPendingWorker] );
 
   const cancelWorkerRender = React.useCallback ( () => {
-    const activeId = activeWorkerMsgIdRef.current;
-    if ( !activeId || !workerRef.current ) return;
-    workerRef.current.postMessage ({ type: 'cancel', id: activeId });
+    mainThreadRenderTokenRef.current++;
+    if ( !workerRef.current ) return;
+    for ( const id of workerPendingRef.current.keys () ) {
+      workerRef.current.postMessage ({ type: 'cancel', id });
+    }
     activeWorkerMsgIdRef.current = undefined;
   }, [] );
 
-  const renderInWorker = React.useCallback ( ( input: string ): Promise<string> => {
+  const renderInWorker = React.useCallback ( ( input: string, abortableOnMainThread: boolean = true ): Promise<string> => {
     const worker = workerRef.current;
 
     if ( !worker ) {
-      return Promise.resolve ( Markdown.render ( input, Infinity, sourceFilePath ) );
+      if ( !abortableOnMainThread ) {
+        return Promise.resolve ( Markdown.render ( input, Infinity, sourceFilePath ) );
+      }
+
+      const renderToken = mainThreadRenderTokenRef.current;
+      return Markdown.renderAsync ( input, Infinity, sourceFilePath, () => renderToken !== mainThreadRenderTokenRef.current );
     }
 
     const id = ++workerMsgIdRef.current;
@@ -354,7 +364,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
             $.$window.trigger ( 'preview:render:start', [renderMeta] );
             let nextHtml: string;
             try {
-              nextHtml = await renderInWorker ( content );
+              nextHtml = await renderInWorker ( content, true );
             } catch ( error ) {
               if ( renderJobId !== renderJobRef.current || Markdown.isRenderAbortError ( error ) ) return;
               console.error ( '[preview] Worker render failed', error );
@@ -391,7 +401,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
         }
       };
       $.$window.trigger ( 'preview:render:start', [renderMetaRef.current] );
-      renderInWorker ( partial.content ).then ( partialHtml => {
+      renderInWorker ( partial.content, false ).then ( partialHtml => {
         if ( renderJobId !== renderJobRef.current ) return;
         setHtml ( partialHtml );
         setIsRendering ( false );
