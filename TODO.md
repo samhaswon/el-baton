@@ -77,9 +77,14 @@
     - [ ] Continue tightening compiler flags like `noImplicitAny` and `strict`.
 - [ ] Automatic table formatting
     - [ ] Auto-format tables
+    - [ ] Unit test for the correct styling. 
+        - Depending on the alignment of the column, the source should be similarly aligned. There will be cases for which this won't fit perfectly, so that should be kept in mind.
+        - A column formatted `|:-:|` should be turned into `| :-: |`, with the middle hyphen count being determined by the width of the column. Specifically, the maximum character count of the column should line up with the character count of the format specifier (`:-:`) for the column.
+        - Similar tests should be done for all column format specifiers.
     - [ ] Add a configurable delay between typing and table formatting.
 - [ ] Add a lower bound to KaTeX memoization.
     - [ ] Add a test to see roughly where it doesn't matter or even hurts.
+        - KaTeX is pretty fast, but can still get expensive.
     - [ ] Based on where memoization helps/hurts, adjust the memoziation.
 - [ ] Use the React Compiler, likely `react-compiler-webpack` for this implementation
 - [ ] Option to turn off script sanitization, with a clear danger warning.
@@ -87,6 +92,7 @@
     - [ ] Regex
     - [ ] Find and replace (including with regex, specifically the match)
 - [ ] More unit tests for things that should be tested
+    - [ ] Make sure footnotes work per the GFM spec.
 
 ## QoL Features
 
@@ -99,7 +105,7 @@
 - [ ] Make notes tabs look like tabs on a manila folder.
 - [ ] Cheat sheets, including for KaTeX supported functions (https://katex.org/docs/supported.html)
 - [ ] Ensure that spell checker localization is a thing. It might be automatic, so this is mostly audit and fix if broken.
-- [ ] Implement a presentation mode similar to whatever pandoc has.
+- [ ] Implement a presentation mode similar to whatever Pandoc has.
 
 ## Mobile App
 
@@ -114,6 +120,7 @@
 - [ ] Custom CSS/JS
 - [ ] Plugins
 - [ ] Double-click in preview places cursor there in the source.
+    - It would be nice if this, at the very least, dropped the cursor on the correct source line. That might be doable with the current scroll synchronization implementation.
 - [ ] Maybe add some kind of OCR if one can be found that's good for creating markdown source.
     - Or maybe just VLLM integration somehow.
     - Pix2tex for KaTeX, possibly as some kind of plugin
