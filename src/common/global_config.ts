@@ -21,6 +21,7 @@ type GlobalConfigShape = {
     disableScriptSanitization: boolean
   },
   monaco: {
+    tableFormattingDelay: number,
     editorOptions: {
       lineNumbers: MonacoLineNumbersMode
     }
@@ -42,6 +43,7 @@ const DEFAULTS: GlobalConfigShape = {
     disableScriptSanitization: false
   },
   monaco: {
+    tableFormattingDelay: 2000,
     editorOptions: {
       lineNumbers: 'on'
     }
@@ -86,6 +88,7 @@ const GlobalConfig = {
         disableScriptSanitization: DEFAULTS.preview.disableScriptSanitization
       },
       monaco: {
+        tableFormattingDelay: DEFAULTS.monaco.tableFormattingDelay,
         editorOptions: {
           lineNumbers: DEFAULTS.monaco.editorOptions.lineNumbers
         }
@@ -150,6 +153,14 @@ const GlobalConfig = {
 
     if ( GlobalConfig.isRecord ( config.preview ) && 'disableScriptSanitization' in config.preview ) {
       normalized.preview.disableScriptSanitization = !!config.preview.disableScriptSanitization;
+    }
+
+    if ( GlobalConfig.isRecord ( config.monaco ) && 'tableFormattingDelay' in config.monaco ) {
+      const delay = Number ( config.monaco.tableFormattingDelay );
+
+      if ( Number.isFinite ( delay ) ) {
+        normalized.monaco.tableFormattingDelay = Math.max ( 0, Math.min ( 5000, Math.round ( delay ) ) );
+      }
     }
 
     if ( GlobalConfig.isRecord ( config.monaco ) && GlobalConfig.isRecord ( config.monaco.editorOptions ) && 'lineNumbers' in config.monaco.editorOptions ) {

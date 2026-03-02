@@ -66,6 +66,9 @@ const Config = {
     type: Settings.get ( 'sorting.type' )
   },
   monaco: {
+    get tableFormattingDelay () {
+      return Config.global.monaco.tableFormattingDelay;
+    },
     editorOptions: {
       get lineNumbers () {
         return Config.global.monaco.editorOptions.lineNumbers;

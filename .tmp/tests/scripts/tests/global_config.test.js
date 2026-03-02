@@ -22,13 +22,18 @@ const withTempDir = (callback) => {
     withTempDir(dirPath => {
         fs.writeFileSync(path.join(dirPath, 'config.json'), JSON.stringify({
             autoupdate: true,
+            ui: {
+                disableAnimations: false
+            },
             input: {
                 disableMiddleClickPaste: false
             },
             preview: {
-                largeNoteFullRenderDelay: 1000
+                largeNoteFullRenderDelay: 1000,
+                disableScriptSanitization: false
             },
             monaco: {
+                tableFormattingDelay: 1000,
                 editorOptions: {
                     lineNumbers: 'off'
                 }
@@ -36,18 +41,25 @@ const withTempDir = (callback) => {
         }), 'utf8');
         fs.writeFileSync(path.join(dirPath, '.notable.yml'), [
             'autoupdate: false',
+            'ui:',
+            '  disableAnimations: true',
             'input:',
             '  disableMiddleClickPaste: true',
             'preview:',
             '  largeNoteFullRenderDelay: 750',
+            '  disableScriptSanitization: true',
             'monaco:',
+            '  tableFormattingDelay: 2000',
             '  editorOptions:',
             '    lineNumbers: relative'
         ].join('\n'), 'utf8');
         const config = global_config_1.default.read(dirPath);
         assert.equal(config.autoupdate, false);
+        assert.equal(config.ui.disableAnimations, true);
         assert.equal(config.input.disableMiddleClickPaste, true);
         assert.equal(config.preview.largeNoteFullRenderDelay, 750);
+        assert.equal(config.preview.disableScriptSanitization, true);
+        assert.equal(config.monaco.tableFormattingDelay, 2000);
         assert.equal(config.monaco.editorOptions.lineNumbers, 'relative');
     });
 });
@@ -63,31 +75,44 @@ const withTempDir = (callback) => {
         input: {
             disableMiddleClickPaste: 'yes'
         },
+        ui: {
+            disableAnimations: 'yes'
+        },
         preview: {
-            largeNoteFullRenderDelay: -40
+            largeNoteFullRenderDelay: -40,
+            disableScriptSanitization: 'yes'
         },
         monaco: {
+            tableFormattingDelay: 9000,
             editorOptions: {
                 lineNumbers: 'vim'
             }
         }
     });
     assert.equal(config.autoupdate, false);
+    assert.equal(config.ui.disableAnimations, true);
     assert.equal(config.input.disableMiddleClickPaste, true);
     assert.equal(config.preview.largeNoteFullRenderDelay, 0);
+    assert.equal(config.preview.disableScriptSanitization, true);
+    assert.equal(config.monaco.tableFormattingDelay, 5000);
     assert.equal(config.monaco.editorOptions.lineNumbers, 'on');
 });
 (0, node_test_1.test)('write: persists normalized config and read returns the saved values', () => {
     withTempDir(dirPath => {
         const filePath = global_config_1.default.write(dirPath, {
             autoupdate: false,
+            ui: {
+                disableAnimations: true
+            },
             input: {
                 disableMiddleClickPaste: true
             },
             preview: {
-                largeNoteFullRenderDelay: 1500
+                largeNoteFullRenderDelay: 1500,
+                disableScriptSanitization: true
             },
             monaco: {
+                tableFormattingDelay: 3000,
                 editorOptions: {
                     lineNumbers: 'relative'
                 }
@@ -97,8 +122,11 @@ const withTempDir = (callback) => {
         assert.equal(fs.existsSync(filePath), true);
         const config = global_config_1.default.read(dirPath);
         assert.equal(config.autoupdate, false);
+        assert.equal(config.ui.disableAnimations, true);
         assert.equal(config.input.disableMiddleClickPaste, true);
         assert.equal(config.preview.largeNoteFullRenderDelay, 1500);
+        assert.equal(config.preview.disableScriptSanitization, true);
+        assert.equal(config.monaco.tableFormattingDelay, 3000);
         assert.equal(config.monaco.editorOptions.lineNumbers, 'relative');
     });
 });

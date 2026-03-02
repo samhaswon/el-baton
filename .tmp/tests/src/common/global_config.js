@@ -7,13 +7,18 @@ const js_yaml_1 = require("js-yaml");
 /* GLOBAL CONFIG */
 const DEFAULTS = {
     autoupdate: true,
+    ui: {
+        disableAnimations: false
+    },
     input: {
         disableMiddleClickPaste: false
     },
     preview: {
-        largeNoteFullRenderDelay: 500
+        largeNoteFullRenderDelay: 500,
+        disableScriptSanitization: false
     },
     monaco: {
+        tableFormattingDelay: 2000,
         editorOptions: {
             lineNumbers: 'on'
         }
@@ -39,13 +44,18 @@ const GlobalConfig = {
     cloneDefaults() {
         return {
             autoupdate: DEFAULTS.autoupdate,
+            ui: {
+                disableAnimations: DEFAULTS.ui.disableAnimations
+            },
             input: {
                 disableMiddleClickPaste: DEFAULTS.input.disableMiddleClickPaste
             },
             preview: {
-                largeNoteFullRenderDelay: DEFAULTS.preview.largeNoteFullRenderDelay
+                largeNoteFullRenderDelay: DEFAULTS.preview.largeNoteFullRenderDelay,
+                disableScriptSanitization: DEFAULTS.preview.disableScriptSanitization
             },
             monaco: {
+                tableFormattingDelay: DEFAULTS.monaco.tableFormattingDelay,
                 editorOptions: {
                     lineNumbers: DEFAULTS.monaco.editorOptions.lineNumbers
                 }
@@ -78,6 +88,9 @@ const GlobalConfig = {
         if ('autoupdate' in config) {
             normalized.autoupdate = !!config.autoupdate;
         }
+        if (GlobalConfig.isRecord(config.ui) && 'disableAnimations' in config.ui) {
+            normalized.ui.disableAnimations = !!config.ui.disableAnimations;
+        }
         if (GlobalConfig.isRecord(config.input) && 'disableMiddleClickPaste' in config.input) {
             normalized.input.disableMiddleClickPaste = !!config.input.disableMiddleClickPaste;
         }
@@ -85,6 +98,15 @@ const GlobalConfig = {
             const delay = Number(config.preview.largeNoteFullRenderDelay);
             if (Number.isFinite(delay)) {
                 normalized.preview.largeNoteFullRenderDelay = Math.max(0, Math.min(5000, Math.round(delay)));
+            }
+        }
+        if (GlobalConfig.isRecord(config.preview) && 'disableScriptSanitization' in config.preview) {
+            normalized.preview.disableScriptSanitization = !!config.preview.disableScriptSanitization;
+        }
+        if (GlobalConfig.isRecord(config.monaco) && 'tableFormattingDelay' in config.monaco) {
+            const delay = Number(config.monaco.tableFormattingDelay);
+            if (Number.isFinite(delay)) {
+                normalized.monaco.tableFormattingDelay = Math.max(0, Math.min(5000, Math.round(delay)));
             }
         }
         if (GlobalConfig.isRecord(config.monaco) && GlobalConfig.isRecord(config.monaco.editorOptions) && 'lineNumbers' in config.monaco.editorOptions) {

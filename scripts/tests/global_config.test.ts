@@ -40,6 +40,7 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
         disableScriptSanitization: false
       },
       monaco: {
+        tableFormattingDelay: 1000,
         editorOptions: {
           lineNumbers: 'off'
         }
@@ -56,6 +57,7 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
       '  largeNoteFullRenderDelay: 750',
       '  disableScriptSanitization: true',
       'monaco:',
+      '  tableFormattingDelay: 2000',
       '  editorOptions:',
       '    lineNumbers: relative'
     ].join ( '\n' ), 'utf8' );
@@ -67,6 +69,7 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
     assert.equal ( config.input.disableMiddleClickPaste, true );
     assert.equal ( config.preview.largeNoteFullRenderDelay, 750 );
     assert.equal ( config.preview.disableScriptSanitization, true );
+    assert.equal ( config.monaco.tableFormattingDelay, 2000 );
     assert.equal ( config.monaco.editorOptions.lineNumbers, 'relative' );
 
   });
@@ -100,6 +103,7 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
       disableScriptSanitization: 'yes'
     },
     monaco: {
+      tableFormattingDelay: 9000,
       editorOptions: {
         lineNumbers: 'vim'
       }
@@ -111,6 +115,7 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
   assert.equal ( config.input.disableMiddleClickPaste, true );
   assert.equal ( config.preview.largeNoteFullRenderDelay, 0 );
   assert.equal ( config.preview.disableScriptSanitization, true );
+  assert.equal ( config.monaco.tableFormattingDelay, 5000 );
   assert.equal ( config.monaco.editorOptions.lineNumbers, 'on' );
 
 });
@@ -132,6 +137,7 @@ test ( 'write: persists normalized config and read returns the saved values', ()
         disableScriptSanitization: true
       },
       monaco: {
+        tableFormattingDelay: 3000,
         editorOptions: {
           lineNumbers: 'relative'
         }
@@ -148,6 +154,7 @@ test ( 'write: persists normalized config and read returns the saved values', ()
     assert.equal ( config.input.disableMiddleClickPaste, true );
     assert.equal ( config.preview.largeNoteFullRenderDelay, 1500 );
     assert.equal ( config.preview.disableScriptSanitization, true );
+    assert.equal ( config.monaco.tableFormattingDelay, 3000 );
     assert.equal ( config.monaco.editorOptions.lineNumbers, 'relative' );
 
   });

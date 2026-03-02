@@ -1,9 +1,11 @@
 
 /* IMPORT */
 
+import * as diff from 'diff';
 import * as _ from 'lodash';
 import * as React from 'react';
 import {is} from '@common/electron_util_shim';
+import MarkdownTable from '@common/markdown_table';
 import {connect} from 'overstated';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js';
 import Main from '@renderer/containers/main';
@@ -161,6 +163,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
   static SPELLCHECK_MAX_CONTENT_LENGTH = 40000;
   static SPELLCHECK_VISIBLE_LINE_BUFFER = 50;
+  static TABLE_FORMAT_DELAY = 2000;
 
   /* VARIABLES */
 
@@ -170,6 +173,8 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
   _currentChangeDate: Date | undefined = undefined;
   _preventOnChangeEvent: boolean = false;
   _onChangeDebounced?: Function;
+  _tableFormatTouchedLines = new Set<number> ();
+  _tableFormatTimeout?: number;
   _zoneTopId?: number;
   _spellcheckWorker?: Worker;
   _spellcheckWorkerInitAttempted: boolean = false;
@@ -226,6 +231,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
     $.$window.off ( 'monaco:update', this.editorUpdateDebounced );
 
+    this.clearTableFormatTimeout ();
     this.cleanupSpellcheck ();
     this.destroyMonaco ();
 
@@ -274,6 +280,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       delete this._zoneTopId; // Zones are reset when changing the model
 
       this.editorUpdate ();
+      this._tableFormatTouchedLines.clear ();
       this.resetSpellcheckCoverage ();
       this._spellcheckDebounced ();
 
@@ -327,6 +334,12 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       if ( this._onChangeDebounced && !this._preventOnChangeEvent ) {
 
         this._onChangeDebounced ( value, event );
+
+      }
+
+      if ( !this._preventOnChangeEvent ) {
+
+        this.queueTableFormatting ( event );
 
       }
 
@@ -413,6 +426,258 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       });
 
     }
+
+  }
+
+  queueTableFormatting ( event: monaco.editor.IModelContentChangedEvent ) {
+
+    const model = this.editor?.getModel ();
+
+    if ( !model ) return;
+
+    for ( let index = 0, length = event.changes.length; index < length; index++ ) {
+      const change = event.changes[index],
+            startLineNumber = Math.max ( 1, change.range.startLineNumber - 1 ),
+            endLineNumber = Math.min ( model.getLineCount (), change.range.endLineNumber + 1 );
+
+      for ( let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++ ) {
+        this._tableFormatTouchedLines.add ( lineNumber );
+      }
+    }
+
+    if ( !this._tableFormatTouchedLines.size ) return;
+
+    this.clearTableFormatTimeout ();
+
+    this._tableFormatTimeout = window.setTimeout ( () => {
+      this._tableFormatTimeout = undefined;
+      this.formatTouchedTables ();
+    }, this.getTableFormattingDelay () );
+
+  }
+
+  clearTableFormatTimeout () {
+
+    if ( !this._tableFormatTimeout ) return;
+
+    window.clearTimeout ( this._tableFormatTimeout );
+    this._tableFormatTimeout = undefined;
+
+  }
+
+  getTableFormattingDelay (): number {
+
+    const configuredDelay = Number ( this.props.container.appConfig.get ().monaco.tableFormattingDelay );
+
+    if ( !Number.isFinite ( configuredDelay ) ) return Monaco.TABLE_FORMAT_DELAY;
+
+    return _.clamp ( Math.round ( configuredDelay ), 0, 5000 );
+
+  }
+
+  formatTouchedTables () {
+
+    const editor = this.editor,
+          model = editor?.getModel ();
+
+    if ( !editor || !model || !this._tableFormatTouchedLines.size ) return;
+
+    const lines = Array.from ({ length: model.getLineCount () }, ( _value, index ) => model.getLineContent ( index + 1 ) ),
+          touchedLineNumbers = Array.from ( this._tableFormatTouchedLines ).sort ( ( a, b ) => a - b ),
+          blocks: monaco.Range[] = [],
+          seenBlocks = new Set<string> ();
+
+    this._tableFormatTouchedLines.clear ();
+
+    for ( let index = 0, length = touchedLineNumbers.length; index < length; index++ ) {
+      const block = MarkdownTable.getBlockAtLine ( lines, touchedLineNumbers[index] );
+
+      if ( !block ) continue;
+
+      const blockKey = `${block.startLineNumber}:${block.endLineNumber}`;
+
+      if ( seenBlocks.has ( blockKey ) ) continue;
+
+      seenBlocks.add ( blockKey );
+      blocks.push ( new monaco.Range ( block.startLineNumber, 1, block.endLineNumber, model.getLineMaxColumn ( block.endLineNumber ) ) );
+    }
+
+    if ( !blocks.length ) return;
+
+    const formattedEdits = blocks.map ( range => {
+      const before = model.getValueInRange ( range ),
+            startOffset = model.getOffsetAt ({
+              lineNumber: range.startLineNumber,
+              column: range.startColumn
+            }),
+            endOffset = model.getOffsetAt ({
+              lineNumber: range.endLineNumber,
+              column: range.endColumn
+            }),
+            after = MarkdownTable.formatBlock ( before );
+
+      if ( before === after ) return;
+
+      return {
+        before,
+        startOffset,
+        endOffset,
+        range,
+        text: after,
+        forceMoveMarkers: true
+      };
+    }).filter ( _.identity ) as Array<{ before: string, startOffset: number, endOffset: number, range: monaco.Range, text: string, forceMoveMarkers: true }>; //TSC
+
+    if ( !formattedEdits.length ) return;
+
+    const nextSelections = this.getFormattedTableSelections ( model, formattedEdits ),
+          edits = formattedEdits.map ( ({ before, startOffset, endOffset, ...edit }) => edit );
+
+    this._preventOnChangeEvent = true;
+
+    try {
+      editor.executeEdits ( '', edits, nextSelections );
+      if ( nextSelections ) editor.setSelections ( nextSelections );
+      this._currentValue = editor.getValue ();
+      this._currentChangeDate = new Date ();
+      if ( this._onChangeDebounced ) this._onChangeDebounced ( this._currentValue, undefined );
+    } finally {
+      this._preventOnChangeEvent = false;
+    }
+
+  }
+
+  getFormattedTableSelections ( model: monaco.editor.ITextModel, edits: Array<{ before: string, startOffset: number, endOffset: number, text: string }> ): monaco.Selection[] | undefined {
+
+    const selections = this.editor?.getSelections ();
+
+    if ( !selections || !selections.length ) return;
+
+    const sortedEdits = edits.slice ().sort ( ( a, b ) => a.startOffset - b.startOffset ),
+          nextContent = this.applyFormattedTableEditsToContent ( model.getValue (), sortedEdits );
+
+    return selections.map ( selection => {
+      const anchorOffset = model.getOffsetAt ({
+              lineNumber: selection.selectionStartLineNumber,
+              column: selection.selectionStartColumn
+            } ),
+            activeOffset = model.getOffsetAt ({
+              lineNumber: selection.positionLineNumber,
+              column: selection.positionColumn
+            } ),
+            nextAnchorOffset = this.mapOffsetThroughFormattedTableEdits ( anchorOffset, sortedEdits ),
+            nextActiveOffset = this.mapOffsetThroughFormattedTableEdits ( activeOffset, sortedEdits ),
+            nextAnchorPosition = this.getPositionAtOffsetInContent ( nextContent, nextAnchorOffset ),
+            nextActivePosition = this.getPositionAtOffsetInContent ( nextContent, nextActiveOffset );
+
+      return new monaco.Selection (
+        nextAnchorPosition.lineNumber,
+        nextAnchorPosition.column,
+        nextActivePosition.lineNumber,
+        nextActivePosition.column
+      );
+    });
+
+  }
+
+  applyFormattedTableEditsToContent ( content: string, edits: Array<{ startOffset: number, endOffset: number, text: string }> ): string {
+
+    let output = '',
+        offset = 0;
+
+    for ( let index = 0, length = edits.length; index < length; index++ ) {
+      const edit = edits[index];
+
+      output += content.slice ( offset, edit.startOffset );
+      output += edit.text;
+      offset = edit.endOffset;
+    }
+
+    output += content.slice ( offset );
+
+    return output;
+
+  }
+
+  getPositionAtOffsetInContent ( content: string, offset: number ): { lineNumber: number, column: number } {
+
+    const boundedOffset = _.clamp ( offset, 0, content.length );
+
+    let lineNumber = 1,
+        lineStartOffset = 0;
+
+    for ( let index = 0; index < boundedOffset; index++ ) {
+      if ( content[index] !== '\n' ) continue;
+      lineNumber++;
+      lineStartOffset = index + 1;
+    }
+
+    return {
+      lineNumber,
+      column: ( boundedOffset - lineStartOffset ) + 1
+    };
+
+  }
+
+  mapOffsetThroughFormattedTableEdits ( offset: number, edits: Array<{ before: string, text: string, startOffset: number, endOffset: number }> ): number {
+
+    let delta = 0;
+
+    for ( let index = 0, length = edits.length; index < length; index++ ) {
+      const edit = edits[index];
+
+      if ( offset < edit.startOffset ) break;
+
+      if ( offset <= edit.endOffset ) {
+        const relativeOffset = offset - edit.startOffset,
+              mappedOffset = this.mapOffsetThroughFormattedTableDiff ( edit.before, edit.text, relativeOffset );
+
+        return edit.startOffset + delta + mappedOffset;
+      }
+
+      delta += edit.text.length - ( edit.endOffset - edit.startOffset );
+    }
+
+    return offset + delta;
+
+  }
+
+  mapOffsetThroughFormattedTableDiff ( before: string, after: string, offset: number ): number {
+
+    if ( before === after ) return offset;
+
+    const changes = diff.diffChars ( before, after );
+
+    let beforeOffset = 0,
+        afterOffset = 0;
+
+    for ( let index = 0, length = changes.length; index < length; index++ ) {
+      const change = changes[index],
+            changeLength = change.value.length;
+
+      if ( change.added ) {
+        afterOffset += changeLength;
+        continue;
+      }
+
+      if ( change.removed ) {
+        if ( offset <= beforeOffset + changeLength ) {
+          return afterOffset;
+        }
+
+        beforeOffset += changeLength;
+        continue;
+      }
+
+      if ( offset <= beforeOffset + changeLength ) {
+        return afterOffset + ( offset - beforeOffset );
+      }
+
+      beforeOffset += changeLength;
+      afterOffset += changeLength;
+    }
+
+    return afterOffset;
 
   }
 

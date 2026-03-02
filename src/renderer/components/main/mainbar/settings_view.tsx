@@ -14,6 +14,7 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue }) => {
   const toggleMiddleClickPaste = () => setConfigValue ( 'input.disableMiddleClickPaste', !config.input.disableMiddleClickPaste );
   const toggleDisableScriptSanitization = () => setConfigValue ( 'preview.disableScriptSanitization', !config.preview.disableScriptSanitization );
   const setLargeNoteFullRenderDelay = ( value: string ) => setConfigValue ( 'preview.largeNoteFullRenderDelay', Number ( value ) );
+  const setTableFormattingDelay = ( value: string ) => setConfigValue ( 'monaco.tableFormattingDelay', Number ( value ) );
 
   return (
     <div className="settings-view layout column">
@@ -108,6 +109,25 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue }) => {
                       <option value="1000">1 second</option>
                       <option value="1500">1.5 seconds</option>
                       <option value="2000">2 seconds</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Automatic table format delay</div>
+                  <div className="settings-field-copy xsmall">How long the editor waits after typing before normalizing markdown table spacing.</div>
+                </div>
+                <div className="settings-control">
+                  <div className="settings-select-wrap">
+                    <select className="settings-select" disabled={!canEdit} value={String ( config.monaco.tableFormattingDelay )} onChange={event => setTableFormattingDelay ( event.currentTarget.value )}>
+                      <option value="250">250 ms</option>
+                      <option value="500">500 ms</option>
+                      <option value="750">750 ms</option>
+                      <option value="1000">1 second</option>
+                      <option value="1500">1.5 seconds</option>
+                      <option value="2000">2 seconds</option>
+                      <option value="3000">3 seconds</option>
                     </select>
                   </div>
                 </div>
