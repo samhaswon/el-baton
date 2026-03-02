@@ -69,18 +69,24 @@
     - Might have to do with the amount of a given file read. We only need to read the header, so see if we can just capture the first ~10-20 lines and leave it there.
 - [ ] Add emoji support and completion. 
     - E.g., `:question:` as the actual emoji
+    - Unit test this
 - [X] Add table of contents macro `[[@toc]]` and pagebreak macro `[[@pagebreak]]`
     - Potentially add more, and add prediction when the `@` is found.
 - [ ] More strict typing (see note in [tsconfig](./tsconfig.json))
     - [X] Move the JS target to ES2017 and keep `npx tsc --noEmit` passing.
     - [ ] Continue tightening compiler flags like `noImplicitAny` and `strict`.
 - [ ] Automatic table formatting
+    - [ ] Auto-format tables
+    - [ ] Add a configurable delay between typing and table formatting.
 - [ ] Add a lower bound to KaTeX memoization.
+    - [ ] Add a test to see roughly where it doesn't matter or even hurts.
+    - [ ] Based on where memoization helps/hurts, adjust the memoziation.
 - [ ] Use the React Compiler, likely `react-compiler-webpack` for this implementation
 - [ ] Option to turn off script sanitization, with a clear danger warning.
 - [ ] Make local search support:
     - [ ] Regex
     - [ ] Find and replace (including with regex, specifically the match)
+- [ ] More unit tests for things that should be tested
 
 ## QoL Features
 

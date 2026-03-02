@@ -1,5 +1,11 @@
 # AGENTS
 
+## Instructions
+
+Don't forget to type check and run relevant tests for a given change.
+
+If a change is purely a UI change, just type check. If it's a logic change, especially for markdown rendering, unit test.
+
 ## Common Issue Fixes
 
 - If a view body is unexpectedly collapsed to zero height, check whether it uses the global `layout-content` class. That class sets `height: 0` in `src/renderer/template/src/core/layout/layout.after.scss`.
