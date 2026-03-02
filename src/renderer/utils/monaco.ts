@@ -8,6 +8,7 @@ import {EditorContextKeys} from 'monaco-editor/esm/vs/editor/common/editorContex
 import * as LanguageMarkdown from 'monaco-editor/esm/vs/basic-languages/markdown/markdown.js';
 import * as path from 'path';
 import Config from '@common/config';
+import Emoji from '@common/emoji';
 import Settings from '@common/settings';
 import ThemeLight from './monaco_light';
 import ThemeDark from './monaco_dark';
@@ -240,6 +241,7 @@ const Monaco = {
     Monaco.initEnvironment ();
     Monaco.initThemes ();
     Monaco.initTokenizers ();
+    Monaco.initCompletions ();
 
   }),
 
@@ -421,6 +423,38 @@ const Monaco = {
       [/[^\\%{}[\]()&^_=+\-*/<>|0-9]+/, 'string.math'],
       [/./, 'string.math']
     ];
+
+  },
+
+  initCompletions () {
+
+    monaco.languages.registerCompletionItemProvider ( 'markdown', {
+      triggerCharacters: [':' ],
+      provideCompletionItems ( model, position ) {
+
+        const line = model.getLineContent ( position.lineNumber ),
+              beforeCursor = line.slice ( 0, position.column - 1 ),
+              match = beforeCursor.match ( /:([a-z0-9_+\-]*)$/i );
+
+        if ( !match ) return { suggestions: [] };
+
+        const query = match[1],
+              startColumn = position.column - query.length - 1,
+              range = new monaco.Range ( position.lineNumber, startColumn, position.lineNumber, position.column ),
+              suggestions = Emoji.getSuggestions ( query, 30 ).map ( entry => ({
+                label: entry.emoji ? `${entry.emoji} :${entry.shortcode}:` : `:${entry.shortcode}:`,
+                kind: monaco.languages.CompletionItemKind.Text,
+                insertText: `:${entry.shortcode}:`,
+                range,
+                sortText: entry.shortcode,
+                filterText: entry.shortcode,
+                documentation: `Insert ${entry.emoji} as :${entry.shortcode}:`
+              }));
+
+        return { suggestions };
+
+      }
+    });
 
   },
 

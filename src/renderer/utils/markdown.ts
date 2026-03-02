@@ -5,6 +5,7 @@ import * as _ from 'lodash';
 import {AllHtmlEntities as entities} from 'html-entities';
 import * as isAbsoluteUrl from 'is-absolute-url';
 import * as path from 'path';
+import Emoji from '@common/emoji';
 import MarkdownPath from '@common/markdown_path';
 import MarkdownRenderHelpers from '@common/markdown_render_helpers';
 import AsciiMath from './asciimath';
@@ -200,6 +201,7 @@ const Markdown = {
     let output = Markdown.preprocessMath ( str );
 
     output = MarkdownRenderHelpers.replaceMacroPlaceholders ( output );
+    output = Markdown.applyTransforms ( output, Markdown.extensions.emoji () as MarkdownTransformRule[], 'language' );
 
     // Language-stage transforms that are parser-dependent should run before cmark.
     output = Markdown.applyTransforms ( output, Markdown.extensions.resolveRelativeLinks ( sourceFilePath ) as MarkdownTransformRule[], 'language' );
@@ -728,6 +730,19 @@ const Markdown = {
           }
         }
       ];
+
+    },
+
+    emoji () {
+
+      return [{
+        type: 'language',
+        regex: /:([a-z0-9_+\-]+):/gi,
+        replace ( match, $1, index, content ) {
+          if ( Markdown.extensions.utilities.isInsideCode ( content, index, true ) ) return match;
+          return Emoji.get ( $1 ) || match;
+        }
+      }];
 
     },
 

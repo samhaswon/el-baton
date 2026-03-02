@@ -67,9 +67,9 @@
     - Possibly add a cache for the list
     - See if it has to do with the API used
     - Might have to do with the amount of a given file read. We only need to read the header, so see if we can just capture the first ~10-20 lines and leave it there.
-- [ ] Add emoji support and completion. 
+- [X] Add emoji support
     - E.g., `:question:` as the actual emoji
-    - Unit test this
+    - [X] Unit test this
 - [X] Add table of contents macro `[[@toc]]` and pagebreak macro `[[@pagebreak]]`
     - Potentially add more, and add prediction when the `@` is found.
 - [ ] More strict typing (see note in [tsconfig](./tsconfig.json))
@@ -99,6 +99,7 @@
 - [ ] Add next word prediction that is light-weight, but only for text regions.
     - Should be tab-completed
     - Should appear as darker text in dark mode, lighter text in light mode.
+    - Should include emojis.
 - [ ] Make notes tabs look like tabs on a manila folder.
 - [ ] Cheat sheets, including for KaTeX supported functions (https://katex.org/docs/supported.html)
 - [ ] Ensure that spell checker localization is a thing. It might be automatic, so this is mostly audit and fix if broken.

@@ -14,6 +14,7 @@ import 'monaco-editor/esm/vs/editor/contrib/find/findController.js';
 import 'monaco-editor/esm/vs/editor/contrib/dnd/dnd.js';
 import 'monaco-editor/esm/vs/editor/contrib/linesOperations/linesOperations.js';
 import 'monaco-editor/esm/vs/editor/contrib/multicursor/multicursor.js';
+import 'monaco-editor/esm/vs/editor/contrib/suggest/suggestController.js';
 import 'monaco-editor/esm/vs/editor/contrib/wordOperations/wordOperations.js';
 import 'monaco-editor/esm/vs/basic-languages/apex/apex.contribution.js';
 import 'monaco-editor/esm/vs/basic-languages/azcli/azcli.contribution.js';
