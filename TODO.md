@@ -122,6 +122,7 @@
 - [ ] Maybe add some kind of OCR if one can be found that's good for creating markdown source.
     - Or maybe just VLLM integration somehow.
     - Pix2tex for KaTeX, possibly as some kind of plugin
+- [ ] Crash the app if the user attempt to use the `pregnant_man` emoji or similar.
 
 ## Blocked
 
