@@ -16,6 +16,7 @@ const CMARK_OPTIONS = {
 };
 
 const sanitize = ( html: string ): string => MarkdownRenderHelpers.sanitizeUnsafeHtml ( html );
+const sanitizeDisabled = ( html: string ): string => MarkdownRenderHelpers.sanitizeUnsafeHtml ( html, false );
 const renderHtml = ( markdown: string ): string => cmark.renderHtmlSync ( markdown, CMARK_OPTIONS );
 const renderMathPipeline = ( markdown: string ): string => {
   const escaped = MarkdownRenderHelpers.replaceEscapedDollars ( markdown ),
@@ -202,6 +203,21 @@ test ( 'html sanitization: strips script tags and preserves safe html', () => {
 
   assert.equal ( sanitized, '<div>safe</div><p>ok</p>' );
   assert.doesNotMatch ( sanitized, /<script/i );
+
+});
+
+test ( 'html sanitization: can be disabled to preserve unsafe html', () => {
+
+  const html = '<div>safe</div><script>alert("xss")</script><a href="javascript:alert(1)" onclick="evil()">bad</a>',
+        sanitized = sanitize ( html ),
+        unsanitized = sanitizeDisabled ( html );
+
+  assert.equal ( sanitized, '<div>safe</div><a>bad</a>' );
+  assert.equal ( unsanitized, html );
+  assert.doesNotMatch ( sanitized, /<script/i );
+  assert.match ( unsanitized, /<script>alert\("xss"\)<\/script>/ );
+  assert.match ( unsanitized, /href="javascript:alert\(1\)"/ );
+  assert.match ( unsanitized, /\sonclick="evil\(\)"/ );
 
 });
 

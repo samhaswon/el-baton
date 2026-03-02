@@ -15,6 +15,7 @@ const CMARK_OPTIONS = {
     }
 };
 const sanitize = (html) => markdown_render_helpers_1.default.sanitizeUnsafeHtml(html);
+const sanitizeDisabled = (html) => markdown_render_helpers_1.default.sanitizeUnsafeHtml(html, false);
 const renderHtml = (markdown) => cmark.renderHtmlSync(markdown, CMARK_OPTIONS);
 const renderMathPipeline = (markdown) => {
     const escaped = markdown_render_helpers_1.default.replaceEscapedDollars(markdown), placeholders = [], withPlaceholders = markdown_render_helpers_1.default.replaceMathDelimiters(escaped, (tex, displayMode) => {
@@ -110,6 +111,15 @@ const renderMathPipeline = (markdown) => {
     const html = '<div>safe</div><script>alert("xss")</script><p>ok</p><SCRIPT SRC="https://evil.test/x.js"></SCRIPT>', sanitized = sanitize(html);
     assert.equal(sanitized, '<div>safe</div><p>ok</p>');
     assert.doesNotMatch(sanitized, /<script/i);
+});
+(0, node_test_1.test)('html sanitization: can be disabled to preserve unsafe html', () => {
+    const html = '<div>safe</div><script>alert("xss")</script><a href="javascript:alert(1)" onclick="evil()">bad</a>', sanitized = sanitize(html), unsanitized = sanitizeDisabled(html);
+    assert.equal(sanitized, '<div>safe</div><a>bad</a>');
+    assert.equal(unsanitized, html);
+    assert.doesNotMatch(sanitized, /<script/i);
+    assert.match(unsanitized, /<script>alert\("xss"\)<\/script>/);
+    assert.match(unsanitized, /href="javascript:alert\(1\)"/);
+    assert.match(unsanitized, /\sonclick="evil\(\)"/);
 });
 (0, node_test_1.test)('html sanitization: strips other disallowed raw html tags', () => {
     const html = '<style>body{display:none}</style><plaintext>oops</plaintext><div>safe</div>', sanitized = sanitize(html);

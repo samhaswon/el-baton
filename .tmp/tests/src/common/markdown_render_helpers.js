@@ -177,7 +177,9 @@ const MarkdownRenderHelpers = {
     injectMermaidOpenExternal(html) {
         return html.replace(/<div class="mermaid">/g, '<div class="mermaid"><div class="mermaid-open-external" title="Open in Separate Window"><i class="icon small">open_in_new</i></div>');
     },
-    sanitizeUnsafeHtml(html) {
+    sanitizeUnsafeHtml(html, enabled = true) {
+        if (!enabled)
+            return html;
         return html
             .replace(/<(script|style|title|textarea|xmp|noembed|noframes|plaintext)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
             .replace(/<(script|style|title|textarea|xmp|noembed|noframes|plaintext)\b[^>]*\/?>/gi, '')
