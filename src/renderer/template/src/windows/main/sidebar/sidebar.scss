@@ -125,6 +125,12 @@
   pointer-events: none;
 }
 
+.sidepanel.opening .sidepanel-stage > .sidepanel-pane.is-active {
+  opacity: 0;
+  transform: translateX(-10px);
+  pointer-events: none;
+}
+
 .sidepanel.closing .sidepanel-stage > .sidepanel-pane.is-active {
   opacity: 0;
   transform: translateX(-10px);

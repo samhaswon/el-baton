@@ -19,14 +19,16 @@ import QuickPanel from './modals/quick_panel';
 
 /* MAIN */
 
-class Main extends React.Component<{ loading: boolean, refresh: Function, listen: Function, isFocus: boolean, isFullscreen: boolean, isZen: boolean, hasSidebar: boolean, animationsDisabled: boolean }, { panel: string | null, panelResetCounter: number, isClosingPanel: boolean }> {
+class Main extends React.Component<{ loading: boolean, refresh: Function, listen: Function, isFocus: boolean, isFullscreen: boolean, isZen: boolean, hasSidebar: boolean, animationsDisabled: boolean }, { panel: string | null, panelResetCounter: number, isClosingPanel: boolean, isOpeningPanel: boolean }> {
 
+  panelOpenTimeout?: ReturnType<typeof setTimeout>;
   panelCloseTimeout?: ReturnType<typeof setTimeout>;
 
   state = {
     panel: 'info' as string | null,
     panelResetCounter: 0,
-    isClosingPanel: false
+    isClosingPanel: false,
+    isOpeningPanel: false
   };
 
   /* SPECIAL */
@@ -45,6 +47,11 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
 
   componentWillUnmount () {
 
+    if ( this.panelOpenTimeout ) {
+      clearTimeout ( this.panelOpenTimeout );
+      this.panelOpenTimeout = undefined;
+    }
+
     if ( this.panelCloseTimeout ) {
       clearTimeout ( this.panelCloseTimeout );
       this.panelCloseTimeout = undefined;
@@ -54,14 +61,25 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
 
   componentDidUpdate () {
 
-    if ( !this.props.animationsDisabled || !this.state.isClosingPanel ) return;
+    if ( !this.props.animationsDisabled ) return;
+
+    if ( this.state.isOpeningPanel ) {
+      if ( this.panelOpenTimeout ) {
+        clearTimeout ( this.panelOpenTimeout );
+        this.panelOpenTimeout = undefined;
+      }
+      this.setState ({ isOpeningPanel: false });
+      return;
+    }
+
+    if ( !this.state.isClosingPanel ) return;
 
     if ( this.panelCloseTimeout ) {
       clearTimeout ( this.panelCloseTimeout );
       this.panelCloseTimeout = undefined;
     }
 
-    this.setState ({ panel: null, isClosingPanel: false });
+    this.setState ({ panel: null, isClosingPanel: false, isOpeningPanel: false });
 
   }
 
@@ -69,20 +87,25 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
 
     if ( !this.state.panel || this.state.isClosingPanel ) return;
 
+    if ( this.panelOpenTimeout ) {
+      clearTimeout ( this.panelOpenTimeout );
+      this.panelOpenTimeout = undefined;
+    }
+
     if ( this.props.animationsDisabled ) {
       if ( this.panelCloseTimeout ) {
         clearTimeout ( this.panelCloseTimeout );
         this.panelCloseTimeout = undefined;
       }
-      this.setState ({ panel: null, isClosingPanel: false });
+      this.setState ({ panel: null, isClosingPanel: false, isOpeningPanel: false });
       return;
     }
 
-    this.setState ({ isClosingPanel: true });
+    this.setState ({ isClosingPanel: true, isOpeningPanel: false });
 
     this.panelCloseTimeout = globalThis.setTimeout ( () => {
       this.panelCloseTimeout = undefined;
-      this.setState ({ panel: null, isClosingPanel: false });
+      this.setState ({ panel: null, isClosingPanel: false, isOpeningPanel: false });
     }, 140 );
 
   };
@@ -99,11 +122,32 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
       this.panelCloseTimeout = undefined;
     }
 
+    if ( this.panelOpenTimeout ) {
+      clearTimeout ( this.panelOpenTimeout );
+      this.panelOpenTimeout = undefined;
+    }
+
+    if ( this.props.animationsDisabled ) {
+      this.setState ( prev => ({
+        panel: nextPanel,
+        panelResetCounter: prev.panelResetCounter,
+        isClosingPanel: false,
+        isOpeningPanel: false
+      }));
+      return;
+    }
+
     this.setState ( prev => ({
       panel: nextPanel,
       panelResetCounter: prev.panelResetCounter,
-      isClosingPanel: false
+      isClosingPanel: false,
+      isOpeningPanel: true
     }));
+
+    this.panelOpenTimeout = globalThis.setTimeout ( () => {
+      this.panelOpenTimeout = undefined;
+      this.setState ({ isOpeningPanel: false });
+    }, 140 );
 
   };
 
@@ -112,7 +156,7 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
   render () {
 
     const {isFocus, isFullscreen, isZen, hasSidebar, animationsDisabled} = this.props;
-    const {panel, panelResetCounter, isClosingPanel} = this.state;
+    const {panel, panelResetCounter, isClosingPanel, isOpeningPanel} = this.state;
     const isSettingsView = panel === 'settings';
 
     return (
@@ -126,7 +170,7 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
         <QuickPanel />
         <Layout className={`main app-wrapper ${isFullscreen ? 'fullscreen' : ''} ${hasSidebar ? 'focus' : ''} ${isZen ? 'zen' : ''}`} direction="horizontal" resizable={true} isFocus={isFocus} isZen={isZen} hasSidebar={hasSidebar} resetCounter={panelResetCounter}>
           {isFocus || isZen || !hasSidebar ? null : <Activitybar panel={panel} setPanel={this.setPanel} />}
-          <Sidepanel panel={isSettingsView ? null : panel} isClosing={isClosingPanel} animationsDisabled={animationsDisabled} />
+          <Sidepanel panel={isSettingsView ? null : panel} isClosing={isClosingPanel} isOpening={isOpeningPanel} animationsDisabled={animationsDisabled} />
           <Mainbar panel={panel} />
         </Layout>
       </>

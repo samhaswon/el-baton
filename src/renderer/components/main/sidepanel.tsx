@@ -86,6 +86,7 @@ type TodoPanelProps = {
 type SidepanelProps = {
   panel?: string;
   isClosing: boolean;
+  isOpening: boolean;
   animationsDisabled: boolean;
   isFocus: boolean;
   isZen: boolean;
@@ -248,7 +249,7 @@ const TodoPanel = ({ title, paneStateClassName }: TodoPanelProps ) => (
   </div>
 );
 
-const Sidepanel = ({ panel, isClosing, animationsDisabled, isFocus, isZen, hasSidebar, ...actions }: SidepanelProps ) => {
+const Sidepanel = ({ panel, isClosing, isOpening, animationsDisabled, isFocus, isZen, hasSidebar, ...actions }: SidepanelProps ) => {
 
   if ( isFocus || isZen || !hasSidebar ) return null;
 
@@ -266,7 +267,7 @@ const Sidepanel = ({ panel, isClosing, animationsDisabled, isFocus, isZen, hasSi
   if ( panel === 'settings' ) activePanel = <TodoPanel paneStateClassName="is-active" title="Settings" />;
 
   return (
-    <div className={`sidepanel layout column ${panel ? '' : 'closed'} ${isClosing ? 'closing' : ''} ${animationsDisabled ? 'animations-disabled' : ''}`}>
+    <div className={`sidepanel layout column ${panel ? '' : 'closed'} ${isClosing ? 'closing' : ''} ${isOpening ? 'opening' : ''} ${animationsDisabled ? 'animations-disabled' : ''}`}>
       {!shouldRenderStage ? null : (
         <div className="sidepanel-stage">
           <ExplorerPanel paneStateClassName={explorerStateClassName} />
@@ -282,8 +283,9 @@ const Sidepanel = ({ panel, isClosing, animationsDisabled, isFocus, isZen, hasSi
 
 export default connect ({
   container: Main,
-  selector: ({ container, panel, isClosing, animationsDisabled }) => ({
+  selector: ({ container, panel, isClosing, isOpening, animationsDisabled }) => ({
     animationsDisabled,
+    isOpening,
     hasNote: !!container.note.get (),
     isAttachmentsEditing: container.attachments.isEditing (),
     isDeleted: container.note.isDeleted (),

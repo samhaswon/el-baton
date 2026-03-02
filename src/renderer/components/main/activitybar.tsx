@@ -5,7 +5,6 @@ import * as React from 'react';
 /* ACTIVITYBAR */
 
 const tabsTop = [
-  { id: 'file', icon: 'note', title: 'File' },
   { id: 'explorer', icon: 'notebook', title: 'Explorer' },
   { id: 'search', icon: 'magnify', title: 'Global Search' },
   { id: 'graph', icon: 'tag_multiple', title: 'Graph' },
