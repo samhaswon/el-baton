@@ -157,7 +157,7 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
 
     const {isFocus, isFullscreen, isZen, hasSidebar, animationsDisabled} = this.props;
     const {panel, panelResetCounter, isClosingPanel, isOpeningPanel} = this.state;
-    const isSettingsView = panel === 'settings';
+    const isStandaloneMainbarView = panel === 'settings' || panel === 'help';
 
     return (
       <>
@@ -170,7 +170,7 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
         <QuickPanel />
         <Layout className={`main app-wrapper ${isFullscreen ? 'fullscreen' : ''} ${hasSidebar ? 'focus' : ''} ${isZen ? 'zen' : ''}`} direction="horizontal" resizable={true} isFocus={isFocus} isZen={isZen} hasSidebar={hasSidebar} resetCounter={panelResetCounter}>
           {isFocus || isZen || !hasSidebar ? null : <Activitybar panel={panel} setPanel={this.setPanel} />}
-          <Sidepanel panel={isSettingsView ? null : panel} isClosing={isClosingPanel} isOpening={isOpeningPanel} animationsDisabled={animationsDisabled} />
+          <Sidepanel panel={isStandaloneMainbarView ? null : panel} isClosing={isClosingPanel} isOpening={isOpeningPanel} animationsDisabled={animationsDisabled} />
           <Mainbar panel={panel} />
         </Layout>
       </>

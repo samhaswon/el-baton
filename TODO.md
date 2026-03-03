@@ -130,10 +130,6 @@
 - [ ] Maybe add some kind of OCR if one can be found that's good for creating markdown source.
     - Or maybe just VLLM integration somehow.
     - Pix2tex for KaTeX, possibly as some kind of plugin
-- [X] Crash the app if the user attempt to use the `pregnant_man` emoji or similar.
-    - 65, EX_DATAERR
-    - Only when the user types the closing colon.
-    - Also do `seahorse` as that actually isn't an emoji.
 
 ## Blocked
 

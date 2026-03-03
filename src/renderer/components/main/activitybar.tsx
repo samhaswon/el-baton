@@ -12,7 +12,7 @@ const tabsTop = [
 ];
 
 const tabsBottom = [
-  { id: 'help', icon: 'note', title: 'Help' },
+  { id: 'help', icon: 'note', title: 'Cheatsheets' },
   { id: 'settings', icon: 'tag', title: 'Settings' }
 ];
 

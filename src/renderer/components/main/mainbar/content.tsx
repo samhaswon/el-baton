@@ -6,6 +6,7 @@ import {connect} from 'overstated';
 import Main from '@renderer/containers/main';
 import PopoverNoteAttachments from '@renderer/components/main/popovers/popover_note_attachments';
 import PopoverTagsAttachments from '@renderer/components/main/popovers/popover_note_tags';
+import CheatsheetView from './cheatsheet_view';
 import Editor from './editor';
 import MultiEditor from './multi_editor';
 import NoteTabs from './note_tabs';
@@ -20,6 +21,7 @@ import Toolbar from './toolbar';
 const Content = ({ hasNote, isLoading, isEditing, isMultiEditing, isSplit, panel }) => {
 
   if ( panel === 'settings' ) return <SettingsView />;
+  if ( panel === 'help' ) return <CheatsheetView />;
 
   if ( isLoading || !hasNote ) return <Toolbar />;
 
