@@ -110,6 +110,15 @@
     - Should include emojis.
 - [ ] Make notes tabs look like tabs on a manila folder.
 - [ ] Cheat sheets, including for KaTeX supported functions (https://katex.org/docs/supported.html)
+    - [X] Markdown features
+    - [X] Extended markdown features
+    - [X] KaTeX support:
+        - [X] Code blocks, `$...$` and `$$\n...\n$$`
+        - [X] Syntax
+    - [X] Mermaid support:
+        - [X] Code blocks
+        - [X] Key syntax points
+    - [ ] Basic PlantUML usage
 - [ ] Ensure that spell checker localization is a thing. It might be automatic, so this is mostly audit and fix if broken.
 - [ ] Implement a presentation mode similar to whatever Pandoc has.
 
