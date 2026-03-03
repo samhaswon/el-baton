@@ -62,6 +62,14 @@
             - On load --> read SQLite cache
             - On note save --> write SQLite cache
     - Add option to embed the rendered diagram (SVG) as an attachment.
+    - External server example URL: https://plantuml.samhaswondom.duckdns.org/svg/SyfFKj2rKt3CoKnELR1Io4ZDoSa70000
+      That is the default example,
+      ```plantuml
+      @startuml
+      Bob -> Alice : hello
+      @enduml
+      ```
+
 - [X] Use natural sorting, not lexicographic sorting, for notes in the explorer view.
 - [X] Speed up explorer tab opening
     - Possibly add a cache for the list
