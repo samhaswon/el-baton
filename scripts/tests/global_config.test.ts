@@ -42,7 +42,9 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
       monaco: {
         tableFormattingDelay: 1000,
         editorOptions: {
-          lineNumbers: 'off'
+          lineNumbers: 'off',
+          disableSuggestions: false,
+          tabSize: 4
         }
       }
     }), 'utf8' );
@@ -59,7 +61,9 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
       'monaco:',
       '  tableFormattingDelay: 2000',
       '  editorOptions:',
-      '    lineNumbers: relative'
+      '    lineNumbers: relative',
+      '    disableSuggestions: true',
+      '    tabSize: 3'
     ].join ( '\n' ), 'utf8' );
 
     const config = GlobalConfig.read ( dirPath );
@@ -71,6 +75,8 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
     assert.equal ( config.preview.disableScriptSanitization, true );
     assert.equal ( config.monaco.tableFormattingDelay, 2000 );
     assert.equal ( config.monaco.editorOptions.lineNumbers, 'relative' );
+    assert.equal ( config.monaco.editorOptions.disableSuggestions, true );
+    assert.equal ( config.monaco.editorOptions.tabSize, 3 );
 
   });
 
@@ -105,7 +111,9 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
     monaco: {
       tableFormattingDelay: 9000,
       editorOptions: {
-        lineNumbers: 'vim'
+        lineNumbers: 'vim',
+        disableSuggestions: 'yes',
+        tabSize: 99
       }
     }
   });
@@ -117,6 +125,8 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
   assert.equal ( config.preview.disableScriptSanitization, true );
   assert.equal ( config.monaco.tableFormattingDelay, 5000 );
   assert.equal ( config.monaco.editorOptions.lineNumbers, 'on' );
+  assert.equal ( config.monaco.editorOptions.disableSuggestions, true );
+  assert.equal ( config.monaco.editorOptions.tabSize, 8 );
 
 });
 
@@ -139,7 +149,9 @@ test ( 'write: persists normalized config and read returns the saved values', ()
       monaco: {
         tableFormattingDelay: 3000,
         editorOptions: {
-          lineNumbers: 'relative'
+          lineNumbers: 'relative',
+          disableSuggestions: true,
+          tabSize: 4
         }
       }
     });
@@ -156,6 +168,8 @@ test ( 'write: persists normalized config and read returns the saved values', ()
     assert.equal ( config.preview.disableScriptSanitization, true );
     assert.equal ( config.monaco.tableFormattingDelay, 3000 );
     assert.equal ( config.monaco.editorOptions.lineNumbers, 'relative' );
+    assert.equal ( config.monaco.editorOptions.disableSuggestions, true );
+    assert.equal ( config.monaco.editorOptions.tabSize, 4 );
 
   });
 

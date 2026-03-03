@@ -64,7 +64,6 @@ const Monaco = {
 
   modelOptions: {
     insertSpaces: true,
-    tabSize: 2,
     trimAutoWhitespace: true
   } as monaco.editor.ITextModelUpdateOptions,
 
@@ -277,8 +276,24 @@ const Monaco = {
 
   getEditorOptions ( editor?: MonacoEditor ): monaco.editor.IEditorOptions {
 
+    const disableSuggestions = Config.monaco.editorOptions.disableSuggestions;
+
     return _.merge ( {}, Monaco.editorOptions, {
-      lineNumbers: Monaco.getLineNumbersOption ( editor )
+      lineNumbers: Monaco.getLineNumbersOption ( editor ),
+      quickSuggestions: !disableSuggestions,
+      suggestOnTriggerCharacters: !disableSuggestions,
+      wordBasedSuggestions: disableSuggestions ? 'off' : 'currentDocument'
+    });
+
+  },
+
+  getModelOptions (): monaco.editor.ITextModelUpdateOptions {
+
+    const tabSize = Config.monaco.editorOptions.tabSize;
+
+    return _.merge ( {}, Monaco.modelOptions, {
+      tabSize,
+      indentSize: tabSize
     });
 
   },
@@ -436,6 +451,7 @@ const Monaco = {
               beforeCursor = line.slice ( 0, position.column - 1 ),
               match = beforeCursor.match ( /:([a-z0-9_+\-]*)$/i );
 
+        if ( Config.monaco.editorOptions.disableSuggestions ) return { suggestions: [] };
         if ( !match ) return { suggestions: [] };
 
         const query = match[1],

@@ -23,7 +23,9 @@ type GlobalConfigShape = {
   monaco: {
     tableFormattingDelay: number,
     editorOptions: {
-      lineNumbers: MonacoLineNumbersMode
+      lineNumbers: MonacoLineNumbersMode,
+      disableSuggestions: boolean,
+      tabSize: number
     }
   }
 };
@@ -45,7 +47,9 @@ const DEFAULTS: GlobalConfigShape = {
   monaco: {
     tableFormattingDelay: 2000,
     editorOptions: {
-      lineNumbers: 'on'
+      lineNumbers: 'on',
+      disableSuggestions: false,
+      tabSize: 2
     }
   }
 };
@@ -90,7 +94,9 @@ const GlobalConfig = {
       monaco: {
         tableFormattingDelay: DEFAULTS.monaco.tableFormattingDelay,
         editorOptions: {
-          lineNumbers: DEFAULTS.monaco.editorOptions.lineNumbers
+          lineNumbers: DEFAULTS.monaco.editorOptions.lineNumbers,
+          disableSuggestions: DEFAULTS.monaco.editorOptions.disableSuggestions,
+          tabSize: DEFAULTS.monaco.editorOptions.tabSize
         }
       }
     };
@@ -168,6 +174,18 @@ const GlobalConfig = {
 
       if ( lineNumbers === 'off' || lineNumbers === 'relative' || lineNumbers === 'on' ) {
         normalized.monaco.editorOptions.lineNumbers = lineNumbers;
+      }
+    }
+
+    if ( GlobalConfig.isRecord ( config.monaco ) && GlobalConfig.isRecord ( config.monaco.editorOptions ) && 'disableSuggestions' in config.monaco.editorOptions ) {
+      normalized.monaco.editorOptions.disableSuggestions = !!config.monaco.editorOptions.disableSuggestions;
+    }
+
+    if ( GlobalConfig.isRecord ( config.monaco ) && GlobalConfig.isRecord ( config.monaco.editorOptions ) && 'tabSize' in config.monaco.editorOptions ) {
+      const tabSize = Number ( config.monaco.editorOptions.tabSize );
+
+      if ( Number.isFinite ( tabSize ) ) {
+        normalized.monaco.editorOptions.tabSize = Math.max ( 1, Math.min ( 8, Math.round ( tabSize ) ) );
       }
     }
 

@@ -98,13 +98,15 @@
     - [ ] Find and replace (including with regex, specifically the match)
 - [ ] More unit tests for things that should be tested
     - [ ] Make sure footnotes work per the GFM spec.
+- [ ] Brighten up the settings page in dark mode.
+    - Currently, contrast is rather poor, making it hard to read.
 
 ## QoL Features
 
 
 - [ ] Add code type prediction
     - As the user types, a dialogue box should pop up showing potential options they may with to use. These options should be clickable.
-- [ ] Add next word prediction that is light-weight, but only for text regions.
+- [X] Add next word prediction that is light-weight, but only for text regions.
     - Should be tab-completed
     - Should appear as darker text in dark mode, lighter text in light mode.
     - Should include emojis.
@@ -121,6 +123,11 @@
     - [ ] Basic PlantUML usage
 - [ ] Ensure that spell checker localization is a thing. It might be automatic, so this is mostly audit and fix if broken.
 - [ ] Implement a presentation mode similar to whatever Pandoc has.
+- [ ] Additional settings:
+    - [ ] Add option to disable sync for the split view. 
+    - [ ] Add option to disable automatic table formatting.
+    - [ ] Add option to disable automatic renaming of notes
+    - [ ] Add option to disable spell check
 
 ## Mobile App
 

@@ -789,7 +789,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
     if ( model ) {
 
-      const finalModelOptions = modelOptions ? _.merge ( {}, UMonaco.modelOptions, modelOptions || {} ) : UMonaco.modelOptions;
+      const finalModelOptions = _.merge ( {}, UMonaco.getModelOptions (), modelOptions || {} );
 
       model.updateOptions ( finalModelOptions );
 
@@ -876,7 +876,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
     if ( model ) {
 
-      model.updateOptions ( modelOptions );
+      model.updateOptions ( _.merge ( {}, UMonaco.getModelOptions (), modelOptions ) );
 
     }
 

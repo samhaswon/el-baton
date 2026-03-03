@@ -35,7 +35,9 @@ const withTempDir = (callback) => {
             monaco: {
                 tableFormattingDelay: 1000,
                 editorOptions: {
-                    lineNumbers: 'off'
+                    lineNumbers: 'off',
+                    disableSuggestions: false,
+                    tabSize: 4
                 }
             }
         }), 'utf8');
@@ -51,7 +53,9 @@ const withTempDir = (callback) => {
             'monaco:',
             '  tableFormattingDelay: 2000',
             '  editorOptions:',
-            '    lineNumbers: relative'
+            '    lineNumbers: relative',
+            '    disableSuggestions: true',
+            '    tabSize: 3'
         ].join('\n'), 'utf8');
         const config = global_config_1.default.read(dirPath);
         assert.equal(config.autoupdate, false);
@@ -61,6 +65,8 @@ const withTempDir = (callback) => {
         assert.equal(config.preview.disableScriptSanitization, true);
         assert.equal(config.monaco.tableFormattingDelay, 2000);
         assert.equal(config.monaco.editorOptions.lineNumbers, 'relative');
+        assert.equal(config.monaco.editorOptions.disableSuggestions, true);
+        assert.equal(config.monaco.editorOptions.tabSize, 3);
     });
 });
 (0, node_test_1.test)('read: returns defaults when no config file is present', () => {
@@ -85,7 +91,9 @@ const withTempDir = (callback) => {
         monaco: {
             tableFormattingDelay: 9000,
             editorOptions: {
-                lineNumbers: 'vim'
+                lineNumbers: 'vim',
+                disableSuggestions: 'yes',
+                tabSize: 99
             }
         }
     });
@@ -96,6 +104,8 @@ const withTempDir = (callback) => {
     assert.equal(config.preview.disableScriptSanitization, true);
     assert.equal(config.monaco.tableFormattingDelay, 5000);
     assert.equal(config.monaco.editorOptions.lineNumbers, 'on');
+    assert.equal(config.monaco.editorOptions.disableSuggestions, true);
+    assert.equal(config.monaco.editorOptions.tabSize, 8);
 });
 (0, node_test_1.test)('write: persists normalized config and read returns the saved values', () => {
     withTempDir(dirPath => {
@@ -114,7 +124,9 @@ const withTempDir = (callback) => {
             monaco: {
                 tableFormattingDelay: 3000,
                 editorOptions: {
-                    lineNumbers: 'relative'
+                    lineNumbers: 'relative',
+                    disableSuggestions: true,
+                    tabSize: 4
                 }
             }
         });
@@ -128,5 +140,7 @@ const withTempDir = (callback) => {
         assert.equal(config.preview.disableScriptSanitization, true);
         assert.equal(config.monaco.tableFormattingDelay, 3000);
         assert.equal(config.monaco.editorOptions.lineNumbers, 'relative');
+        assert.equal(config.monaco.editorOptions.disableSuggestions, true);
+        assert.equal(config.monaco.editorOptions.tabSize, 4);
     });
 });

@@ -13,8 +13,10 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue }) => {
   const toggleDisableAnimations = () => setConfigValue ( 'ui.disableAnimations', !config.ui.disableAnimations );
   const toggleMiddleClickPaste = () => setConfigValue ( 'input.disableMiddleClickPaste', !config.input.disableMiddleClickPaste );
   const toggleDisableScriptSanitization = () => setConfigValue ( 'preview.disableScriptSanitization', !config.preview.disableScriptSanitization );
+  const toggleDisableSuggestions = () => setConfigValue ( 'monaco.editorOptions.disableSuggestions', !config.monaco.editorOptions.disableSuggestions );
   const setLargeNoteFullRenderDelay = ( value: string ) => setConfigValue ( 'preview.largeNoteFullRenderDelay', Number ( value ) );
   const setTableFormattingDelay = ( value: string ) => setConfigValue ( 'monaco.tableFormattingDelay', Number ( value ) );
+  const setTabSize = ( value: string ) => setConfigValue ( 'monaco.editorOptions.tabSize', Number ( value ) );
 
   return (
     <div className="settings-view layout column">
@@ -93,6 +95,36 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue }) => {
                       <option value="off">Hidden</option>
                     </select>
                   </div>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Tab size</div>
+                  <div className="settings-field-copy xsmall">Controls how many spaces a tab character uses in the editor model.</div>
+                </div>
+                <div className="settings-control">
+                  <div className="settings-select-wrap">
+                    <select className="settings-select" disabled={!canEdit} value={String ( config.monaco.editorOptions.tabSize )} onChange={event => setTabSize ( event.currentTarget.value )}>
+                      <option value="1">1 space</option>
+                      <option value="2">2 spaces</option>
+                      <option value="3">3 spaces</option>
+                      <option value="4">4 spaces</option>
+                      <option value="8">8 spaces</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Disable autocomplete suggestions</div>
+                  <div className="settings-field-copy xsmall">Turns off Monaco suggestion popups, including trigger-character suggestions like emoji shortcodes.</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className={`settings-switch ${config.monaco.editorOptions.disableSuggestions ? 'active' : ''}`} aria-pressed={config.monaco.editorOptions.disableSuggestions} aria-label="Toggle autocomplete suggestions" disabled={!canEdit} onClick={toggleDisableSuggestions}>
+                    <span className="settings-switch-ui">
+                      <span className="settings-switch-thumb"></span>
+                    </span>
+                  </button>
                 </div>
               </div>
               <div className="settings-field">

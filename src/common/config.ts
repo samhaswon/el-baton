@@ -72,6 +72,12 @@ const Config = {
     editorOptions: {
       get lineNumbers () {
         return Config.global.monaco.editorOptions.lineNumbers;
+      },
+      get disableSuggestions () {
+        return Config.global.monaco.editorOptions.disableSuggestions;
+      },
+      get tabSize () {
+        return Config.global.monaco.editorOptions.tabSize;
       }
     }
   },

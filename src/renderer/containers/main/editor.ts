@@ -2,6 +2,7 @@
 /* IMPORT */
 
 import * as _ from 'lodash';
+import Config from '@common/config';
 import {Container, autosuspend} from 'overstated';
 import Settings from '@common/settings';
 import Utils from '@renderer/utils/utils';
@@ -72,6 +73,17 @@ class Editor extends Container<EditorState, MainCTX> {
 
         monaco.setModel ( state.model );
 
+      }
+
+      const model = monaco.getModel ();
+
+      if ( model ) {
+        const tabSize = Config.monaco.editorOptions.tabSize;
+
+        model.updateOptions ({
+          tabSize,
+          indentSize: tabSize
+        });
       }
 
       monaco.restoreViewState ( state.view );
