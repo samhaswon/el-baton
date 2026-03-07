@@ -417,7 +417,7 @@ class Main extends Route {
           },
           {
             label: 'Subreddit',
-            click: () => shell.openExternal ( 'https://www.reddit.com/r/notable' )
+            click: () => shell.openExternal ( 'https://www.reddit.com/r/elbaton' )
           },
           {
             label: 'Support',

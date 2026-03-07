@@ -19,7 +19,7 @@ class Mermaid extends Route {
 
   /* CONSTRUCTOR */
 
-  constructor ( name = 'mermaid', options: BrowserWindowConstructorOptions = { frame: true, autoHideMenuBar: true, backgroundColor: '#ffffff', title: 'mermaid | Notable', titleBarStyle: 'default' }, stateOptions: windowStateKeeper.Options = {}, data: string ) {
+  constructor ( name = 'mermaid', options: BrowserWindowConstructorOptions = { frame: true, autoHideMenuBar: true, backgroundColor: '#ffffff', title: 'mermaid | El Baton', titleBarStyle: 'default' }, stateOptions: windowStateKeeper.Options = {}, data: string ) {
 
     super ( name, options, stateOptions );
 

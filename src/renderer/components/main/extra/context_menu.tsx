@@ -132,7 +132,7 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
       },
       {
         label: 'Rename',
-        click: () => Dialog.alert ( 'Simply rename the actual attachment file while Notable is open' )
+        click: () => Dialog.alert ( 'Simply rename the actual attachment file while El Baton is open' )
       },
       {
         label: 'Delete',

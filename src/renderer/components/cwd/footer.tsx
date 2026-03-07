@@ -12,7 +12,7 @@ const Footer = ({ select, selectDefault }) => (
     <div className="multiple fluid center-y">
       <div className="button default no-grow" onClick={selectDefault}>
         <span>Use Default</span>
-        <span className="xsmall disabled">~/.notable</span>
+        <span className="xsmall disabled">~/.el-baton</span>
       </div>
       <div className="spacer"></div>
       <div className="button no-grow accent" onClick={select}>Select</div>

@@ -15,7 +15,7 @@ function fixLatestWindows () {
   if ( !fs.existsSync ( latestWindowsPath ) ) return;
 
   const content = fs.readFileSync ( latestWindowsPath, { encoding: 'utf8' } ),
-        contentNext = content.replace ( /notable-setup-(.*?)\.exe/gi, 'Notable.Setup.$1.exe' );
+        contentNext = content.replace ( /el-baton-setup-(.*?)\.exe/gi, 'El.Baton.Setup.$1.exe' );
 
   fs.writeFileSync ( latestWindowsPath, contentNext );
 

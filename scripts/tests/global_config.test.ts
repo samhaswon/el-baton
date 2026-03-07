@@ -11,7 +11,7 @@ import GlobalConfig from '../../src/common/global_config';
 
 const withTempDir = ( callback: ( dirPath: string ) => void ) => {
 
-  const dirPath = fs.mkdtempSync ( path.join ( os.tmpdir (), 'notable-config-' ) );
+  const dirPath = fs.mkdtempSync ( path.join ( os.tmpdir (), 'el-baton-config-' ) );
 
   try {
     callback ( dirPath );

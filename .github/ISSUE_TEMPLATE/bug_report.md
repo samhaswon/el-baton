@@ -6,7 +6,7 @@ about: Create a report to help us improve
 <!-- Please search existing issues to avoid creating duplicates -->
 
 - **OS Version**:
-- **Notable Version**:
+- **El Baton Version**:
 
 ### Current behavior
 

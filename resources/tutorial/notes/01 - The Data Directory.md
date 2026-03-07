@@ -23,9 +23,9 @@ The data directory is where all your notes and attachments will be stored, it ha
 ## Features
 
 - The data directory gives you freedom since your notes are never locked into some sort of proprietary database, all your files use sane formats and are easily accessible and portable.
-- You can open your data directory via `Notable -> Open Data Directory`.
-- You can also change data directory at any time via `Notable -> Change Data Directory...`, the current content won't be copied over to the new one.
-- You can edit your notes/attachments without even using Notable, all changes you make to them will be reflected here instantly. In fact you could also import a Markdown note simply by copying it into the `notes` directory.
+- You can open your data directory via `El Baton -> Open Data Directory`.
+- You can also change data directory at any time via `El Baton -> Change Data Directory...`, the current content won't be copied over to the new one.
+- You can edit your notes/attachments without even using El Baton, all changes you make to them will be reflected here instantly. In fact you could also import a Markdown note simply by copying it into the `notes` directory.
 
 ## Advanced Features
 

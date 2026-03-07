@@ -21,14 +21,14 @@ async function fixLinuxSandbox ( targets, cwd ) {
 
   if ( !isLinux ( targets ) ) return;
 
-  const scriptPath = path.join ( cwd, 'notable' ),
-        script = '#!/bin/bash\n"${BASH_SOURCE%/*}"/notable.bin "$@" --no-sandbox';
+  const scriptPath = path.join ( cwd, 'el-baton' ),
+        script = '#!/bin/bash\n"${BASH_SOURCE%/*}"/el-baton.bin "$@" --no-sandbox';
 
-  await execa ( 'mv', ['notable', 'notable.bin'], {cwd} );
+  await execa ( 'mv', ['el-baton', 'el-baton.bin'], {cwd} );
 
   fs.writeFileSync ( scriptPath, script );
 
-  await execa ( 'chmod', ['+x', 'notable'], {cwd} );
+  await execa ( 'chmod', ['+x', 'el-baton'], {cwd} );
 
 }
 

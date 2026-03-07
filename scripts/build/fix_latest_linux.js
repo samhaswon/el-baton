@@ -15,7 +15,7 @@ function fixLatestLinux () {
   if ( !fs.existsSync ( latestLinuxPath ) ) return;
 
   const content = fs.readFileSync ( latestLinuxPath, { encoding: 'utf8' } ),
-        contentNext = content.replace ( /notable-(.*?)-x86_64\.AppImage/gi, 'Notable.$1.AppImage' );
+        contentNext = content.replace ( /el-baton-(.*?)-x86_64\.AppImage/gi, 'El.Baton.$1.AppImage' );
 
   fs.writeFileSync ( latestLinuxPath, contentNext );
 

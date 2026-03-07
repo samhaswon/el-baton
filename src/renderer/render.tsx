@@ -12,7 +12,7 @@ import ErrorBoundary from './components/error_boundary';
 
 /* RENDER */
 
-const ROOT_KEY = '__notable_react_root__';
+const ROOT_KEY = '__el_baton_react_root__';
 
 async function render () {
 

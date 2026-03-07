@@ -296,7 +296,7 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
           base64 = Buffer.from ( html ).toString ( 'base64' ),
           data = `data:image/svg+xml;base64,${base64}`;
 
-    ipc.send ( 'mermaid-open', data ); //TODO: We should open this in the default browser instead, but it turns out that we can't open "data:*"" urls from here, perhaps we could set-up a special-purpose website to workaround this, something like https://notable.md/dataurl#data:image...
+    ipc.send ( 'mermaid-open', data ); //TODO: We should open this in the default browser instead, but it turns out that we can't open "data:*"" urls from here, perhaps we could set-up a special-purpose website to workaround this.
 
   }
 

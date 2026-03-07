@@ -11,7 +11,7 @@ The middlebar shows you all notes contained in the currently active category, pr
 
 To search just type something in the search bar.
 
-The title of notes is searched in _fuzzily_, which basically means that you can omit some characters from the query: if for instance there's a note titled "Notable" you can also find it by typing "Noab" or "Notae", as long as the characters are in the right order the note will be found.
+The title of notes is searched in _fuzzily_, which basically means that you can omit some characters from the query: if for instance there's a note titled "El Baton" you can also find it by typing "Noab" or "Notae", as long as the characters are in the right order the note will be found.
 
 The content of notes is searched in too, but not fuzzily, a full-match is required in this case.
 

@@ -5,7 +5,7 @@ tags: [Intermediate, Notebooks/Tutorial]
 
 # 08 - Importing
 
-You can import the following formats via `Notable -> Import`:
+You can import the following formats via `El Baton -> Import`:
 
 - Markdown files with extension: `md`, `mkd`, `mdwn`, `mdown`, `markdown`, `markdn`, `mdtxt`, `mdtext` or `txt`.
 - Evernotes' exports with extension: `enex`.

@@ -86,7 +86,7 @@ class CWD extends Container<CWDState, CWDCTX> {
 
   selectDefault = () => {
 
-    const folderPath = path.join ( os.homedir (), '.notable' );
+    const folderPath = path.join ( os.homedir (), '.el-baton' );
 
     return this.set ( folderPath );
 

@@ -39,7 +39,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, { error?: Error 
     openNewGitHubIssue ({
       repoUrl: pkg.homepage,
       title: `An error occurred: ${error.message}`,
-      body: `- **OS Version**: ${os.platform} ${os.release}\n- **Notable Version**: v${pkg.version}\n\n\`\`\`\n${error.stack}\n\`\`\``
+      body: `- **OS Version**: ${os.platform} ${os.release}\n- **El Baton Version**: v${pkg.version}\n\n\`\`\`\n${error.stack}\n\`\`\``
     });
 
   }
