@@ -22,7 +22,7 @@
     - Possibly some other styling changes for better distinction
     - Sometimes breaks when mixing HTML and markdown
     - Breaks on inline math. It's just orange, not properly highlighted.
-- [ ] Rename everything from "Notable" to "El Baton", including logo creation.
+- [X] Rename everything from "Notable" to "El Baton", including logo creation.
     - Agents: Don't do this one until asked as it involves human input.
 - [X] Add unit tests where possible, mostly for markdown rendering and features that can use it.
 - [X] Correct file path handling so that it is compatible with relative paths of GFM (or just MD on GitHub).
@@ -100,9 +100,12 @@
     - [ ] Make sure footnotes work per the GFM spec.
 - [ ] Brighten up the settings page in dark mode.
     - Currently, contrast is rather poor, making it hard to read.
+- [ ] Make spell check added words persistent, exposing the list in the settings menu. 
+    - This should involve some kind of collapsed view initially as to not clog up the UI. 
+    - Users should be able to add/delete from this list.
+    - Ideally should also import from Notable's settings, specifically as handled in the version extracted in `./extracted`.
 
 ## QoL Features
-
 
 - [ ] Add code type prediction
     - As the user types, a dialogue box should pop up showing potential options they may with to use. These options should be clickable.
@@ -128,6 +131,25 @@
     - [ ] Add option to disable automatic table formatting.
     - [ ] Add option to disable automatic renaming of notes
     - [ ] Add option to disable spell check
+- [ ] Build-in the tutorial as pages, rather than files, so it can more easily be referenced.
+- [ ] Evaluate memory usage in the production build.
+    - See if it's good, bad, what. Dev is a bit heavy, but that's dev.
+- [ ] On-battery mode with toolbar toggle.
+    - [ ] Look into what features Electron supports for this.
+        - See if it can be automated cross-platform
+        - See what all can be done outside of what's listed below.
+    - [ ] Reduce the framerate to 30FPS (default), editable in settings as 15FPS, 20FPS, 30FPS, and 60FPS.
+    - [ ] Optimize rendering for battery life.
+        - Maybe do something like the large note preview, where there is a delay between the user stopping typing and the note actually rendering.
+            - If done, this should be a toggle in the settings, as well as a configurable delay
+    - [ ] Disable spellcheck on battery toggle 
+        - Default off, meaning that spellcheck is active on battery
+    - [ ] Disable autocomplete on battery toggle
+        - Default of autocomplete still on when on battery.
+    - [ ] Disable animations when on battery toggle
+        - Default of animations off when on battery.
+    - Toggles here do not supersede global options.
+        - If a user disables animations globally, they should still be disabled. Similar for other options.
 
 ## Mobile App
 
