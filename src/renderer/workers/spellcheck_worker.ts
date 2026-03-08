@@ -46,7 +46,6 @@ declare const self: {
 /* CONSTANTS */
 
 const WORD_RE = /[A-Za-z][A-Za-z'’-]*/g;
-const MAX_SUGGESTIONS = 3;
 
 /* STATE */
 
@@ -117,7 +116,7 @@ self.onmessage = ( event: MessageEvent<WorkerMessage> ) => {
       return;
     }
 
-    const misspellings: { start: number, end: number, word: string, suggestions: string[] }[] = [];
+    const misspellings: { start: number, end: number, word: string }[] = [];
     const katexRanges = KatexRanges.find ( content );
     let match: RegExpExecArray | null;
     let rangeIndex = 0;
@@ -150,8 +149,7 @@ self.onmessage = ( event: MessageEvent<WorkerMessage> ) => {
       misspellings.push ({
         start: match.index,
         end: match.index + word.length,
-        word,
-        suggestions: spellchecker.getCorrectionsForMisspelling ( word ).slice ( 0, MAX_SUGGESTIONS )
+        word
       });
     }
 

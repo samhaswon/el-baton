@@ -14,6 +14,11 @@ const Config = {
   get autoupdate () {
     return Config.global.autoupdate;
   },
+  performance: {
+    get highPerformanceMode () {
+      return Config.global.performance.highPerformanceMode;
+    }
+  },
   ui: {
     get disableAnimations () {
       return Config.global.ui.disableAnimations;

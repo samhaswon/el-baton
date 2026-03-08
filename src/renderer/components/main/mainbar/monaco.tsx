@@ -313,6 +313,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
     ( editor as any ).spellcheckAddToDictionary = this.spellcheckAddToDictionary;
     ( editor as any ).spellcheckRescan = this.spellcheckCurrentModel;
+    ( editor as any ).spellcheckGetSuggestions = this.spellcheckGetSuggestions;
 
   }
 
@@ -1064,8 +1065,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       misspellings.push ({
         start: match.index,
         end: match.index + word.length,
-        word,
-        suggestions: spellchecker.getCorrectionsForMisspelling ( word ).slice ( 0, SPELLCHECK_MAX_SUGGESTIONS )
+        word
       });
     }
 
@@ -1203,6 +1203,18 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     }
 
     this._spellcheckDebounced ();
+
+  }
+
+  spellcheckGetSuggestions = ( word: string ): string[] => {
+
+    if ( !word ) return [];
+
+    const spellchecker = this.getRendererSpellchecker ();
+
+    if ( !spellchecker ) return [];
+
+    return spellchecker.getCorrectionsForMisspelling ( word ).slice ( 0, SPELLCHECK_MAX_SUGGESTIONS );
 
   }
 

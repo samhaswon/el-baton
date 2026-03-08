@@ -412,11 +412,12 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
     if ( !marker ) return;
 
     const wordMatch = marker.message.match ( /Possible misspelling:\s*\"([^\"]+)\"/i ),
-          word = wordMatch ? wordMatch[1] : model.getValueInRange ( new monaco.Range ( marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn ) ),
-          suggestionsMatch = marker.message.match ( /Suggestions:\s*(.+)$/i ),
-          suggestions = suggestionsMatch ? suggestionsMatch[1].split ( /\s*,\s*/g ).filter ( Boolean ) : [];
+          word = wordMatch ? wordMatch[1] : model.getValueInRange ( new monaco.Range ( marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn ) );
 
     if ( !word ) return;
+
+    const getSuggestions = editor.spellcheckGetSuggestions,
+          suggestions = ( typeof getSuggestions === 'function' ) ? ( getSuggestions ( word ) || [] ) : [];
 
     return { marker, word, suggestions };
 

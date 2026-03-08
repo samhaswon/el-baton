@@ -36,7 +36,8 @@ type MonacoEditor = import ( 'monaco-editor/esm/vs/editor/editor.api.js' ).edito
   getChangeDate: () => Date | undefined,
   getFilePath: () => string,
   spellcheckAddToDictionary?: ( word: string ) => Promise<void> | void,
-  spellcheckRescan?: () => Promise<void> | void
+  spellcheckRescan?: () => Promise<void> | void,
+  spellcheckGetSuggestions?: ( word: string ) => string[]
 };
 
 type NoteMetadataObj = {

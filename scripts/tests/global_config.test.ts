@@ -29,6 +29,9 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
 
     fs.writeFileSync ( path.join ( dirPath, 'config.json' ), JSON.stringify ({
       autoupdate: true,
+      performance: {
+        highPerformanceMode: false
+      },
       spellcheck: {
         addedWords: [],
         disable: false
@@ -66,6 +69,8 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
 
     fs.writeFileSync ( path.join ( dirPath, '.notable.yml' ), [
       'autoupdate: false',
+      'performance:',
+      '  highPerformanceMode: true',
       'spellcheck:',
       '  addedWords:',
       '    - Markdown',
@@ -98,6 +103,7 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
     const config = GlobalConfig.read ( dirPath );
 
     assert.equal ( config.autoupdate, false );
+    assert.equal ( config.performance.highPerformanceMode, true );
     assert.deepEqual ( config.spellcheck.addedWords, ['markdown', 'tex'] );
     assert.equal ( config.spellcheck.disable, true );
     assert.equal ( config.notes.disableAutomaticRenaming, true );
@@ -136,6 +142,9 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
 
   const config = GlobalConfig.normalize ({
     autoupdate: 0 as any,
+    performance: {
+      highPerformanceMode: 'yes'
+    },
     spellcheck: {
       addedWords: ['  WoRd ', 'word', "O'Reilly", 'x', '123', '$bad' ],
       disable: 'yes'
@@ -172,6 +181,7 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
   });
 
   assert.equal ( config.autoupdate, false );
+  assert.equal ( config.performance.highPerformanceMode, true );
   assert.deepEqual ( config.spellcheck.addedWords, ["o'reilly", 'word', 'x'] );
   assert.equal ( config.spellcheck.disable, true );
   assert.equal ( config.notes.disableAutomaticRenaming, true );
@@ -198,6 +208,9 @@ test ( 'write: persists normalized config and read returns the saved values', ()
 
     const filePath = GlobalConfig.write ( dirPath, {
       autoupdate: false,
+      performance: {
+        highPerformanceMode: true
+      },
       spellcheck: {
         addedWords: ['markdown', 'plantuml'],
         disable: true
@@ -239,6 +252,7 @@ test ( 'write: persists normalized config and read returns the saved values', ()
     const config = GlobalConfig.read ( dirPath );
 
     assert.equal ( config.autoupdate, false );
+    assert.equal ( config.performance.highPerformanceMode, true );
     assert.deepEqual ( config.spellcheck.addedWords, ['markdown', 'plantuml'] );
     assert.equal ( config.spellcheck.disable, true );
     assert.equal ( config.notes.disableAutomaticRenaming, true );

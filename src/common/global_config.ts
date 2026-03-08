@@ -10,6 +10,9 @@ type MonacoLineNumbersMode = 'off' | 'on' | 'relative';
 
 type GlobalConfigShape = {
   autoupdate: boolean,
+  performance: {
+    highPerformanceMode: boolean
+  },
   spellcheck: {
     addedWords: string[]
     disable: boolean
@@ -49,6 +52,9 @@ type GlobalConfigShape = {
 
 const DEFAULTS: GlobalConfigShape = {
   autoupdate: true,
+  performance: {
+    highPerformanceMode: false
+  },
   spellcheck: {
     addedWords: [],
     disable: false
@@ -144,6 +150,9 @@ const GlobalConfig = {
 
     return {
       autoupdate: DEFAULTS.autoupdate,
+      performance: {
+        highPerformanceMode: DEFAULTS.performance.highPerformanceMode
+      },
       spellcheck: {
         addedWords: [...DEFAULTS.spellcheck.addedWords],
         disable: DEFAULTS.spellcheck.disable
@@ -217,6 +226,10 @@ const GlobalConfig = {
 
     if ( 'autoupdate' in config ) {
       normalized.autoupdate = !!config.autoupdate;
+    }
+
+    if ( GlobalConfig.isRecord ( config.performance ) && 'highPerformanceMode' in config.performance ) {
+      normalized.performance.highPerformanceMode = !!config.performance.highPerformanceMode;
     }
 
     if ( GlobalConfig.isRecord ( config.spellcheck ) && 'addedWords' in config.spellcheck ) {

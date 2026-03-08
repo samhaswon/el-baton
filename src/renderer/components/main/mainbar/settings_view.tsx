@@ -69,6 +69,7 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanS
   }, [] );
 
   const toggleAutoupdate = () => setConfigValue ( 'autoupdate', !config.autoupdate );
+  const toggleHighPerformanceMode = () => setConfigValue ( 'performance.highPerformanceMode', !config.performance.highPerformanceMode );
   const toggleDisableAnimations = () => setConfigValue ( 'ui.disableAnimations', !config.ui.disableAnimations );
   const toggleMiddleClickPaste = () => setConfigValue ( 'input.disableMiddleClickPaste', !config.input.disableMiddleClickPaste );
   const toggleDisableScriptSanitization = () => setConfigValue ( 'preview.disableScriptSanitization', !config.preview.disableScriptSanitization );
@@ -196,6 +197,19 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanS
                 </div>
                 <div className="settings-control">
                   <button type="button" className={`settings-switch ${config.ui.disableAnimations ? 'active' : ''}`} aria-pressed={config.ui.disableAnimations} aria-label="Toggle UI animations" disabled={!canEdit} onClick={toggleDisableAnimations}>
+                    <span className="settings-switch-ui">
+                      <span className="settings-switch-thumb"></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Use GPU</div>
+                  <div className="settings-field-copy xsmall">Enables GPU rasterization-focused Chromium flags. Requires restart to take effect.</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className={`settings-switch ${config.performance.highPerformanceMode ? 'active' : ''}`} aria-pressed={config.performance.highPerformanceMode} aria-label="Toggle use GPU" disabled={!canEdit} onClick={toggleHighPerformanceMode}>
                     <span className="settings-switch-ui">
                       <span className="settings-switch-thumb"></span>
                     </span>
