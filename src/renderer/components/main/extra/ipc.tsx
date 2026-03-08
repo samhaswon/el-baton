@@ -69,6 +69,7 @@ class IPC extends Component<{ containers: [IMain, ICWD]}, {}> {
     ipc.on ( 'theme-set', this.__themeSet );
     ipc.on ( 'trash-empty', this.__trashEmpty );
     ipc.on ( 'tutorial-dialog', this.__tutorialDialog );
+    ipc.on ( 'power-monitor-state', this.__powerMonitorState );
 
   }
 
@@ -112,6 +113,7 @@ class IPC extends Component<{ containers: [IMain, ICWD]}, {}> {
     ipc.removeListener ( 'theme-set', this.__themeSet );
     ipc.removeListener ( 'trash-empty', this.__trashEmpty );
     ipc.removeListener ( 'tutorial-dialog', this.__tutorialDialog );
+    ipc.removeListener ( 'power-monitor-state', this.__powerMonitorState );
 
   }
 
@@ -348,6 +350,12 @@ class IPC extends Component<{ containers: [IMain, ICWD]}, {}> {
   __tutorialDialog = () => {
 
     this.main.tutorial.dialog ();
+
+  }
+
+  __powerMonitorState = ( _event: IpcRendererEvent, payload?: { isSupported?: boolean, isOnBatteryPower?: boolean } ) => {
+
+    this.main.window.setPowerStateFromMain ( payload );
 
   }
 

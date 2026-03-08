@@ -201,7 +201,11 @@ type WindowState = {
   focus: boolean,
   fullscreen: boolean,
   sidebar: boolean,
-  zen: boolean
+  zen: boolean,
+  mainPowerMonitorSupported: boolean,
+  mainOnBatteryPower: boolean,
+  browserBatterySupported: boolean,
+  browserOnBatteryPower: boolean
 };
 
 /* MAIN */

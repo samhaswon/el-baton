@@ -8,7 +8,7 @@ import Monaco from './monaco';
 
 /* EDITOR */
 
-class Editor extends React.Component<{ onChange: Function, onUpdate: Function, onScroll?: Function, filePath: string, content: string, theme: string, autosave: Function, getMonaco: Function, setMonaco: Function, hasFocus: Function, forget: Function, focus: Function, save: Function, restore: Function, reset: Function }, {}> {
+class Editor extends React.Component<{ onChange: Function, onUpdate: Function, onScroll?: Function, filePath: string, content: string, theme: string, disableSuggestions: boolean, autosave: Function, getMonaco: Function, setMonaco: Function, hasFocus: Function, forget: Function, focus: Function, save: Function, restore: Function, reset: Function }, {}> {
 
   _wasWindowBlurred: boolean = false;
 
@@ -99,9 +99,30 @@ class Editor extends React.Component<{ onChange: Function, onUpdate: Function, o
 
   render () {
 
-    const {filePath, content, theme} = this.props;
+    const {filePath, content, theme, disableSuggestions} = this.props;
 
-    return <Monaco className="layout-content editor" filePath={filePath} language="markdown" theme={theme} value={content} editorDidMount={this.__mount} editorWillUnmount={this.__unmount} editorWillChange={this.__editorChange} onBlur={this.__blur} onFocus={this.__focus} onChange={this.__change} onUpdate={this.__update} onScroll={this.__scroll} />;
+    return (
+      <Monaco
+        className="layout-content editor"
+        filePath={filePath}
+        language="markdown"
+        theme={theme}
+        value={content}
+        editorOptions={{
+          quickSuggestions: !disableSuggestions,
+          suggestOnTriggerCharacters: !disableSuggestions,
+          wordBasedSuggestions: disableSuggestions ? 'off' : 'currentDocument'
+        }}
+        editorDidMount={this.__mount}
+        editorWillUnmount={this.__unmount}
+        editorWillChange={this.__editorChange}
+        onBlur={this.__blur}
+        onFocus={this.__focus}
+        onChange={this.__change}
+        onUpdate={this.__update}
+        onScroll={this.__scroll}
+      />
+    );
 
   }
 
@@ -113,7 +134,9 @@ export default connect ({
   container: Main,
   selector: ({ container, onChange, onUpdate, onScroll }) => {
 
-    const note = container.note.get ();
+    const note = container.note.get (),
+          appConfig = container.appConfig.get (),
+          disableSuggestions = appConfig.monaco.editorOptions.disableSuggestions || container.window.isBatteryAutocompleteDisabled ();
 
     return {
       onChange,
@@ -122,6 +145,7 @@ export default connect ({
       filePath: note.filePath,
       content: container.note.getPlainContent ( note ),
       theme: container.theme.get (),
+      disableSuggestions,
       autosave: container.note.autosave,
       getMonaco: container.editor.getMonaco,
       setMonaco: container.editor.setMonaco,

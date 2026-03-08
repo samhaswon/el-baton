@@ -23,10 +23,12 @@ const isDollarMathDelimiterLine = ( line: string ) => line.trim () === '$$';
 const isBracketMathStartLine = ( line: string ) => line.trim () === '\\[';
 const isBracketMathEndLine = ( line: string ) => line.trim () === '\\]';
 
-const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocused, getMonaco, sourceFilePath, disableScriptSanitization, enableWorker = true, largeRenderMode = 'always', syncScroll = false }) => {
+const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocused, getMonaco, sourceFilePath, disableScriptSanitization, batteryRenderDelayMs = 0, enableWorker = true, largeRenderMode = 'always', syncScroll = false }) => {
   const effectiveContent = content,
         isLargeDocument = content.length >= Config.preview.largeDocumentThreshold,
         largeNoteFullRenderDelay = _.clamp ( Number ( Config.preview.largeNoteFullRenderDelay ) || DEFAULT_LARGE_NOTE_FULL_RENDER_DELAY, 0, 5000 ),
+        effectiveBatteryRenderDelay = _.clamp ( Number ( batteryRenderDelayMs ) || 0, 0, 5000 ),
+        effectiveLargeNoteFullRenderDelay = largeNoteFullRenderDelay + effectiveBatteryRenderDelay,
         [html, setHtml] = React.useState<string> ( '' ),
         [isRendering, setIsRendering] = React.useState<boolean> ( true ),
         localPreviewRef = React.useRef<HTMLDivElement> ( null ),
@@ -346,8 +348,8 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
     if ( !isEditorFocused ) return 0;
     const base = content.length >= MEDIUM_PREVIEW_RENDER_THRESHOLD ? 180 : 80,
           variable = Math.min ( 180, Math.floor ( content.length / 800 ) );
-    return Math.max ( TYPING_DEBOUNCE_MIN, Math.min ( TYPING_DEBOUNCE_MAX, base + variable ) );
-  }, [content.length, isEditorFocused] );
+    return Math.max ( TYPING_DEBOUNCE_MIN, Math.min ( TYPING_DEBOUNCE_MAX + effectiveBatteryRenderDelay, base + variable + effectiveBatteryRenderDelay ) );
+  }, [content.length, effectiveBatteryRenderDelay, isEditorFocused] );
 
   React.useEffect ( () => {
     cancelWorkerRender ();
@@ -407,7 +409,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
         setHtml ( partialHtml );
         setIsRendering ( false );
 
-        timeoutRef.current = window.setTimeout ( scheduleRender, largeNoteFullRenderDelay );
+        timeoutRef.current = window.setTimeout ( scheduleRender, effectiveLargeNoteFullRenderDelay );
       }).catch ( error => {
         if ( renderJobId !== renderJobRef.current || Markdown.isRenderAbortError ( error ) ) return;
         console.error ( '[preview] Partial worker render failed', error );
@@ -426,7 +428,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
       clearScheduled ();
     };
 
-  }, [content, effectiveContent, shouldDeferRender, getDebounceDelay, clearScheduled, scheduleIdle, isEditorFocused, buildPartialPreview, getSourceSnapshot, renderInWorker, cancelWorkerRender, enableWorker, largeNoteFullRenderDelay, largeRenderMode, initWorker] );
+  }, [content, effectiveContent, shouldDeferRender, getDebounceDelay, clearScheduled, scheduleIdle, isEditorFocused, buildPartialPreview, getSourceSnapshot, renderInWorker, cancelWorkerRender, enableWorker, effectiveLargeNoteFullRenderDelay, largeRenderMode, initWorker] );
 
   React.useEffect ( () => () => clearScheduled (), [clearScheduled] );
 
@@ -502,6 +504,7 @@ export default connect ({
   selector: ({ container, content, onScroll, onAnchorNavigate, previewRef, enableWorker, largeRenderMode, syncScroll }) => ({
     content: content || container.note.getPlainContent (),
     disableScriptSanitization: container.appConfig.get ().preview.disableScriptSanitization,
+    batteryRenderDelayMs: container.window.getBatteryRenderDelayMs (),
     onScroll,
     onAnchorNavigate,
     previewRef,

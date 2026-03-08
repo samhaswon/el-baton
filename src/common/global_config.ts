@@ -7,11 +7,22 @@ import {dump as dumpYAML, load as loadYAML} from 'js-yaml';
 /* TYPES */
 
 type MonacoLineNumbersMode = 'off' | 'on' | 'relative';
+type BatteryTargetFps = 5 | 10 | 15 | 20 | 30 | 60;
 
 type GlobalConfigShape = {
   autoupdate: boolean,
   performance: {
     highPerformanceMode: boolean
+  },
+  battery: {
+    enabled: boolean,
+    autoDetect: boolean,
+    targetFps: BatteryTargetFps,
+    optimizeRendering: boolean,
+    renderDelayMs: number,
+    disableSpellcheck: boolean,
+    disableAutocomplete: boolean,
+    disableAnimations: boolean
   },
   spellcheck: {
     addedWords: string[]
@@ -54,6 +65,16 @@ const DEFAULTS: GlobalConfigShape = {
   autoupdate: true,
   performance: {
     highPerformanceMode: false
+  },
+  battery: {
+    enabled: false,
+    autoDetect: true,
+    targetFps: 30,
+    optimizeRendering: true,
+    renderDelayMs: 400,
+    disableSpellcheck: false,
+    disableAutocomplete: false,
+    disableAnimations: true
   },
   spellcheck: {
     addedWords: [],
@@ -153,6 +174,16 @@ const GlobalConfig = {
       performance: {
         highPerformanceMode: DEFAULTS.performance.highPerformanceMode
       },
+      battery: {
+        enabled: DEFAULTS.battery.enabled,
+        autoDetect: DEFAULTS.battery.autoDetect,
+        targetFps: DEFAULTS.battery.targetFps,
+        optimizeRendering: DEFAULTS.battery.optimizeRendering,
+        renderDelayMs: DEFAULTS.battery.renderDelayMs,
+        disableSpellcheck: DEFAULTS.battery.disableSpellcheck,
+        disableAutocomplete: DEFAULTS.battery.disableAutocomplete,
+        disableAnimations: DEFAULTS.battery.disableAnimations
+      },
       spellcheck: {
         addedWords: [...DEFAULTS.spellcheck.addedWords],
         disable: DEFAULTS.spellcheck.disable
@@ -230,6 +261,46 @@ const GlobalConfig = {
 
     if ( GlobalConfig.isRecord ( config.performance ) && 'highPerformanceMode' in config.performance ) {
       normalized.performance.highPerformanceMode = !!config.performance.highPerformanceMode;
+    }
+
+    if ( GlobalConfig.isRecord ( config.battery ) && 'enabled' in config.battery ) {
+      normalized.battery.enabled = !!config.battery.enabled;
+    }
+
+    if ( GlobalConfig.isRecord ( config.battery ) && 'autoDetect' in config.battery ) {
+      normalized.battery.autoDetect = !!config.battery.autoDetect;
+    }
+
+    if ( GlobalConfig.isRecord ( config.battery ) && 'targetFps' in config.battery ) {
+      const targetFps = Number ( config.battery.targetFps );
+
+      if ( targetFps === 5 || targetFps === 10 || targetFps === 15 || targetFps === 20 || targetFps === 30 || targetFps === 60 ) {
+        normalized.battery.targetFps = targetFps;
+      }
+    }
+
+    if ( GlobalConfig.isRecord ( config.battery ) && 'optimizeRendering' in config.battery ) {
+      normalized.battery.optimizeRendering = !!config.battery.optimizeRendering;
+    }
+
+    if ( GlobalConfig.isRecord ( config.battery ) && 'renderDelayMs' in config.battery ) {
+      const delay = Number ( config.battery.renderDelayMs );
+
+      if ( Number.isFinite ( delay ) ) {
+        normalized.battery.renderDelayMs = Math.max ( 0, Math.min ( 5000, Math.round ( delay ) ) );
+      }
+    }
+
+    if ( GlobalConfig.isRecord ( config.battery ) && 'disableSpellcheck' in config.battery ) {
+      normalized.battery.disableSpellcheck = !!config.battery.disableSpellcheck;
+    }
+
+    if ( GlobalConfig.isRecord ( config.battery ) && 'disableAutocomplete' in config.battery ) {
+      normalized.battery.disableAutocomplete = !!config.battery.disableAutocomplete;
+    }
+
+    if ( GlobalConfig.isRecord ( config.battery ) && 'disableAnimations' in config.battery ) {
+      normalized.battery.disableAnimations = !!config.battery.disableAnimations;
     }
 
     if ( GlobalConfig.isRecord ( config.spellcheck ) && 'addedWords' in config.spellcheck ) {
@@ -392,5 +463,5 @@ const GlobalConfig = {
 
 /* EXPORT */
 
-export type {GlobalConfigShape, MonacoLineNumbersMode};
+export type {GlobalConfigShape, MonacoLineNumbersMode, BatteryTargetFps};
 export default GlobalConfig;

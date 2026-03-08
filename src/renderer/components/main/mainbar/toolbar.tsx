@@ -14,6 +14,7 @@ import SplitEditorButton from './toolbar_button_split_editor';
 import TagsButton from './toolbar_button_tags';
 import TrashButton from './toolbar_button_trash';
 import TrashPermanentlyButton from './toolbar_button_trash_permanently';
+import ToolbarButtonBattery from './toolbar_button_battery';
 
 /* TOOLBAR */
 
@@ -39,6 +40,9 @@ const Toolbar = ({ hasNote, isFocus, isFullscreen, isZen, isSplit }) => {
         <div className="multiple joined">
           <TrashButton />
           <TrashPermanentlyButton />
+        </div>
+        <div className="multiple joined">
+          <ToolbarButtonBattery />
         </div>
         <div className="spacer"></div>
         <OpenButton />

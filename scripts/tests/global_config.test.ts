@@ -32,6 +32,16 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
       performance: {
         highPerformanceMode: false
       },
+      battery: {
+        enabled: false,
+        autoDetect: true,
+        targetFps: 30,
+        optimizeRendering: true,
+        renderDelayMs: 400,
+        disableSpellcheck: false,
+        disableAutocomplete: false,
+        disableAnimations: true
+      },
       spellcheck: {
         addedWords: [],
         disable: false
@@ -71,6 +81,15 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
       'autoupdate: false',
       'performance:',
       '  highPerformanceMode: true',
+      'battery:',
+      '  enabled: true',
+      '  autoDetect: false',
+      '  targetFps: 20',
+      '  optimizeRendering: false',
+      '  renderDelayMs: 750',
+      '  disableSpellcheck: true',
+      '  disableAutocomplete: true',
+      '  disableAnimations: false',
       'spellcheck:',
       '  addedWords:',
       '    - Markdown',
@@ -104,6 +123,14 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
 
     assert.equal ( config.autoupdate, false );
     assert.equal ( config.performance.highPerformanceMode, true );
+    assert.equal ( config.battery.enabled, true );
+    assert.equal ( config.battery.autoDetect, false );
+    assert.equal ( config.battery.targetFps, 20 );
+    assert.equal ( config.battery.optimizeRendering, false );
+    assert.equal ( config.battery.renderDelayMs, 750 );
+    assert.equal ( config.battery.disableSpellcheck, true );
+    assert.equal ( config.battery.disableAutocomplete, true );
+    assert.equal ( config.battery.disableAnimations, false );
     assert.deepEqual ( config.spellcheck.addedWords, ['markdown', 'tex'] );
     assert.equal ( config.spellcheck.disable, true );
     assert.equal ( config.notes.disableAutomaticRenaming, true );
@@ -145,6 +172,16 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
     performance: {
       highPerformanceMode: 'yes'
     },
+    battery: {
+      enabled: 'yes',
+      autoDetect: '',
+      targetFps: 17,
+      optimizeRendering: 1,
+      renderDelayMs: 999999,
+      disableSpellcheck: 'yes',
+      disableAutocomplete: 'yes',
+      disableAnimations: 0
+    },
     spellcheck: {
       addedWords: ['  WoRd ', 'word', "O'Reilly", 'x', '123', '$bad' ],
       disable: 'yes'
@@ -182,6 +219,14 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
 
   assert.equal ( config.autoupdate, false );
   assert.equal ( config.performance.highPerformanceMode, true );
+  assert.equal ( config.battery.enabled, true );
+  assert.equal ( config.battery.autoDetect, false );
+  assert.equal ( config.battery.targetFps, 30 );
+  assert.equal ( config.battery.optimizeRendering, true );
+  assert.equal ( config.battery.renderDelayMs, 5000 );
+  assert.equal ( config.battery.disableSpellcheck, true );
+  assert.equal ( config.battery.disableAutocomplete, true );
+  assert.equal ( config.battery.disableAnimations, false );
   assert.deepEqual ( config.spellcheck.addedWords, ["o'reilly", 'word', 'x'] );
   assert.equal ( config.spellcheck.disable, true );
   assert.equal ( config.notes.disableAutomaticRenaming, true );
@@ -202,6 +247,24 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
 
 });
 
+test ( 'normalize: accepts low on-battery fps options', () => {
+
+  const lowFive = GlobalConfig.normalize ({
+          battery: {
+            targetFps: 5
+          }
+        }),
+        lowTen = GlobalConfig.normalize ({
+          battery: {
+            targetFps: 10
+          }
+        });
+
+  assert.equal ( lowFive.battery.targetFps, 5 );
+  assert.equal ( lowTen.battery.targetFps, 10 );
+
+});
+
 test ( 'write: persists normalized config and read returns the saved values', () => {
 
   withTempDir ( dirPath => {
@@ -210,6 +273,16 @@ test ( 'write: persists normalized config and read returns the saved values', ()
       autoupdate: false,
       performance: {
         highPerformanceMode: true
+      },
+      battery: {
+        enabled: true,
+        autoDetect: true,
+        targetFps: 15,
+        optimizeRendering: true,
+        renderDelayMs: 1000,
+        disableSpellcheck: true,
+        disableAutocomplete: false,
+        disableAnimations: true
       },
       spellcheck: {
         addedWords: ['markdown', 'plantuml'],
@@ -253,6 +326,14 @@ test ( 'write: persists normalized config and read returns the saved values', ()
 
     assert.equal ( config.autoupdate, false );
     assert.equal ( config.performance.highPerformanceMode, true );
+    assert.equal ( config.battery.enabled, true );
+    assert.equal ( config.battery.autoDetect, true );
+    assert.equal ( config.battery.targetFps, 15 );
+    assert.equal ( config.battery.optimizeRendering, true );
+    assert.equal ( config.battery.renderDelayMs, 1000 );
+    assert.equal ( config.battery.disableSpellcheck, true );
+    assert.equal ( config.battery.disableAutocomplete, false );
+    assert.equal ( config.battery.disableAnimations, true );
     assert.deepEqual ( config.spellcheck.addedWords, ['markdown', 'plantuml'] );
     assert.equal ( config.spellcheck.disable, true );
     assert.equal ( config.notes.disableAutomaticRenaming, true );

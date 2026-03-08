@@ -1,7 +1,7 @@
 
 /* IMPORT */
 
-import {app, ipcMain as ipc, Event, Menu, MenuItemConstructorOptions, shell} from 'electron';
+import {app, ipcMain as ipc, Event, IpcMainEvent, Menu, MenuItemConstructorOptions, powerMonitor, shell} from 'electron';
 import {autoUpdater as updater} from 'electron-updater';
 import {enforceMacOSAppLocation, is} from '@common/electron_util_shim';
 import * as fs from 'fs';
@@ -21,6 +21,8 @@ class App {
   /* VARIABLES */
 
   win: Window | undefined;
+  isMainPowerMonitorSupported: boolean = process.platform === 'darwin' || process.platform === 'win32';
+  isOnBatteryPower: boolean = false;
 
   /* CONSTRUCTOR */
 
@@ -79,6 +81,7 @@ class App {
     this.___ready ();
     this.___cwdChanged ();
     this.___updaterCheck ();
+    this.___powerMonitorStateRequest ();
 
   }
 
@@ -164,6 +167,7 @@ class App {
 
     enforceMacOSAppLocation ();
 
+    this.initPowerMonitor ();
     this.initDebug ();
 
     this.load ();
@@ -222,6 +226,73 @@ class App {
 
   }
 
+  /* POWER MONITOR */
+
+  ___powerMonitorStateRequest = () => {
+
+    ipc.on ( 'power-monitor-state-request', this.__powerMonitorStateRequest );
+
+  }
+
+  __powerMonitorStateRequest = ( event: IpcMainEvent ) => {
+
+    this.broadcastPowerState ( event.sender );
+
+  }
+
+  initPowerMonitor () {
+
+    if ( !this.isMainPowerMonitorSupported ) return;
+
+    if ( typeof powerMonitor.isOnBatteryPower === 'function' ) {
+      try {
+        this.isOnBatteryPower = !!powerMonitor.isOnBatteryPower ();
+      } catch ( error ) {
+        this.isOnBatteryPower = false;
+      }
+    }
+
+    powerMonitor.on ( 'on-battery', this.__powerOnBattery );
+    powerMonitor.on ( 'on-ac', this.__powerOnAC );
+
+  }
+
+  __powerOnBattery = () => {
+
+    this.isOnBatteryPower = true;
+    this.broadcastPowerState ();
+
+  }
+
+  __powerOnAC = () => {
+
+    this.isOnBatteryPower = false;
+    this.broadcastPowerState ();
+
+  }
+
+  broadcastPowerState ( sender?: Electron.WebContents ) {
+
+    const payload = {
+      isSupported: this.isMainPowerMonitorSupported,
+      isOnBatteryPower: this.isMainPowerMonitorSupported ? this.isOnBatteryPower : false
+    };
+
+    if ( sender ) {
+      if ( !sender.isDestroyed () ) {
+        sender.send ( 'power-monitor-state', payload );
+      }
+      return;
+    }
+
+    const webContents = this.win?.win?.webContents;
+
+    if ( !webContents || webContents.isDestroyed () ) return;
+
+    webContents.send ( 'power-monitor-state', payload );
+
+  }
+
   /* API */
 
   load () {
@@ -239,6 +310,10 @@ class App {
     }
 
     this.win.init ();
+
+    this.win.win.webContents.once ( 'did-finish-load', () => {
+      this.broadcastPowerState ();
+    });
 
   }
 

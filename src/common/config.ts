@@ -19,6 +19,32 @@ const Config = {
       return Config.global.performance.highPerformanceMode;
     }
   },
+  battery: {
+    get enabled () {
+      return Config.global.battery.enabled;
+    },
+    get autoDetect () {
+      return Config.global.battery.autoDetect;
+    },
+    get targetFps () {
+      return Config.global.battery.targetFps;
+    },
+    get optimizeRendering () {
+      return Config.global.battery.optimizeRendering;
+    },
+    get renderDelayMs () {
+      return Config.global.battery.renderDelayMs;
+    },
+    get disableSpellcheck () {
+      return Config.global.battery.disableSpellcheck;
+    },
+    get disableAutocomplete () {
+      return Config.global.battery.disableAutocomplete;
+    },
+    get disableAnimations () {
+      return Config.global.battery.disableAnimations;
+    }
+  },
   ui: {
     get disableAnimations () {
       return Config.global.ui.disableAnimations;

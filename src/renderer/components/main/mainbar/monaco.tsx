@@ -1226,7 +1226,10 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
     if ( !model ) return;
 
-    if ( this.props.container.appConfig.get ().spellcheck.disable ) {
+    const appConfig = this.props.container.appConfig.get (),
+          spellcheckDisabled = appConfig.spellcheck.disable || this.props.container.window.isBatterySpellcheckDisabled ();
+
+    if ( spellcheckDisabled ) {
       if ( this._spellcheckEnabledRuntime ) {
         this._spellcheckEnabledRuntime = false;
         this.clearSpellcheckMarkers ();

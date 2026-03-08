@@ -136,19 +136,19 @@
 - [X] Evaluate memory usage in the production build.
     - See if it's good, bad, what. Dev is a bit heavy, but that's dev.
 - [ ] Optimize Markdown string ops to reduce GC pressure.
-- [ ] On-battery mode with toolbar toggle.
-    - [ ] Look into what features Electron supports for this.
+- [X] On-battery mode with toolbar toggle.
+    - [X] Look into what features Electron supports for this.
         - See if it can be automated cross-platform
         - See what all can be done outside of what's listed below.
-    - [ ] Reduce the framerate to 30FPS (default), editable in settings as 15FPS, 20FPS, 30FPS, and 60FPS.
-    - [ ] Optimize rendering for battery life.
+    - [X] Reduce the framerate to 30FPS (default), editable in settings as 15FPS, 20FPS, 30FPS, and 60FPS.
+    - [X] Optimize rendering for battery life.
         - Maybe do something like the large note preview, where there is a delay between the user stopping typing and the note actually rendering.
             - If done, this should be a toggle in the settings, as well as a configurable delay
-    - [ ] Disable spellcheck on battery toggle 
+    - [X] Disable spellcheck on battery toggle 
         - Default off, meaning that spellcheck is active on battery
-    - [ ] Disable autocomplete on battery toggle
+    - [X] Disable autocomplete on battery toggle
         - Default of autocomplete still on when on battery.
-    - [ ] Disable animations when on battery toggle
+    - [X] Disable animations when on battery toggle
         - Default of animations off when on battery.
     - Toggles here do not supersede global options.
         - If a user disables animations globally, they should still be disabled. Similar for other options.

@@ -7,7 +7,7 @@ import Main from '@renderer/containers/main';
 
 /* SETTINGS VIEW */
 
-const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanSpellcheck }) => {
+const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanSpellcheck, isBatteryModeActive, isOnBatteryPower, hasBatteryPowerDetection }) => {
 
   const canEdit = !!filePath;
   const [spellcheckWordsOpen, setSpellcheckWordsOpen] = React.useState ( false );
@@ -70,6 +70,12 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanS
 
   const toggleAutoupdate = () => setConfigValue ( 'autoupdate', !config.autoupdate );
   const toggleHighPerformanceMode = () => setConfigValue ( 'performance.highPerformanceMode', !config.performance.highPerformanceMode );
+  const toggleBatteryMode = () => setConfigValue ( 'battery.enabled', !config.battery.enabled );
+  const toggleBatteryAutoDetect = () => setConfigValue ( 'battery.autoDetect', !config.battery.autoDetect );
+  const toggleBatteryOptimizeRendering = () => setConfigValue ( 'battery.optimizeRendering', !config.battery.optimizeRendering );
+  const toggleBatteryDisableSpellcheck = () => setConfigValue ( 'battery.disableSpellcheck', !config.battery.disableSpellcheck );
+  const toggleBatteryDisableAutocomplete = () => setConfigValue ( 'battery.disableAutocomplete', !config.battery.disableAutocomplete );
+  const toggleBatteryDisableAnimations = () => setConfigValue ( 'battery.disableAnimations', !config.battery.disableAnimations );
   const toggleDisableAnimations = () => setConfigValue ( 'ui.disableAnimations', !config.ui.disableAnimations );
   const toggleMiddleClickPaste = () => setConfigValue ( 'input.disableMiddleClickPaste', !config.input.disableMiddleClickPaste );
   const toggleDisableScriptSanitization = () => setConfigValue ( 'preview.disableScriptSanitization', !config.preview.disableScriptSanitization );
@@ -81,6 +87,8 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanS
   });
   const toggleDisableSuggestions = () => setConfigValue ( 'monaco.editorOptions.disableSuggestions', !config.monaco.editorOptions.disableSuggestions );
   const setLargeNoteFullRenderDelay = ( value: string ) => setConfigValue ( 'preview.largeNoteFullRenderDelay', Number ( value ) );
+  const setBatteryTargetFps = ( value: string ) => setConfigValue ( 'battery.targetFps', Number ( value ) );
+  const setBatteryRenderDelayMs = ( value: string ) => setConfigValue ( 'battery.renderDelayMs', Number ( value ) );
   const setTableFormattingDelay = ( value: string ) => setConfigValue ( 'monaco.tableFormattingDelay', Number ( value ) );
   const setTabSize = ( value: string ) => setConfigValue ( 'monaco.editorOptions.tabSize', Number ( value ) );
   const setPlantUMLRequestTimeout = ( value: string ) => setConfigValue ( 'plantuml.requestTimeoutMs', Number ( value ) );
@@ -217,6 +225,135 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanS
                 </div>
               </div>
             </div>
+          </section>
+
+          <section className="settings-section">
+            <div className="settings-section-header">
+              <p className="settings-section-name">On-Battery Mode</p>
+              <p className="settings-section-copy xxsmall">Reduce editor and preview work while running on battery power.</p>
+            </div>
+            <div className="settings-group">
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Manual on-battery mode</div>
+                  <div className="settings-field-copy xsmall">Forces on-battery optimizations even when external power is connected.</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className={`settings-switch ${config.battery.enabled ? 'active' : ''}`} aria-pressed={config.battery.enabled} aria-label="Toggle manual on-battery mode" disabled={!canEdit} onClick={toggleBatteryMode}>
+                    <span className="settings-switch-ui">
+                      <span className="settings-switch-thumb"></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Auto-detect battery power</div>
+                  <div className="settings-field-copy xsmall">Automatically applies on-battery mode when the system reports battery power.</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className={`settings-switch ${config.battery.autoDetect ? 'active' : ''}`} aria-pressed={config.battery.autoDetect} aria-label="Toggle battery auto-detection" disabled={!canEdit} onClick={toggleBatteryAutoDetect}>
+                    <span className="settings-switch-ui">
+                      <span className="settings-switch-thumb"></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">On-battery split sync framerate cap</div>
+                  <div className="settings-field-copy xsmall">Caps split-view synchronization rate to reduce update pressure while on battery.</div>
+                </div>
+                <div className="settings-control">
+                  <div className="settings-select-wrap">
+                    <select className="settings-select" disabled={!canEdit} value={String ( config.battery.targetFps )} onChange={event => setBatteryTargetFps ( event.currentTarget.value )}>
+                      <option value="5">5 FPS</option>
+                      <option value="10">10 FPS</option>
+                      <option value="15">15 FPS</option>
+                      <option value="20">20 FPS</option>
+                      <option value="30">30 FPS</option>
+                      <option value="60">60 FPS</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Optimize preview rendering</div>
+                  <div className="settings-field-copy xsmall">Adds extra preview delay while typing on battery to reduce render churn.</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className={`settings-switch ${config.battery.optimizeRendering ? 'active' : ''}`} aria-pressed={config.battery.optimizeRendering} aria-label="Toggle on-battery preview rendering optimization" disabled={!canEdit} onClick={toggleBatteryOptimizeRendering}>
+                    <span className="settings-switch-ui">
+                      <span className="settings-switch-thumb"></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">On-battery render delay</div>
+                  <div className="settings-field-copy xsmall">Extra delay before preview updates while typing with on-battery mode active.</div>
+                </div>
+                <div className="settings-control">
+                  <div className="settings-select-wrap">
+                    <select className="settings-select" disabled={!canEdit || !config.battery.optimizeRendering} value={String ( config.battery.renderDelayMs )} onChange={event => setBatteryRenderDelayMs ( event.currentTarget.value )}>
+                      <option value="0">Off</option>
+                      <option value="200">200 ms</option>
+                      <option value="300">300 ms</option>
+                      <option value="400">400 ms</option>
+                      <option value="500">500 ms</option>
+                      <option value="750">750 ms</option>
+                      <option value="1000">1 second</option>
+                      <option value="1500">1.5 seconds</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Disable spellcheck on battery</div>
+                  <div className="settings-field-copy xsmall">Default off. When enabled, spellcheck runs only on AC unless globally disabled.</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className={`settings-switch ${config.battery.disableSpellcheck ? 'active' : ''}`} aria-pressed={config.battery.disableSpellcheck} aria-label="Toggle spellcheck on battery" disabled={!canEdit} onClick={toggleBatteryDisableSpellcheck}>
+                    <span className="settings-switch-ui">
+                      <span className="settings-switch-thumb"></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Disable autocomplete on battery</div>
+                  <div className="settings-field-copy xsmall">Default off. When enabled, suggestions run only on AC unless globally disabled.</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className={`settings-switch ${config.battery.disableAutocomplete ? 'active' : ''}`} aria-pressed={config.battery.disableAutocomplete} aria-label="Toggle autocomplete on battery" disabled={!canEdit} onClick={toggleBatteryDisableAutocomplete}>
+                    <span className="settings-switch-ui">
+                      <span className="settings-switch-thumb"></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Disable animations on battery</div>
+                  <div className="settings-field-copy xsmall">Default on. Animations remain disabled if the global setting also disables them.</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className={`settings-switch ${config.battery.disableAnimations ? 'active' : ''}`} aria-pressed={config.battery.disableAnimations} aria-label="Toggle animations on battery" disabled={!canEdit} onClick={toggleBatteryDisableAnimations}>
+                    <span className="settings-switch-ui">
+                      <span className="settings-switch-thumb"></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <p className="settings-footnote xsmall">
+              Power source: {hasBatteryPowerDetection ? ( isOnBatteryPower ? 'Battery' : 'AC' ) : 'Unavailable'}.
+              On-battery mode: {isBatteryModeActive ? 'Active' : 'Inactive'}.
+            </p>
           </section>
 
           <section className="settings-section">
@@ -589,6 +726,9 @@ export default connect ({
     filePath: container.appConfig.getFilePath (),
     refreshConfig: container.appConfig.refresh,
     setConfigValue: container.appConfig.setValue,
+    isBatteryModeActive: container.window.isBatteryModeActive (),
+    isOnBatteryPower: container.window.isOnBatteryPower (),
+    hasBatteryPowerDetection: container.window.hasBatteryPowerDetection (),
     rescanSpellcheck: () => {
       const editor = container.editor.getMonaco () as any;
       editor?.spellcheckRescan?.();

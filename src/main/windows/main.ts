@@ -697,7 +697,8 @@ class Main extends Route {
     const win = new BrowserWindow ({
       show: false,
       webPreferences: {
-        webSecurity: false
+        webSecurity: false,
+        nodeIntegrationInWorker: true
       }
     });
 

@@ -11,7 +11,7 @@ import Preview from './preview';
 
 /* SPLIT EDITOR */
 
-class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean, hasSidebar: boolean, content: string, getMonaco: () => MonacoEditor | undefined, splitViewSyncEnabled: boolean }, { content?: string }> {
+class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean, hasSidebar: boolean, content: string, getMonaco: () => MonacoEditor | undefined, splitViewSyncEnabled: boolean, maxSyncFps: number }, { content?: string }> {
 
   _previewRef = React.createRef<HTMLDivElement> ();
   _ignoreSourceScrollUntil = 0;
@@ -32,6 +32,8 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
   _lastSourceScrollTop = NaN;
   _lastSourceUnits = NaN;
   _lastPreviewScrollTop = NaN;
+  _lastSourceSyncAt = 0;
+  _lastPreviewSyncAt = 0;
 
   state = {
     content: undefined as string | undefined
@@ -718,6 +720,11 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     if ( !this.props.splitViewSyncEnabled ) return;
 
     const now = Date.now ();
+    const nowPerf = performance.now ();
+    const minInterval = this.__getSyncMinIntervalMs ();
+
+    if ( !force && minInterval > 0 && ( nowPerf - this._lastSourceSyncAt ) < minInterval ) return;
+    this._lastSourceSyncAt = nowPerf;
 
     if ( !force && now < this._ignoreSourceScrollUntil ) return;
 
@@ -768,6 +775,11 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     if ( this._isPreviewRendering ) return;
 
     const now = Date.now ();
+    const nowPerf = performance.now ();
+    const minInterval = this.__getSyncMinIntervalMs ();
+
+    if ( minInterval > 0 && ( nowPerf - this._lastPreviewSyncAt ) < minInterval ) return;
+    this._lastPreviewSyncAt = nowPerf;
 
     if ( now < this._ignorePreviewScrollUntil ) return;
     if ( now < this._previewToSourceLockUntil ) return;
@@ -808,6 +820,16 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     this._ignoreSourceScrollUntil = now + 120;
     source.monaco.setScrollTop ( nextScrollTop );
+
+  }
+
+  __getSyncMinIntervalMs = () => {
+
+    const fps = this.props.maxSyncFps;
+
+    if ( !Number.isFinite ( fps ) || fps >= 60 ) return 0;
+
+    return Math.max ( 0, Math.floor ( 1000 / Math.max ( 1, fps ) ) );
 
   }
 
@@ -927,6 +949,7 @@ export default connect ({
     isFocus: container.window.isFocus (),
     isZen: container.window.isZen (),
     hasSidebar: container.window.hasSidebar (),
-    splitViewSyncEnabled: !container.appConfig.get ().preview.disableSplitViewSync
+    splitViewSyncEnabled: !container.appConfig.get ().preview.disableSplitViewSync,
+    maxSyncFps: container.window.getEffectiveFrameRate ()
   })
 })( SplitEditor );

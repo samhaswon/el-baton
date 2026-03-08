@@ -1,7 +1,7 @@
 
 /* IMPORT */
 
-import {ipcRenderer as ipc} from 'electron';
+import {ipcRenderer as ipc, webFrame} from 'electron';
 import {is} from '@common/electron_util_shim';
 import {connect} from 'overstated';
 import {Component} from 'react-component-renderless';
@@ -9,13 +9,14 @@ import Main from '@renderer/containers/main';
 
 /* GLOBAL PLUGINS */
 
-class GlobalPlugins extends Component<{ container: IMain, config: import ( '@common/global_config' ).GlobalConfigShape }, {}> {
+class GlobalPlugins extends Component<{ container: IMain, config: import ( '@common/global_config' ).GlobalConfigShape, frameRateCap: number }, {}> {
 
   /* VARIABLES */
 
   _updaterTimeout?: NodeJS.Timeout;
   _updaterInterval?: NodeJS.Timeout;
   _blockPrimarySelectionPasteUntil = 0;
+  _lastAppliedFrameRate?: number;
 
   /* SPECIAL */
 
@@ -24,15 +25,17 @@ class GlobalPlugins extends Component<{ container: IMain, config: import ( '@com
     $.$document.on ( 'click', '.quick-panel .list-item', this.__quickPanelClick );
     this._syncAutoupdate ();
     this._syncMiddleClickPaste ();
+    this._syncFrameRate ();
 
   }
 
   componentDidUpdate ( prevProps ) {
 
-    if ( prevProps.config === this.props.config ) return;
+    if ( prevProps.config === this.props.config && prevProps.frameRateCap === this.props.frameRateCap ) return;
 
     this._syncAutoupdate ();
     this._syncMiddleClickPaste ();
+    this._syncFrameRate ();
 
   }
 
@@ -43,6 +46,7 @@ class GlobalPlugins extends Component<{ container: IMain, config: import ( '@com
 
     $.$document.off ( 'click', this.__quickPanelClick );
     this._unbindMiddleClickPaste ();
+    this._syncFrameRate ( 60 );
 
   }
 
@@ -86,6 +90,21 @@ class GlobalPlugins extends Component<{ container: IMain, config: import ( '@com
     document.addEventListener ( 'auxclick', this.__middleClickPasteAttemptCapture, true );
     document.addEventListener ( 'paste', this.__middleClickPasteAttemptCapture, true );
     document.addEventListener ( 'beforeinput', this.__middleClickPasteAttemptCapture as EventListener, true );
+
+  }
+
+  _syncFrameRate = ( override?: number ) => {
+
+    const frameAPI = webFrame as any;
+
+    if ( typeof frameAPI?.setFrameRate !== 'function' ) return;
+
+    const nextFrameRate = Math.max ( 1, Math.min ( 60, Math.round ( override || this.props.frameRateCap || 60 ) ) );
+
+    if ( this._lastAppliedFrameRate === nextFrameRate ) return;
+
+    this._lastAppliedFrameRate = nextFrameRate;
+    frameAPI.setFrameRate ( nextFrameRate );
 
   }
 
@@ -167,6 +186,7 @@ class GlobalPlugins extends Component<{ container: IMain, config: import ( '@com
 export default connect ({
   container: Main,
   selector: ({ container }) => ({
-    config: container.appConfig.get ()
+    config: container.appConfig.get (),
+    frameRateCap: container.window.getEffectiveFrameRate ()
   })
 })( GlobalPlugins );
