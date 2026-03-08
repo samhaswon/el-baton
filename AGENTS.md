@@ -2,7 +2,7 @@
 
 ## Instructions
 
-Don't forget to type check and run relevant tests for a given change.
+Don't forget to type check and run relevant tests from [`package.json`](./package.json) for a given change.
 
 If a change is purely a UI change, just type check. If it's a logic change, especially for markdown rendering, unit test.
 

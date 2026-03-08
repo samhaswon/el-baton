@@ -163,7 +163,9 @@ type SearchState = {
   results: import ( '@renderer/containers/main/search' ).SearchResult[],
   localQuery: string,
   localOpen: boolean,
-  localTarget: 'editor' | 'preview'
+  localTarget: 'editor' | 'preview',
+  localRegex: boolean,
+  localReplaceQuery: string
 };
 
 type SkeletonState = {};

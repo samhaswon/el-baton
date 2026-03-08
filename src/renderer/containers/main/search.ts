@@ -52,7 +52,9 @@ class Search extends Container<SearchState, MainCTX> {
     results: [] as SearchResult[],
     localQuery: '',
     localOpen: false,
-    localTarget: 'preview' as 'editor' | 'preview'
+    localTarget: 'preview' as 'editor' | 'preview',
+    localRegex: false,
+    localReplaceQuery: ''
   };
 
   /* CONSTRUCTOR */
@@ -465,13 +467,66 @@ class Search extends Container<SearchState, MainCTX> {
 
   }
 
-  _getLocalSearchRegex = (): RegExp | undefined => {
+  _getLocalSearchRegex = ( flags: string = 'ig' ): RegExp | undefined => {
 
-    const query = ( this.state.localQuery || '' ).trim ();
+    const query = this.state.localQuery || '';
 
     if ( !query ) return;
 
-    return new RegExp ( _.escapeRegExp ( query ), 'ig' );
+    if ( !this.state.localRegex ) {
+      return new RegExp ( _.escapeRegExp ( query ), flags );
+    }
+
+    try {
+      return new RegExp ( query, flags );
+    } catch ( error ) {
+      return;
+    }
+
+  }
+
+  _getLocalEditorSearchPattern = (): string | undefined => {
+
+    const query = this.state.localQuery || '';
+
+    if ( !query ) return;
+
+    return query;
+
+  }
+
+  _getLocalRegexReplacePattern = (): RegExp | undefined => {
+
+    if ( !this.state.localRegex ) return;
+
+    const query = this.state.localQuery || '';
+
+    if ( !query ) return;
+
+    try {
+      return new RegExp ( query, 'i' );
+    } catch ( error ) {
+      return;
+    }
+
+  }
+
+  _getReplacementTextForMatch = ( match ): string => {
+
+    const replacement = this.state.localReplaceQuery || '';
+
+    if ( !this.state.localRegex ) return replacement;
+
+    const matchText = _.isArray ( match?.matches ) && _.isString ( match.matches[0] ) ? match.matches[0] : undefined,
+          pattern = this._getLocalRegexReplacePattern ();
+
+    if ( !matchText || !pattern ) return replacement;
+
+    try {
+      return matchText.replace ( pattern, replacement );
+    } catch ( error ) {
+      return replacement;
+    }
 
   }
 
@@ -493,11 +548,16 @@ class Search extends Container<SearchState, MainCTX> {
   _getEditorMatches = () => {
 
     const editor = this.ctx.editor.getMonaco () as any,
-          model = editor?.getModel?.();
+          model = editor?.getModel?.(),
+          pattern = this._getLocalEditorSearchPattern ();
 
-    if ( !editor || !model || !this.state.localQuery ) return [];
+    if ( !editor || !model || !pattern ) return [];
 
-    return model.findMatches ( this.state.localQuery, true, false, false, null, false );
+    try {
+      return model.findMatches ( pattern, true, this.state.localRegex, false, null, true );
+    } catch ( error ) {
+      return [];
+    }
 
   }
 
@@ -637,6 +697,11 @@ class Search extends Container<SearchState, MainCTX> {
         const matchText = match[0],
               matchIndex = match.index;
 
+        if ( !matchText.length ) {
+          pattern.lastIndex = Math.max ( pattern.lastIndex, matchIndex + 1 );
+          continue;
+        }
+
         if ( matchIndex > lastIndex ) {
           fragment.appendChild ( document.createTextNode ( text.slice ( lastIndex, matchIndex ) ) );
         }
@@ -772,11 +837,57 @@ class Search extends Container<SearchState, MainCTX> {
     }
 
     if ( this.state.localTarget === 'editor' ) {
-      this._findInEditor ( false, true );
+      this._findInEditor ( false, true, false );
       return;
     }
 
     this._applyLocalPreviewHighlights ( true );
+
+  }
+
+  getLocalRegex = (): boolean => {
+
+    return this.state.localRegex;
+
+  }
+
+  setLocalRegex = async ( localRegex: boolean ) => {
+
+    await this.setState ({ localRegex });
+
+    this._localEditorMatchIndex = -1;
+    this._localPreviewMatchIndex = -1;
+
+    if ( !this.state.localQuery ) {
+      this._clearLocalEditorHighlights ();
+      this._clearLocalPreviewHighlights ();
+      return;
+    }
+
+    if ( this.state.localTarget === 'editor' ) {
+      this._findInEditor ( false, true, false );
+      return;
+    }
+
+    this._applyLocalPreviewHighlights ( true );
+
+  }
+
+  getLocalReplaceQuery = (): string => {
+
+    return this.state.localReplaceQuery;
+
+  }
+
+  setLocalReplaceQuery = async ( localReplaceQuery: string ) => {
+
+    await this.setState ({ localReplaceQuery });
+
+  }
+
+  getLocalTarget = (): 'editor' | 'preview' => {
+
+    return this.state.localTarget;
 
   }
 
@@ -791,7 +902,8 @@ class Search extends Container<SearchState, MainCTX> {
     await this.setState ({
       localOpen,
       localQuery: localOpen ? this.state.localQuery : '',
-      localTarget: localOpen ? this.state.localTarget : 'preview'
+      localTarget: localOpen ? this.state.localTarget : 'preview',
+      localReplaceQuery: localOpen ? this.state.localReplaceQuery : ''
     });
 
     if ( localOpen ) return;
@@ -846,7 +958,90 @@ class Search extends Container<SearchState, MainCTX> {
 
   }
 
-  _findInEditor = ( backwards: boolean = false, reset: boolean = false ) => {
+  localReplace = () => {
+
+    if ( !this.state.localQuery || this.state.localTarget !== 'editor' ) return;
+
+    const editor = this.ctx.editor.getMonaco () as any,
+          model = editor?.getModel?.();
+
+    if ( !editor || !model ) return;
+
+    const matches = this._getEditorMatches ();
+
+    if ( !matches.length ) {
+      this._clearLocalEditorHighlights ();
+      this._localEditorMatchIndex = -1;
+      return;
+    }
+
+    const nextIndex = ( this._localEditorMatchIndex >= 0 && this._localEditorMatchIndex < matches.length ) ? this._localEditorMatchIndex : 0,
+          match = matches[nextIndex];
+
+    if ( !match ) return;
+
+    const range = match.range,
+          isEmptyMatch = range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn;
+
+    if ( isEmptyMatch ) return;
+
+    editor.pushUndoStop?.();
+    editor.executeEdits?.( 'local-search-replace', [{
+      range,
+      text: this._getReplacementTextForMatch ( match ),
+      forceMoveMarkers: true
+    }] );
+    editor.pushUndoStop?.();
+
+    this._localEditorMatchIndex = -1;
+    this._findInEditor ( false, true );
+
+  }
+
+  localReplaceAll = () => {
+
+    if ( !this.state.localQuery || this.state.localTarget !== 'editor' ) return;
+
+    const editor = this.ctx.editor.getMonaco () as any,
+          model = editor?.getModel?.();
+
+    if ( !editor || !model ) return;
+
+    const matches = this._getEditorMatches ();
+
+    if ( !matches.length ) {
+      this._clearLocalEditorHighlights ();
+      this._localEditorMatchIndex = -1;
+      return;
+    }
+
+    const edits = matches.reduce ( ( acc, match ) => {
+      const range = match.range,
+            isEmptyMatch = range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn;
+
+      if ( isEmptyMatch ) return acc;
+
+      acc.push ({
+        range,
+        text: this._getReplacementTextForMatch ( match ),
+        forceMoveMarkers: true
+      });
+
+      return acc;
+    }, [] as Array<{ range: any, text: string, forceMoveMarkers: boolean }> );
+
+    if ( !edits.length ) return;
+
+    editor.pushUndoStop?.();
+    editor.executeEdits?.( 'local-search-replace-all', edits );
+    editor.pushUndoStop?.();
+
+    this._localEditorMatchIndex = -1;
+    this._findInEditor ( false, true );
+
+  }
+
+  _findInEditor = ( backwards: boolean = false, reset: boolean = false, setSelection: boolean = true ) => {
 
     const editor = this.ctx.editor.getMonaco () as any,
           model = editor?.getModel?.();
@@ -877,7 +1072,12 @@ class Search extends Container<SearchState, MainCTX> {
 
     this._localEditorMatchIndex = nextIndex;
     this._applyLocalEditorHighlights ( matches, nextIndex );
-    editor.setSelection?.( match.range );
+
+    if ( setSelection ) {
+      editor.focus?.();
+      editor.setSelection?.( match.range );
+    }
+
     editor.revealRangeInCenter?.( match.range );
 
   }

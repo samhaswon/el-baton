@@ -93,9 +93,9 @@
 - [X] Add a lower bound to KaTeX memoization.
 - [X] Use the React Compiler
 - [X] Option to turn off script sanitization, with a clear danger warning.
-- [ ] Make local search support:
-    - [ ] Regex
-    - [ ] Find and replace (including with regex, specifically the match)
+- [X] Make local search support:
+    - [X] Regex
+    - [X] Find and replace (including with regex, specifically the match)
 - [ ] More unit tests for things that should be tested
     - [ ] Make sure footnotes work per the GFM spec.
 - [ ] Brighten up the settings page in dark mode.
