@@ -30,7 +30,11 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
     fs.writeFileSync ( path.join ( dirPath, 'config.json' ), JSON.stringify ({
       autoupdate: true,
       spellcheck: {
-        addedWords: []
+        addedWords: [],
+        disable: false
+      },
+      notes: {
+        disableAutomaticRenaming: false
       },
       ui: {
         disableAnimations: false
@@ -40,10 +44,12 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
       },
       preview: {
         largeNoteFullRenderDelay: 1000,
-        disableScriptSanitization: false
+        disableScriptSanitization: false,
+        disableSplitViewSync: false
       },
       monaco: {
         tableFormattingDelay: 1000,
+        disableAutomaticTableFormatting: false,
         editorOptions: {
           lineNumbers: 'off',
           disableSuggestions: false,
@@ -64,6 +70,9 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
       '  addedWords:',
       '    - Markdown',
       '    - TeX',
+      '  disable: true',
+      'notes:',
+      '  disableAutomaticRenaming: true',
       'ui:',
       '  disableAnimations: true',
       'input:',
@@ -71,8 +80,10 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
       'preview:',
       '  largeNoteFullRenderDelay: 750',
       '  disableScriptSanitization: true',
+      '  disableSplitViewSync: true',
       'monaco:',
       '  tableFormattingDelay: 2000',
+      '  disableAutomaticTableFormatting: true',
       '  editorOptions:',
       '    lineNumbers: relative',
       '    disableSuggestions: true',
@@ -88,11 +99,15 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
 
     assert.equal ( config.autoupdate, false );
     assert.deepEqual ( config.spellcheck.addedWords, ['markdown', 'tex'] );
+    assert.equal ( config.spellcheck.disable, true );
+    assert.equal ( config.notes.disableAutomaticRenaming, true );
     assert.equal ( config.ui.disableAnimations, true );
     assert.equal ( config.input.disableMiddleClickPaste, true );
     assert.equal ( config.preview.largeNoteFullRenderDelay, 750 );
     assert.equal ( config.preview.disableScriptSanitization, true );
+    assert.equal ( config.preview.disableSplitViewSync, true );
     assert.equal ( config.monaco.tableFormattingDelay, 2000 );
+    assert.equal ( config.monaco.disableAutomaticTableFormatting, true );
     assert.equal ( config.monaco.editorOptions.lineNumbers, 'relative' );
     assert.equal ( config.monaco.editorOptions.disableSuggestions, true );
     assert.equal ( config.monaco.editorOptions.tabSize, 3 );
@@ -122,7 +137,11 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
   const config = GlobalConfig.normalize ({
     autoupdate: 0 as any,
     spellcheck: {
-      addedWords: ['  WoRd ', 'word', "O'Reilly", 'x', '123', '$bad' ]
+      addedWords: ['  WoRd ', 'word', "O'Reilly", 'x', '123', '$bad' ],
+      disable: 'yes'
+    },
+    notes: {
+      disableAutomaticRenaming: 'yes'
     },
     input: {
       disableMiddleClickPaste: 'yes'
@@ -132,10 +151,12 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
     },
     preview: {
       largeNoteFullRenderDelay: -40,
-      disableScriptSanitization: 'yes'
+      disableScriptSanitization: 'yes',
+      disableSplitViewSync: 'yes'
     },
     monaco: {
       tableFormattingDelay: 9000,
+      disableAutomaticTableFormatting: 'yes',
       editorOptions: {
         lineNumbers: 'vim',
         disableSuggestions: 'yes',
@@ -152,11 +173,15 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
 
   assert.equal ( config.autoupdate, false );
   assert.deepEqual ( config.spellcheck.addedWords, ["o'reilly", 'word', 'x'] );
+  assert.equal ( config.spellcheck.disable, true );
+  assert.equal ( config.notes.disableAutomaticRenaming, true );
   assert.equal ( config.ui.disableAnimations, true );
   assert.equal ( config.input.disableMiddleClickPaste, true );
   assert.equal ( config.preview.largeNoteFullRenderDelay, 0 );
   assert.equal ( config.preview.disableScriptSanitization, true );
+  assert.equal ( config.preview.disableSplitViewSync, true );
   assert.equal ( config.monaco.tableFormattingDelay, 5000 );
+  assert.equal ( config.monaco.disableAutomaticTableFormatting, true );
   assert.equal ( config.monaco.editorOptions.lineNumbers, 'on' );
   assert.equal ( config.monaco.editorOptions.disableSuggestions, true );
   assert.equal ( config.monaco.editorOptions.tabSize, 8 );
@@ -174,7 +199,11 @@ test ( 'write: persists normalized config and read returns the saved values', ()
     const filePath = GlobalConfig.write ( dirPath, {
       autoupdate: false,
       spellcheck: {
-        addedWords: ['markdown', 'plantuml']
+        addedWords: ['markdown', 'plantuml'],
+        disable: true
+      },
+      notes: {
+        disableAutomaticRenaming: true
       },
       ui: {
         disableAnimations: true
@@ -184,10 +213,12 @@ test ( 'write: persists normalized config and read returns the saved values', ()
       },
       preview: {
         largeNoteFullRenderDelay: 1500,
-        disableScriptSanitization: true
+        disableScriptSanitization: true,
+        disableSplitViewSync: true
       },
       monaco: {
         tableFormattingDelay: 3000,
+        disableAutomaticTableFormatting: true,
         editorOptions: {
           lineNumbers: 'relative',
           disableSuggestions: true,
@@ -209,11 +240,15 @@ test ( 'write: persists normalized config and read returns the saved values', ()
 
     assert.equal ( config.autoupdate, false );
     assert.deepEqual ( config.spellcheck.addedWords, ['markdown', 'plantuml'] );
+    assert.equal ( config.spellcheck.disable, true );
+    assert.equal ( config.notes.disableAutomaticRenaming, true );
     assert.equal ( config.ui.disableAnimations, true );
     assert.equal ( config.input.disableMiddleClickPaste, true );
     assert.equal ( config.preview.largeNoteFullRenderDelay, 1500 );
     assert.equal ( config.preview.disableScriptSanitization, true );
+    assert.equal ( config.preview.disableSplitViewSync, true );
     assert.equal ( config.monaco.tableFormattingDelay, 3000 );
+    assert.equal ( config.monaco.disableAutomaticTableFormatting, true );
     assert.equal ( config.monaco.editorOptions.lineNumbers, 'relative' );
     assert.equal ( config.monaco.editorOptions.disableSuggestions, true );
     assert.equal ( config.monaco.editorOptions.tabSize, 4 );

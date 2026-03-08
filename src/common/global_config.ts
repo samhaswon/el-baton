@@ -12,6 +12,10 @@ type GlobalConfigShape = {
   autoupdate: boolean,
   spellcheck: {
     addedWords: string[]
+    disable: boolean
+  },
+  notes: {
+    disableAutomaticRenaming: boolean
   },
   ui: {
     disableAnimations: boolean
@@ -22,9 +26,11 @@ type GlobalConfigShape = {
   preview: {
     largeNoteFullRenderDelay: number
     disableScriptSanitization: boolean
+    disableSplitViewSync: boolean
   },
   monaco: {
     tableFormattingDelay: number,
+    disableAutomaticTableFormatting: boolean,
     editorOptions: {
       lineNumbers: MonacoLineNumbersMode,
       disableSuggestions: boolean,
@@ -44,7 +50,11 @@ type GlobalConfigShape = {
 const DEFAULTS: GlobalConfigShape = {
   autoupdate: true,
   spellcheck: {
-    addedWords: []
+    addedWords: [],
+    disable: false
+  },
+  notes: {
+    disableAutomaticRenaming: false
   },
   ui: {
     disableAnimations: false
@@ -54,10 +64,12 @@ const DEFAULTS: GlobalConfigShape = {
   },
   preview: {
     largeNoteFullRenderDelay: 500,
-    disableScriptSanitization: false
+    disableScriptSanitization: false,
+    disableSplitViewSync: false
   },
   monaco: {
     tableFormattingDelay: 2000,
+    disableAutomaticTableFormatting: false,
     editorOptions: {
       lineNumbers: 'on',
       disableSuggestions: false,
@@ -133,7 +145,11 @@ const GlobalConfig = {
     return {
       autoupdate: DEFAULTS.autoupdate,
       spellcheck: {
-        addedWords: [...DEFAULTS.spellcheck.addedWords]
+        addedWords: [...DEFAULTS.spellcheck.addedWords],
+        disable: DEFAULTS.spellcheck.disable
+      },
+      notes: {
+        disableAutomaticRenaming: DEFAULTS.notes.disableAutomaticRenaming
       },
       ui: {
         disableAnimations: DEFAULTS.ui.disableAnimations
@@ -143,10 +159,12 @@ const GlobalConfig = {
       },
       preview: {
         largeNoteFullRenderDelay: DEFAULTS.preview.largeNoteFullRenderDelay,
-        disableScriptSanitization: DEFAULTS.preview.disableScriptSanitization
+        disableScriptSanitization: DEFAULTS.preview.disableScriptSanitization,
+        disableSplitViewSync: DEFAULTS.preview.disableSplitViewSync
       },
       monaco: {
         tableFormattingDelay: DEFAULTS.monaco.tableFormattingDelay,
+        disableAutomaticTableFormatting: DEFAULTS.monaco.disableAutomaticTableFormatting,
         editorOptions: {
           lineNumbers: DEFAULTS.monaco.editorOptions.lineNumbers,
           disableSuggestions: DEFAULTS.monaco.editorOptions.disableSuggestions,
@@ -205,6 +223,14 @@ const GlobalConfig = {
       normalized.spellcheck.addedWords = GlobalConfig.normalizeSpellcheckWords ( config.spellcheck.addedWords );
     }
 
+    if ( GlobalConfig.isRecord ( config.spellcheck ) && 'disable' in config.spellcheck ) {
+      normalized.spellcheck.disable = !!config.spellcheck.disable;
+    }
+
+    if ( GlobalConfig.isRecord ( config.notes ) && 'disableAutomaticRenaming' in config.notes ) {
+      normalized.notes.disableAutomaticRenaming = !!config.notes.disableAutomaticRenaming;
+    }
+
     if ( GlobalConfig.isRecord ( config.ui ) && 'disableAnimations' in config.ui ) {
       normalized.ui.disableAnimations = !!config.ui.disableAnimations;
     }
@@ -225,12 +251,20 @@ const GlobalConfig = {
       normalized.preview.disableScriptSanitization = !!config.preview.disableScriptSanitization;
     }
 
+    if ( GlobalConfig.isRecord ( config.preview ) && 'disableSplitViewSync' in config.preview ) {
+      normalized.preview.disableSplitViewSync = !!config.preview.disableSplitViewSync;
+    }
+
     if ( GlobalConfig.isRecord ( config.monaco ) && 'tableFormattingDelay' in config.monaco ) {
       const delay = Number ( config.monaco.tableFormattingDelay );
 
       if ( Number.isFinite ( delay ) ) {
         normalized.monaco.tableFormattingDelay = Math.max ( 0, Math.min ( 5000, Math.round ( delay ) ) );
       }
+    }
+
+    if ( GlobalConfig.isRecord ( config.monaco ) && 'disableAutomaticTableFormatting' in config.monaco ) {
+      normalized.monaco.disableAutomaticTableFormatting = !!config.monaco.disableAutomaticTableFormatting;
     }
 
     if ( GlobalConfig.isRecord ( config.monaco ) && GlobalConfig.isRecord ( config.monaco.editorOptions ) && 'lineNumbers' in config.monaco.editorOptions ) {

@@ -597,13 +597,14 @@ class Note extends Container<NoteState, MainCTX> {
           titleLinePrev = Utils.getFirstUnemptyLine ( note.plainContent ),
           titleLineNext = Utils.getFirstUnemptyLine ( plainContent ),
           title = ( titleLinePrev !== titleLineNext ) ? this._inferTitleFromLine ( titleLineNext ) : note.metadata.title,
-          didTitleChange = ( title !== note.metadata.title );
+          didTitleChange = ( title !== note.metadata.title ),
+          shouldAutoRename = !this.ctx.appConfig.get ().notes.disableAutomaticRenaming;
 
     nextNote.plainContent = plainContent;
     nextNote.metadata.modified = modified;
     nextNote.metadata.title = title;
 
-    if ( didTitleChange ) {
+    if ( didTitleChange && shouldAutoRename ) {
 
       await this.replace ( note, nextNote ); // In order to immediately update the structures, this avoids some problems when editing a file very quickly
 

@@ -127,11 +127,11 @@
         - Link to Graphviz in the cheatsheet for local usage: https://www.graphviz.org/download/
 - [ ] Ensure that spell checker localization is a thing. It might be automatic, so this is mostly audit and fix if broken.
 - [ ] Implement a presentation mode similar to whatever Pandoc has.
-- [ ] Additional settings:
-    - [ ] Add option to disable sync for the split view. 
-    - [ ] Add option to disable automatic table formatting.
-    - [ ] Add option to disable automatic renaming of notes
-    - [ ] Add option to disable spell check
+- [X] Additional settings:
+    - [X] Add option to disable sync for the split view. 
+    - [X] Add option to disable automatic table formatting.
+    - [X] Add option to disable automatic renaming of notes
+    - [X] Add option to disable spell check
 - [ ] Build-in the tutorial as pages, rather than files, so it can more easily be referenced.
 - [ ] Evaluate memory usage in the production build.
     - See if it's good, bad, what. Dev is a bit heavy, but that's dev.

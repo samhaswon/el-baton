@@ -72,6 +72,12 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanS
   const toggleDisableAnimations = () => setConfigValue ( 'ui.disableAnimations', !config.ui.disableAnimations );
   const toggleMiddleClickPaste = () => setConfigValue ( 'input.disableMiddleClickPaste', !config.input.disableMiddleClickPaste );
   const toggleDisableScriptSanitization = () => setConfigValue ( 'preview.disableScriptSanitization', !config.preview.disableScriptSanitization );
+  const toggleDisableSplitViewSync = () => setConfigValue ( 'preview.disableSplitViewSync', !config.preview.disableSplitViewSync );
+  const toggleDisableAutomaticRenaming = () => setConfigValue ( 'notes.disableAutomaticRenaming', !config.notes.disableAutomaticRenaming );
+  const toggleDisableAutomaticTableFormatting = () => setConfigValue ( 'monaco.disableAutomaticTableFormatting', !config.monaco.disableAutomaticTableFormatting );
+  const toggleDisableSpellcheck = () => Promise.resolve ( setConfigValue ( 'spellcheck.disable', !config.spellcheck.disable ) ).then (() => {
+    rescanSpellcheck ();
+  });
   const toggleDisableSuggestions = () => setConfigValue ( 'monaco.editorOptions.disableSuggestions', !config.monaco.editorOptions.disableSuggestions );
   const setLargeNoteFullRenderDelay = ( value: string ) => setConfigValue ( 'preview.largeNoteFullRenderDelay', Number ( value ) );
   const setTableFormattingDelay = ( value: string ) => setConfigValue ( 'monaco.tableFormattingDelay', Number ( value ) );
@@ -252,6 +258,32 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanS
               </div>
               <div className="settings-field">
                 <div className="settings-meta">
+                  <div className="settings-label">Disable split-view scroll sync</div>
+                  <div className="settings-field-copy xsmall">Lets source and preview scroll independently in split view.</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className={`settings-switch ${config.preview.disableSplitViewSync ? 'active' : ''}`} aria-pressed={config.preview.disableSplitViewSync} aria-label="Toggle split-view scroll sync" disabled={!canEdit} onClick={toggleDisableSplitViewSync}>
+                    <span className="settings-switch-ui">
+                      <span className="settings-switch-thumb"></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Disable automatic table formatting</div>
+                  <div className="settings-field-copy xsmall">Prevents source tables from being auto-aligned while typing.</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className={`settings-switch ${config.monaco.disableAutomaticTableFormatting ? 'active' : ''}`} aria-pressed={config.monaco.disableAutomaticTableFormatting} aria-label="Toggle automatic table formatting" disabled={!canEdit} onClick={toggleDisableAutomaticTableFormatting}>
+                    <span className="settings-switch-ui">
+                      <span className="settings-switch-thumb"></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
                   <div className="settings-label">Large note full preview delay</div>
                   <div className="settings-field-copy xsmall">How long the preview waits before expanding from the small live preview to the full render while editing large notes.</div>
                 </div>
@@ -275,7 +307,7 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanS
                 </div>
                 <div className="settings-control">
                   <div className="settings-select-wrap">
-                    <select className="settings-select" disabled={!canEdit} value={String ( config.monaco.tableFormattingDelay )} onChange={event => setTableFormattingDelay ( event.currentTarget.value )}>
+                    <select className="settings-select" disabled={!canEdit || config.monaco.disableAutomaticTableFormatting} value={String ( config.monaco.tableFormattingDelay )} onChange={event => setTableFormattingDelay ( event.currentTarget.value )}>
                       <option value="250">250 ms</option>
                       <option value="500">500 ms</option>
                       <option value="750">750 ms</option>
@@ -309,6 +341,19 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanS
               <p className="settings-section-copy xxsmall">Persist custom words and manage your user dictionary.</p>
             </div>
             <div className="settings-group">
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Disable spellcheck</div>
+                  <div className="settings-field-copy xsmall">Turns off misspelling markers and spellcheck suggestions in the editor.</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className={`settings-switch ${config.spellcheck.disable ? 'active' : ''}`} aria-pressed={config.spellcheck.disable} aria-label="Toggle spellcheck" disabled={!canEdit} onClick={toggleDisableSpellcheck}>
+                    <span className="settings-switch-ui">
+                      <span className="settings-switch-thumb"></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
               <div className="settings-field settings-field-column">
                 <div className="settings-meta">
                   <div className="settings-label">Added words</div>
@@ -360,6 +405,28 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanS
               </div>
             </div>
             <p className="settings-footnote xsmall">Words are stored in global config and loaded automatically for future sessions.</p>
+          </section>
+
+          <section className="settings-section">
+            <div className="settings-section-header">
+              <p className="settings-section-name">Notes</p>
+              <p className="settings-section-copy xxsmall">Filename behavior for note edits.</p>
+            </div>
+            <div className="settings-group">
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Disable automatic renaming</div>
+                  <div className="settings-field-copy xsmall">Keeps the existing filename when the first heading/title line changes.</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className={`settings-switch ${config.notes.disableAutomaticRenaming ? 'active' : ''}`} aria-pressed={config.notes.disableAutomaticRenaming} aria-label="Toggle automatic note renaming" disabled={!canEdit} onClick={toggleDisableAutomaticRenaming}>
+                    <span className="settings-switch-ui">
+                      <span className="settings-switch-thumb"></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </section>
 
           <section className="settings-section">

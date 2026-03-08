@@ -194,6 +194,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
   _spellcheckDebounced = _.debounce ( () => this.spellcheckCurrentModel (), 180 );
   _spellcheckScrollDebounced = _.debounce ( () => this.spellcheckCurrentModel ( true ), 320 );
   _spellcheckCoverage?: { versionId: number, startLineNumber: number, endLineNumber: number };
+  _spellcheckEnabledRuntime = true;
   _isApplyingEmojiEasterEgg: boolean = false;
 
   /* LIFECYCLE */
@@ -517,6 +518,8 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
   queueTableFormatting ( event: monaco.editor.IModelContentChangedEvent ) {
 
+    if ( this.props.container.appConfig.get ().monaco.disableAutomaticTableFormatting ) return;
+
     const model = this.editor?.getModel ();
 
     if ( !model ) return;
@@ -562,6 +565,11 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
   }
 
   formatTouchedTables () {
+
+    if ( this.props.container.appConfig.get ().monaco.disableAutomaticTableFormatting ) {
+      this._tableFormatTouchedLines.clear ();
+      return;
+    }
 
     const editor = this.editor,
           model = editor?.getModel ();
@@ -1264,6 +1272,19 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     const model = this.editor.getModel ();
 
     if ( !model ) return;
+
+    if ( this.props.container.appConfig.get ().spellcheck.disable ) {
+      if ( this._spellcheckEnabledRuntime ) {
+        this._spellcheckEnabledRuntime = false;
+        this.clearSpellcheckMarkers ();
+        this.cleanupSpellcheck ();
+        this._spellcheckWorkerInitAttempted = false;
+        this._spellcheckWorkerUnavailable = false;
+      }
+      return;
+    }
+
+    this._spellcheckEnabledRuntime = true;
 
     if ( this.props.language !== 'markdown' ) {
       this.clearSpellcheckMarkers ();

@@ -11,7 +11,7 @@ import Preview from './preview';
 
 /* SPLIT EDITOR */
 
-class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean, hasSidebar: boolean, content: string, getMonaco: () => MonacoEditor | undefined }, { content?: string }> {
+class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean, hasSidebar: boolean, content: string, getMonaco: () => MonacoEditor | undefined, splitViewSyncEnabled: boolean }, { content?: string }> {
 
   _previewRef = React.createRef<HTMLDivElement> ();
   _ignoreSourceScrollUntil = 0;
@@ -278,6 +278,8 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
   }
 
   __syncFromSourceSnapshot = ( sourceSnapshot: { sourceUnits: number, sourceMaxUnits: number }, partialWindow?: { startLine: number, endLine: number, totalLines: number } ) => {
+
+    if ( !this.props.splitViewSyncEnabled ) return;
 
     const source = this.__getSourceMetrics (),
           preview = this.__getPreviewMetrics ();
@@ -713,6 +715,8 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
   __syncFromSource = ( force: boolean = false ) => {
 
+    if ( !this.props.splitViewSyncEnabled ) return;
+
     const now = Date.now ();
 
     if ( !force && now < this._ignoreSourceScrollUntil ) return;
@@ -758,6 +762,8 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
   }
 
   __syncFromPreview = () => {
+
+    if ( !this.props.splitViewSyncEnabled ) return;
 
     if ( this._isPreviewRendering ) return;
 
@@ -807,6 +813,8 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
   __scheduleSourceSync = () => {
 
+    if ( !this.props.splitViewSyncEnabled ) return;
+
     if ( this._sourceSyncFrame ) return;
 
     this._sourceSyncFrame = window.requestAnimationFrame ( () => {
@@ -818,6 +826,8 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
   __schedulePreviewSync = () => {
 
+    if ( !this.props.splitViewSyncEnabled ) return;
+
     if ( this._previewSyncFrame ) return;
 
     this._previewSyncFrame = window.requestAnimationFrame ( () => {
@@ -828,6 +838,8 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
   }
 
   __scheduleSettledSourceSync = () => {
+
+    if ( !this.props.splitViewSyncEnabled ) return;
 
     if ( this._settledSyncFrame ) return;
 
@@ -891,13 +903,13 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
   render () {
 
-    const {isFocus, isZen, hasSidebar} = this.props,
+    const {isFocus, isZen, hasSidebar, splitViewSyncEnabled} = this.props,
           content = _.isString ( this.state.content ) ? this.state.content : this.props.content;
 
     return (
       <Layout className="split-editor" direction="horizontal" resizable={true} isFocus={isFocus} isZen={isZen} hasSidebar={hasSidebar}>
-        <Editor onChange={this.__change} onUpdate={this.__change} onScroll={this.__scheduleSourceSync} />
-        <Preview content={content} onAnchorNavigate={this.__previewAnchorNavigate} onScroll={this.__schedulePreviewSync} previewRef={this._previewRef} enableWorker={false} largeRenderMode="after-initial" syncScroll={true} />
+        <Editor onChange={this.__change} onUpdate={this.__change} onScroll={splitViewSyncEnabled ? this.__scheduleSourceSync : undefined} />
+        <Preview content={content} onAnchorNavigate={this.__previewAnchorNavigate} onScroll={splitViewSyncEnabled ? this.__schedulePreviewSync : undefined} previewRef={this._previewRef} enableWorker={false} largeRenderMode="after-initial" syncScroll={splitViewSyncEnabled} />
       </Layout>
     );
 
@@ -914,6 +926,7 @@ export default connect ({
     getMonaco: container.editor.getMonaco,
     isFocus: container.window.isFocus (),
     isZen: container.window.isZen (),
-    hasSidebar: container.window.hasSidebar ()
+    hasSidebar: container.window.hasSidebar (),
+    splitViewSyncEnabled: !container.appConfig.get ().preview.disableSplitViewSync
   })
 })( SplitEditor );
