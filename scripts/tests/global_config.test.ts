@@ -29,6 +29,9 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
 
     fs.writeFileSync ( path.join ( dirPath, 'config.json' ), JSON.stringify ({
       autoupdate: true,
+      spellcheck: {
+        addedWords: []
+      },
       ui: {
         disableAnimations: false
       },
@@ -57,6 +60,10 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
 
     fs.writeFileSync ( path.join ( dirPath, '.notable.yml' ), [
       'autoupdate: false',
+      'spellcheck:',
+      '  addedWords:',
+      '    - Markdown',
+      '    - TeX',
       'ui:',
       '  disableAnimations: true',
       'input:',
@@ -80,6 +87,7 @@ test ( 'read: prefers the first supported config file and parses yaml overrides'
     const config = GlobalConfig.read ( dirPath );
 
     assert.equal ( config.autoupdate, false );
+    assert.deepEqual ( config.spellcheck.addedWords, ['markdown', 'tex'] );
     assert.equal ( config.ui.disableAnimations, true );
     assert.equal ( config.input.disableMiddleClickPaste, true );
     assert.equal ( config.preview.largeNoteFullRenderDelay, 750 );
@@ -113,6 +121,9 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
 
   const config = GlobalConfig.normalize ({
     autoupdate: 0 as any,
+    spellcheck: {
+      addedWords: ['  WoRd ', 'word', "O'Reilly", 'x', '123', '$bad' ]
+    },
     input: {
       disableMiddleClickPaste: 'yes'
     },
@@ -140,6 +151,7 @@ test ( 'normalize: ignores unsupported values and preserves safe defaults', () =
   });
 
   assert.equal ( config.autoupdate, false );
+  assert.deepEqual ( config.spellcheck.addedWords, ["o'reilly", 'word', 'x'] );
   assert.equal ( config.ui.disableAnimations, true );
   assert.equal ( config.input.disableMiddleClickPaste, true );
   assert.equal ( config.preview.largeNoteFullRenderDelay, 0 );
@@ -161,6 +173,9 @@ test ( 'write: persists normalized config and read returns the saved values', ()
 
     const filePath = GlobalConfig.write ( dirPath, {
       autoupdate: false,
+      spellcheck: {
+        addedWords: ['markdown', 'plantuml']
+      },
       ui: {
         disableAnimations: true
       },
@@ -193,6 +208,7 @@ test ( 'write: persists normalized config and read returns the saved values', ()
     const config = GlobalConfig.read ( dirPath );
 
     assert.equal ( config.autoupdate, false );
+    assert.deepEqual ( config.spellcheck.addedWords, ['markdown', 'plantuml'] );
     assert.equal ( config.ui.disableAnimations, true );
     assert.equal ( config.input.disableMiddleClickPaste, true );
     assert.equal ( config.preview.largeNoteFullRenderDelay, 1500 );

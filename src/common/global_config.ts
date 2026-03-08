@@ -10,6 +10,9 @@ type MonacoLineNumbersMode = 'off' | 'on' | 'relative';
 
 type GlobalConfigShape = {
   autoupdate: boolean,
+  spellcheck: {
+    addedWords: string[]
+  },
   ui: {
     disableAnimations: boolean
   },
@@ -40,6 +43,9 @@ type GlobalConfigShape = {
 
 const DEFAULTS: GlobalConfigShape = {
   autoupdate: true,
+  spellcheck: {
+    addedWords: []
+  },
   ui: {
     disableAnimations: false
   },
@@ -83,6 +89,39 @@ const GlobalConfig = {
   defaults: DEFAULTS,
   fileNames: FILE_NAMES,
 
+  normalizeSpellcheckWord ( word: unknown ): string | undefined {
+
+    if ( !word ) return;
+
+    const normalized = String ( word ).trim ().toLowerCase ();
+
+    if ( !normalized ) return;
+    if ( !/^[a-z][a-z'’-]*$/.test ( normalized ) ) return;
+
+    return normalized;
+
+  },
+
+  normalizeSpellcheckWords ( words: unknown ): string[] {
+
+    if ( !Array.isArray ( words ) ) return [];
+
+    const normalized = words.reduce ( ( acc, word ) => {
+      const normalizedWord = GlobalConfig.normalizeSpellcheckWord ( word );
+
+      if ( !normalizedWord || acc.includes ( normalizedWord ) ) return acc;
+
+      acc.push ( normalizedWord );
+
+      return acc;
+    }, [] as string[] );
+
+    normalized.sort (( a, b ) => a.localeCompare ( b ) );
+
+    return normalized;
+
+  },
+
   isRecord ( value: unknown ): value is Record<string, unknown> {
 
     return !!value && typeof value === 'object' && !Array.isArray ( value );
@@ -93,6 +132,9 @@ const GlobalConfig = {
 
     return {
       autoupdate: DEFAULTS.autoupdate,
+      spellcheck: {
+        addedWords: [...DEFAULTS.spellcheck.addedWords]
+      },
       ui: {
         disableAnimations: DEFAULTS.ui.disableAnimations
       },
@@ -157,6 +199,10 @@ const GlobalConfig = {
 
     if ( 'autoupdate' in config ) {
       normalized.autoupdate = !!config.autoupdate;
+    }
+
+    if ( GlobalConfig.isRecord ( config.spellcheck ) && 'addedWords' in config.spellcheck ) {
+      normalized.spellcheck.addedWords = GlobalConfig.normalizeSpellcheckWords ( config.spellcheck.addedWords );
     }
 
     if ( GlobalConfig.isRecord ( config.ui ) && 'disableAnimations' in config.ui ) {

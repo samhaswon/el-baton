@@ -23,12 +23,18 @@ type AddWordMessage = {
   word: string;
 };
 
+type SetWordsMessage = {
+  type: 'set-words';
+  id: number;
+  words: string[];
+};
+
 type CancelMessage = {
   type: 'cancel';
   id: number;
 };
 
-type WorkerMessage = SpellcheckMessage | AddWordMessage | CancelMessage;
+type WorkerMessage = SpellcheckMessage | AddWordMessage | SetWordsMessage | CancelMessage;
 
 declare const self: {
   onmessage: ( event: MessageEvent<WorkerMessage> ) => void | Promise<void>;
@@ -44,6 +50,7 @@ const MAX_SUGGESTIONS = 3;
 
 const cancelled = new Set<number> ();
 const sessionDictionary = new Set<string> ();
+const persistentDictionary = new Set<string> ();
 
 /* HELPERS */
 
@@ -145,6 +152,19 @@ self.onmessage = ( event: MessageEvent<WorkerMessage> ) => {
     return;
   }
 
+  if ( message.type === 'set-words' ) {
+    persistentDictionary.clear ();
+
+    for ( let index = 0, l = ( message.words || [] ).length; index < l; index++ ) {
+      const normalized = normalizeWord ( message.words[index] );
+
+      if ( normalized ) persistentDictionary.add ( normalized );
+    }
+
+    self.postMessage ({ type: 'set', id: message.id });
+    return;
+  }
+
   const {id, content} = message;
 
   cancelled.delete ( id );
@@ -182,6 +202,7 @@ self.onmessage = ( event: MessageEvent<WorkerMessage> ) => {
 
       if ( !shouldCheckWord ( word ) ) continue;
       if ( sessionDictionary.has ( normalizeWord ( word ) ) ) continue;
+      if ( persistentDictionary.has ( normalizeWord ( word ) ) ) continue;
       if ( !spellchecker.isMisspelled ( word ) ) continue;
 
       misspellings.push ({

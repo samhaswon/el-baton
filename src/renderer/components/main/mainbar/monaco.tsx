@@ -185,7 +185,9 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
   _spellcheckWorkerUnavailable: boolean = false;
   _rendererSpellchecker?: SpellcheckerModule;
   _rendererSpellcheckerLoadAttempted: boolean = false;
+  _spellcheckPersistentDictionary = new Set<string> ();
   _spellcheckSessionDictionary = new Set<string> ();
+  _spellcheckPersistentDictionaryFingerprint: string = '';
   _spellcheckMsgId: number = 0;
   _spellcheckActiveId?: number;
   _spellcheckPending = new Map<number, { resolve: ( value: any ) => void, reject: ( error: any ) => void }> ();
@@ -915,6 +917,8 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
           pending.resolve ( message.misspellings || [] );
         } else if ( message.type === 'added' ) {
           pending.resolve ( undefined );
+        } else if ( message.type === 'set' ) {
+          pending.resolve ( undefined );
         } else if ( message.type === 'unavailable' ) {
           spellcheckWorkerGloballyUnavailable = true;
           this._spellcheckWorkerUnavailable = true;
@@ -939,6 +943,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       };
 
       this._spellcheckWorker = worker;
+      this.syncSpellcheckPersistentDictionary ();
     } catch ( error ) {
       console.error ( '[spellcheck] Failed to initialize spellcheck worker', error );
     }
@@ -1022,6 +1027,57 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
   }
 
+  getConfiguredSpellcheckWords (): string[] {
+
+    const configWords = this.props.container.appConfig.get ().spellcheck.addedWords || [];
+
+    const normalizedWords = configWords.reduce ( ( acc, word ) => {
+      const normalized = normalizeSpellcheckWord ( word );
+
+      if ( !normalized || acc.includes ( normalized ) ) return acc;
+
+      acc.push ( normalized );
+
+      return acc;
+    }, [] as string[] );
+
+    normalizedWords.sort (( a, b ) => a.localeCompare ( b ) );
+
+    return normalizedWords;
+
+  }
+
+  spellcheckSetWordsInWorker ( words: string[] ): Promise<void> {
+
+    if ( !this._spellcheckWorker ) return Promise.resolve ();
+
+    const id = ++this._spellcheckMsgId;
+
+    return new Promise<void> ( ( resolve, reject ) => {
+      this._spellcheckPending.set ( id, { resolve, reject } );
+      this._spellcheckWorker!.postMessage ({ type: 'set-words', id, words });
+    });
+
+  }
+
+  syncSpellcheckPersistentDictionary () {
+
+    const configuredWords = this.getConfiguredSpellcheckWords (),
+          fingerprint = configuredWords.join ( '\n' );
+
+    if ( fingerprint === this._spellcheckPersistentDictionaryFingerprint ) return;
+
+    this._spellcheckPersistentDictionaryFingerprint = fingerprint;
+    this._spellcheckPersistentDictionary = new Set ( configuredWords );
+
+    if ( this._spellcheckWorker && !this._spellcheckWorkerUnavailable ) {
+      this.spellcheckSetWordsInWorker ( configuredWords ).catch (() => {
+        /* handled by worker fallback path */
+      });
+    }
+
+  }
+
   spellcheckInRenderer ( content: string ): any[] {
 
     const spellchecker = this.getRendererSpellchecker ();
@@ -1049,8 +1105,11 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
         if ( wordStart >= range.start && wordStart < range.end ) continue;
       }
 
+      const normalizedWord = normalizeSpellcheckWord ( word );
+
       if ( !shouldSpellcheckWord ( word ) ) continue;
-      if ( this._spellcheckSessionDictionary.has ( normalizeSpellcheckWord ( word ) ) ) continue;
+      if ( this._spellcheckSessionDictionary.has ( normalizedWord ) ) continue;
+      if ( this._spellcheckPersistentDictionary.has ( normalizedWord ) ) continue;
       if ( !spellchecker.isMisspelled ( word ) ) continue;
 
       misspellings.push ({
@@ -1162,14 +1221,36 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
     const normalized = normalizeSpellcheckWord ( word );
 
-    if ( normalized ) this._spellcheckSessionDictionary.add ( normalized );
+    if ( !normalized ) return;
+
+    const filePath = this.props.container.appConfig.getFilePath (),
+          canPersist = !!filePath;
 
     try {
-      if ( this._spellcheckWorker && !this._spellcheckWorkerUnavailable ) {
-        await this.spellcheckAddToDictionaryInWorker ( word );
+      if ( canPersist ) {
+        const configuredWords = this.getConfiguredSpellcheckWords ();
+
+        if ( !configuredWords.includes ( normalized ) ) {
+          await this.props.container.appConfig.setValue ( 'spellcheck.addedWords', [...configuredWords, normalized] );
+        }
+
+        this.syncSpellcheckPersistentDictionary ();
+      } else {
+        this._spellcheckSessionDictionary.add ( normalized );
+
+        if ( this._spellcheckWorker && !this._spellcheckWorkerUnavailable ) {
+          await this.spellcheckAddToDictionaryInWorker ( normalized );
+        }
       }
     } catch ( error ) {
-      /* ignore worker-only failures, renderer fallback dictionary is already updated */
+      if ( canPersist ) {
+        this._spellcheckSessionDictionary.add ( normalized );
+        if ( this._spellcheckWorker && !this._spellcheckWorkerUnavailable ) {
+          await this.spellcheckAddToDictionaryInWorker ( normalized ).catch (() => undefined );
+        }
+      } else {
+        /* ignore worker-only failures, renderer fallback dictionary is already updated */
+      }
     }
 
     this._spellcheckDebounced ();
@@ -1196,6 +1277,8 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       this.clearSpellcheckMarkers ();
       return;
     }
+
+    this.syncSpellcheckPersistentDictionary ();
 
     if ( fromScroll && target.isPartial && this._spellcheckCoverage && this._spellcheckCoverage.versionId === model.getAlternativeVersionId () && target.visibleStartLineNumber >= this._spellcheckCoverage.startLineNumber && target.visibleEndLineNumber <= this._spellcheckCoverage.endLineNumber ) {
       return;

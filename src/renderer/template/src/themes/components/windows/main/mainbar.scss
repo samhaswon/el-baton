@@ -147,6 +147,19 @@
       background-color: $settings-surface-strong;
     }
 
+    .settings-spellcheck-list-wrap {
+      border-color: $settings-border;
+      background-color: $settings-surface-strong;
+    }
+
+    .settings-spellcheck-item + .settings-spellcheck-item {
+      border-top-color: $settings-border;
+    }
+
+    .settings-spellcheck-empty {
+      color: $settings-muted;
+    }
+
     .settings-select:focus,
     .settings-input:focus,
     .settings-switch:focus {

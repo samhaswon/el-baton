@@ -498,6 +498,11 @@
     padding: 16px 18px;
   }
 
+  .settings-field.settings-field-column {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
   .settings-field + .settings-field {
     border-top-width: 1px;
     border-top-style: solid;
@@ -534,6 +539,11 @@
     justify-content: flex-end;
     min-height: 44px;
     justify-self: end;
+  }
+
+  .settings-control.settings-control-start {
+    justify-content: flex-start;
+    justify-self: stretch;
   }
 
   .settings-switch {
@@ -661,6 +671,74 @@
     padding: 0 16px;
   }
 
+  .settings-action.settings-action-inline {
+    min-width: 0;
+  }
+
+  .settings-spellcheck-manager {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 2px;
+  }
+
+  .settings-spellcheck-add {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .settings-input.settings-input-spellcheck {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .settings-spellcheck-list-wrap {
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 12px;
+    padding: 6px 10px;
+    max-height: 200px;
+    overflow: auto;
+  }
+
+  .settings-spellcheck-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .settings-spellcheck-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+  }
+
+  .settings-spellcheck-item + .settings-spellcheck-item {
+    border-top-width: 1px;
+    border-top-style: solid;
+  }
+
+  .settings-spellcheck-word {
+    font-family: monospace;
+    font-size: 0.92rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .settings-spellcheck-empty {
+    margin: 4px 0;
+    opacity: .76;
+  }
+
+  .settings-spellcheck-remove {
+    padding: 0 12px;
+    min-height: 30px;
+  }
+
   .settings-footnote {
     margin: 10px 2px 0;
     line-height: 1.55;
@@ -708,6 +786,19 @@
     .settings-select-wrap,
     .settings-input {
       max-width: 172px;
+    }
+
+    .settings-spellcheck-add {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .settings-input.settings-input-spellcheck {
+      max-width: none;
+    }
+
+    .settings-action.settings-action-inline {
+      width: auto;
     }
 
   }

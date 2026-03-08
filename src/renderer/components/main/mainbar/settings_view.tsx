@@ -7,15 +7,28 @@ import Main from '@renderer/containers/main';
 
 /* SETTINGS VIEW */
 
-const SettingsView = ({ config, filePath, refreshConfig, setConfigValue }) => {
+const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanSpellcheck }) => {
 
   const canEdit = !!filePath;
+  const [spellcheckWordsOpen, setSpellcheckWordsOpen] = React.useState ( false );
+  const [spellcheckWordDraft, setSpellcheckWordDraft] = React.useState ( '' );
   const [externalServerUrlDraft, setExternalServerUrlDraft] = React.useState ( config.plantuml.externalServerUrl );
   const [testState, setTestState] = React.useState<{ status: 'idle' | 'testing' | 'ok' | 'error', message: string }> ({
     status: 'idle',
     message: ''
   });
   const testRequestIdRef = React.useRef ( 0 );
+  const spellcheckWords = config.spellcheck.addedWords || [];
+
+  const normalizeSpellcheckWord = ( word: string ): string => {
+
+    const normalized = ( word || '' ).trim ().toLowerCase ();
+
+    if ( !/^[a-z][a-z'’-]*$/.test ( normalized ) ) return '';
+
+    return normalized;
+
+  };
 
   React.useEffect ( () => {
     setExternalServerUrlDraft ( config.plantuml.externalServerUrl );
@@ -66,6 +79,33 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue }) => {
   const setPlantUMLRequestTimeout = ( value: string ) => setConfigValue ( 'plantuml.requestTimeoutMs', Number ( value ) );
   const setPlantUMLCacheMaxEntries = ( value: string ) => setConfigValue ( 'plantuml.cacheMaxEntries', Number ( value ) );
   const setPlantUMLCacheMaxBytes = ( value: string ) => setConfigValue ( 'plantuml.cacheMaxBytes', Number ( value ) );
+  const saveSpellcheckWords = ( nextWords: string[] ) => {
+    Promise.resolve ( setConfigValue ( 'spellcheck.addedWords', nextWords ) ).then (() => {
+      rescanSpellcheck ();
+    });
+  };
+  const addSpellcheckWord = () => {
+    if ( !canEdit ) return;
+
+    const normalized = normalizeSpellcheckWord ( spellcheckWordDraft );
+
+    if ( !normalized ) return;
+    if ( spellcheckWords.includes ( normalized ) ) {
+      setSpellcheckWordDraft ( '' );
+      return;
+    }
+
+    saveSpellcheckWords ([...spellcheckWords, normalized].sort (( a, b ) => a.localeCompare ( b ) ));
+    setSpellcheckWordDraft ( '' );
+    setSpellcheckWordsOpen ( true );
+  };
+  const removeSpellcheckWord = ( word: string ) => {
+    if ( !canEdit ) return;
+
+    const nextWords = spellcheckWords.filter ( entry => entry !== word );
+
+    saveSpellcheckWords ( nextWords );
+  };
   const testPlantUMLExternalServer = () => {
     const url = externalServerUrlDraft.trim (),
           id = ++testRequestIdRef.current;
@@ -265,6 +305,65 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue }) => {
 
           <section className="settings-section">
             <div className="settings-section-header">
+              <p className="settings-section-name">Spellcheck Dictionary</p>
+              <p className="settings-section-copy xxsmall">Persist custom words and manage your user dictionary.</p>
+            </div>
+            <div className="settings-group">
+              <div className="settings-field settings-field-column">
+                <div className="settings-meta">
+                  <div className="settings-label">Added words</div>
+                  <div className="settings-field-copy xsmall">Expand to add or remove words that should never be flagged as misspellings.</div>
+                </div>
+                <div className="settings-control settings-control-start">
+                  <button type="button" className="button settings-action settings-action-inline" aria-expanded={spellcheckWordsOpen} disabled={!canEdit} onClick={() => setSpellcheckWordsOpen ( !spellcheckWordsOpen )}>
+                    {spellcheckWordsOpen ? 'Hide Dictionary' : `Show Dictionary (${spellcheckWords.length})`}
+                  </button>
+                </div>
+                {spellcheckWordsOpen && (
+                  <div className="settings-spellcheck-manager">
+                    <div className="settings-spellcheck-add">
+                      <input
+                        type="text"
+                        className="settings-input settings-input-spellcheck"
+                        disabled={!canEdit}
+                        value={spellcheckWordDraft}
+                        placeholder="Add a word (letters, apostrophes, dashes)"
+                        onChange={event => setSpellcheckWordDraft ( event.currentTarget.value )}
+                        onKeyDown={event => {
+                          if ( event.key !== 'Enter' ) return;
+                          event.preventDefault ();
+                          addSpellcheckWord ();
+                        }}
+                      />
+                      <button type="button" className="button settings-action settings-action-inline" disabled={!canEdit || !normalizeSpellcheckWord ( spellcheckWordDraft )} onClick={addSpellcheckWord}>
+                        Add Word
+                      </button>
+                    </div>
+                    <div className="settings-spellcheck-list-wrap">
+                      {spellcheckWords.length ? (
+                        <ul className="settings-spellcheck-list">
+                          {spellcheckWords.map ( word => (
+                            <li key={word} className="settings-spellcheck-item">
+                              <span className="settings-spellcheck-word">{word}</span>
+                              <button type="button" className="button settings-action settings-action-inline settings-spellcheck-remove" disabled={!canEdit} onClick={() => removeSpellcheckWord ( word )}>
+                                Remove
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="settings-field-copy xsmall settings-spellcheck-empty">No custom words saved yet.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <p className="settings-footnote xsmall">Words are stored in global config and loaded automatically for future sessions.</p>
+          </section>
+
+          <section className="settings-section">
+            <div className="settings-section-header">
               <p className="settings-section-name">PlantUML</p>
               <p className="settings-section-copy xxsmall">Configure local and optional external rendering for PlantUML diagrams.</p>
             </div>
@@ -408,6 +507,10 @@ export default connect ({
     config: container.appConfig.get (),
     filePath: container.appConfig.getFilePath (),
     refreshConfig: container.appConfig.refresh,
-    setConfigValue: container.appConfig.setValue
+    setConfigValue: container.appConfig.setValue,
+    rescanSpellcheck: () => {
+      const editor = container.editor.getMonaco () as any;
+      editor?.spellcheckRescan?.();
+    }
   })
 })( SettingsView );

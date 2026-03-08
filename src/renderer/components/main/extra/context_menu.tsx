@@ -319,6 +319,9 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
     this._editorSpellWord = context.word;
     this._editorSpellSuggestions = context.suggestions;
 
+    const canPersistDictionary = !!this.props.container.appConfig.getFilePath (),
+          addDictionaryLabel = canPersistDictionary ? `Add "${context.word}" to Dictionary` : `Add "${context.word}" to Dictionary (Session)`;
+
     items.push ({ type: 'separator' });
 
     if ( context.suggestions.length ) {
@@ -336,7 +339,7 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
     }
 
     items.push ({
-      label: `Add "${context.word}" to Dictionary (Session)`,
+      label: addDictionaryLabel,
       click: () => this.addWordToSessionDictionary ()
     });
 
