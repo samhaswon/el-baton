@@ -30,6 +30,7 @@
     "script:build:fixlatestlinux": "node -e \"require ( './scripts/build/fix_latest_linux' )()\"",
     "script:build:fixlatestwin": "node -e \"require ( './scripts/build/fix_latest_win' )()\"",
     "benchmark:markdown": "node ./scripts/analysis/benchmark_markdown_parsers.js",
+    "profile:markdown-rendering": "node ./scripts/analysis/profile_markdown_rendering.js",
     "test:emoji": "npx tsc --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/emoji.test.ts src/common/emoji.ts && node --test .tmp/tests/scripts/tests/emoji.test.js",
     "test:emoji:github": "npx tsc --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/emoji_github.test.ts src/common/emoji.ts && node --test .tmp/tests/scripts/tests/emoji_github.test.js",
     "test:markdown-path": "npx tsc --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/markdown_path_resolution.test.ts src/common/markdown_path.ts && node --test .tmp/tests/scripts/tests/markdown_path_resolution.test.js",

@@ -68,7 +68,8 @@ const Markdown = {
       throwOnError: false,
       strict: 'ignore',
       displayMode: false,
-      errorColor: '#F44336'
+      errorColor: '#F44336',
+      output: "html"
     }
   } as MarkdownRuntimeConfig,
   _cmarkOptions: {

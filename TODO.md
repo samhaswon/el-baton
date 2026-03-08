@@ -135,6 +135,7 @@
 - [ ] Build-in the tutorial as pages, rather than files, so it can more easily be referenced.
 - [X] Evaluate memory usage in the production build.
     - See if it's good, bad, what. Dev is a bit heavy, but that's dev.
+- [ ] Optimize Markdown string ops to reduce GC pressure.
 - [ ] On-battery mode with toolbar toggle.
     - [ ] Look into what features Electron supports for this.
         - See if it can be automated cross-platform
