@@ -1,5 +1,7 @@
 /* IMPORT */
 
+import KatexRanges from '@common/katex_ranges';
+
 let spellchecker: { isMisspelled: ( word: string ) => boolean, getCorrectionsForMisspelling: ( word: string ) => string[] } | undefined;
 
 try {
@@ -70,66 +72,6 @@ const normalizeWord = ( word: string ): string => {
 
 };
 
-const isEscapedAt = ( content: string, index: number ): boolean => {
-
-  let slashCount = 0;
-
-  for ( let i = index - 1; i >= 0 && content[i] === '\\'; i-- ) {
-    slashCount++;
-  }
-
-  return ( slashCount % 2 ) === 1;
-
-};
-
-const findMathRanges = ( content: string ): { start: number, end: number }[] => {
-
-  const ranges: { start: number, end: number }[] = [];
-
-  for ( let i = 0; i < content.length; ) {
-    if ( content[i] !== '$' || isEscapedAt ( content, i ) ) {
-      i += 1;
-      continue;
-    }
-
-    const displayMode = content[i + 1] === '$';
-    const delimiterLength = displayMode ? 2 : 1;
-    const openEnd = i + delimiterLength;
-
-    let closeStart = -1;
-
-    for ( let j = openEnd; j < content.length; j++ ) {
-      if ( !displayMode && content[j] === '\n' ) break;
-      if ( content[j] !== '$' || isEscapedAt ( content, j ) ) continue;
-
-      if ( displayMode ) {
-        if ( content[j + 1] !== '$' ) continue;
-        closeStart = j;
-        break;
-      }
-
-      if ( content[j - 1] === '$' || content[j + 1] === '$' ) continue;
-      closeStart = j;
-      break;
-    }
-
-    if ( closeStart === -1 ) {
-      i += 1;
-      continue;
-    }
-
-    ranges.push ({
-      start: i,
-      end: closeStart + delimiterLength
-    });
-
-    i = closeStart + delimiterLength;
-  }
-
-  return ranges;
-
-};
-
 /* WORKER */
 
 self.onmessage = ( event: MessageEvent<WorkerMessage> ) => {
@@ -176,7 +118,7 @@ self.onmessage = ( event: MessageEvent<WorkerMessage> ) => {
     }
 
     const misspellings: { start: number, end: number, word: string, suggestions: string[] }[] = [];
-    const mathRanges = findMathRanges ( content );
+    const katexRanges = KatexRanges.find ( content );
     let match: RegExpExecArray | null;
     let rangeIndex = 0;
 
@@ -191,12 +133,12 @@ self.onmessage = ( event: MessageEvent<WorkerMessage> ) => {
       const word = match[0];
       const wordStart = match.index;
 
-      while ( rangeIndex < mathRanges.length && mathRanges[rangeIndex].end <= wordStart ) {
+      while ( rangeIndex < katexRanges.length && katexRanges[rangeIndex].end <= wordStart ) {
         rangeIndex++;
       }
 
-      if ( rangeIndex < mathRanges.length ) {
-        const range = mathRanges[rangeIndex];
+      if ( rangeIndex < katexRanges.length ) {
+        const range = katexRanges[rangeIndex];
         if ( wordStart >= range.start && wordStart < range.end ) continue;
       }
 
