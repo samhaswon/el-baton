@@ -14,14 +14,14 @@
     border-bottom-width: 1px;
     border-bottom-style: solid;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     padding: 0 6px;
     gap: 6px;
   }
 
   .note-tabs-list {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 4px;
     overflow-x: auto;
     min-width: 0;
@@ -32,17 +32,62 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 24px;
-    padding: 0 10px;
-    border-radius: 4px;
+    position: relative;
+    box-sizing: border-box;
+    height: 26px;
+    padding: 0 11px;
+    border-width: 1px;
+    border-style: solid;
+    border-bottom-width: 0;
+    border-radius: 9px 9px 0 0;
+    line-height: 1;
     white-space: nowrap;
     max-width: 220px;
     overflow: hidden;
     text-overflow: ellipsis;
+    z-index: 1;
+    margin-bottom: 0 !important;
+  }
+
+  .note-tab::before,
+  .note-tab::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    width: 8px;
+    height: 100%;
+    background-color: inherit;
+    border-top-width: 1px;
+    border-top-style: solid;
+    border-bottom-width: 0;
+    pointer-events: none;
+  }
+
+  .note-tab::before {
+    left: -5px;
+    border-left-width: 1px;
+    border-left-style: solid;
+    border-right-width: 0;
+    transform: skewX(-24deg);
+    transform-origin: bottom right;
+  }
+
+  .note-tab::after {
+    right: -5px;
+    border-right-width: 1px;
+    border-right-style: solid;
+    border-left-width: 0;
+    transform: skewX(24deg);
+    transform-origin: bottom left;
+  }
+
+  .note-tab.active {
+    z-index: 2;
   }
 
   .note-tab.add {
-    padding: 0 8px;
+    padding: 0 10px;
+    margin-bottom: 0 !important;
   }
 
   .note-tab-title {

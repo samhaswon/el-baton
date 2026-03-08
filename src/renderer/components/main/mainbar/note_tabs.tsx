@@ -90,9 +90,9 @@ class NoteTabs extends React.Component<{ note: NoteObj | undefined, notesObj: No
               </div>
             );
           })}
-        </div>
-        <div className="note-tab add button" onClick={() => noteNew ()}>
-          <i className="icon xsmall">plus</i>
+          <div className="note-tab add button" onClick={() => noteNew ()}>
+            <i className="icon xsmall">plus</i>
+          </div>
         </div>
       </div>
     );

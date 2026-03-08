@@ -113,7 +113,7 @@
     - Should be tab-completed
     - Should appear as darker text in dark mode, lighter text in light mode.
     - Should include emojis.
-- [ ] Make notes tabs look like tabs on a manila folder.
+- [X] Make notes tabs look like tabs on a manila folder.
 - [X] Cheat sheets, including for KaTeX supported functions (https://katex.org/docs/supported.html)
     - [X] Markdown features
     - [X] Extended markdown features
