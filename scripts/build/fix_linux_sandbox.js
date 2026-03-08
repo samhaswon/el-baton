@@ -1,8 +1,7 @@
 
 /* IMPORT */
 
-const execa = require ( 'execa' ),
-      fs = require ( 'fs' ),
+const fs = require ( 'fs' ),
       path = require ( 'path' );
 
 /* HELPERS */
@@ -22,13 +21,14 @@ async function fixLinuxSandbox ( targets, cwd ) {
   if ( !isLinux ( targets ) ) return;
 
   const scriptPath = path.join ( cwd, 'el-baton' ),
+        binaryPath = path.join ( cwd, 'el-baton.bin' ),
         script = '#!/bin/bash\n"${BASH_SOURCE%/*}"/el-baton.bin "$@" --no-sandbox';
 
-  await execa ( 'mv', ['el-baton', 'el-baton.bin'], {cwd} );
+  fs.renameSync ( scriptPath, binaryPath );
 
   fs.writeFileSync ( scriptPath, script );
 
-  await execa ( 'chmod', ['+x', 'el-baton'], {cwd} );
+  fs.chmodSync ( scriptPath, 0o755 );
 
 }
 
