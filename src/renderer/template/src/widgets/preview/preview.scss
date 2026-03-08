@@ -302,7 +302,8 @@
     break-after: page;
   }
 
-  .mermaid-error {
+  .mermaid-error,
+  .plantuml-error {
     margin-bottom: 16px;
   }
 

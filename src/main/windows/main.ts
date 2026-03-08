@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import pkg from '@root/package.json';
 import Environment from '@common/environment';
+import PlantUMLService from '@main/utils/plantuml';
 import UMenu from '@main/utils/menu';
 import About from './about';
 import Mermaid from './mermaid';
@@ -465,6 +466,9 @@ class Main extends Route {
     this.___navigateUrl ();
     this.___printPDF ();
     this.___mermaidOpen ();
+    this.___plantumlRender ();
+    this.___plantumlTestServer ();
+    this.___plantumlOpenExternal ();
 
   }
 
@@ -473,6 +477,9 @@ class Main extends Route {
     ipc.removeListener ( 'force-close', this.__forceClose );
     ipc.removeListener ( 'flags-update', this.__flagsUpdate );
     ipc.removeListener ( 'print-pdf', this.__printPDF );
+    ipc.removeListener ( 'plantuml-render', this.__plantumlRender );
+    ipc.removeListener ( 'plantuml-test-server', this.__plantumlTestServer );
+    ipc.removeListener ( 'plantuml-open-external', this.__plantumlOpenExternal );
 
     const win = this.win;
     const webContents = win && typeof win.isDestroyed === 'function' && !win.isDestroyed () ? win.webContents : undefined;
@@ -481,6 +488,8 @@ class Main extends Route {
       webContents.removeListener ( 'render-process-gone', this.__rendererGone );
       webContents.removeListener ( 'did-finish-load', this.__rendererReady );
     }
+
+    PlantUMLService.close ();
 
     super.cleanup ();
 
@@ -763,6 +772,90 @@ class Main extends Route {
   __mermaidOpen = ( event: Event, data: string ) => {
 
     new Mermaid ( undefined, undefined, undefined, data ).init ();
+
+  }
+
+  /* PLANTUML RENDER */
+
+  ___plantumlRender = () => {
+
+    ipc.on ( 'plantuml-render', this.__plantumlRender );
+
+  }
+
+  __plantumlRender = async ( event: any, request: { id: number, source: string, options?: any } ) => {
+
+    const sender = event.sender;
+
+    try {
+      const result = await PlantUMLService.render ( request.source, request.options || {} );
+
+      if ( !sender.isDestroyed () ) {
+        sender.send ( 'plantuml-render-result', {
+          id: request.id,
+          ok: true,
+          result
+        } );
+      }
+    } catch ( error ) {
+      if ( sender.isDestroyed () ) return;
+
+      sender.send ( 'plantuml-render-result', {
+        id: request.id,
+        ok: false,
+        error: error instanceof Error ? error.message : String ( error )
+      } );
+    }
+
+  }
+
+  /* PLANTUML OPEN EXTERNAL */
+
+  ___plantumlTestServer = () => {
+
+    ipc.on ( 'plantuml-test-server', this.__plantumlTestServer );
+
+  }
+
+  __plantumlTestServer = async ( event: any, request: { id: number, url: string, options?: { requestTimeoutMs?: number } } ) => {
+
+    const sender = event.sender;
+
+    try {
+      const result = await PlantUMLService.testExternalServer ( request.url, request.options || {} );
+
+      if ( !sender.isDestroyed () ) {
+        sender.send ( 'plantuml-test-server-result', {
+          id: request.id,
+          ok: true,
+          result
+        } );
+      }
+    } catch ( error ) {
+      if ( sender.isDestroyed () ) return;
+
+      sender.send ( 'plantuml-test-server-result', {
+        id: request.id,
+        ok: false,
+        error: error instanceof Error ? error.message : String ( error )
+      } );
+    }
+
+  }
+
+  /* PLANTUML OPEN EXTERNAL */
+
+  ___plantumlOpenExternal = () => {
+
+    ipc.on ( 'plantuml-open-external', this.__plantumlOpenExternal );
+
+  }
+
+  __plantumlOpenExternal = ( event: Event, url: string ) => {
+
+    if ( !url || !/^https?:\/\//i.test ( url ) ) return;
+
+    shell.openExternal ( url );
 
   }
 

@@ -1,6 +1,7 @@
 /* IMPORT */
 
 import {AllHtmlEntities as entities} from 'html-entities';
+import PlantUML from './plantuml';
 
 /* MARKDOWN RENDER HELPERS */
 
@@ -265,6 +266,30 @@ const MarkdownRenderHelpers = {
   injectMermaidOpenExternal ( html: string ): string {
 
     return html.replace ( /<div class="mermaid">/g, '<div class="mermaid"><div class="mermaid-open-external" title="Open in Separate Window"><i class="icon small">open_in_new</i></div>' );
+
+  },
+
+  renderPlantUMLBlock ( source: string ): string {
+
+    const payload = encodeURIComponent ( source );
+
+    return `<div class="plantuml"><code class="plantuml-source hidden">${payload}</code></div>`;
+
+  },
+
+  renderPlantUMLError ( message: string, origin: 'local' | 'remote' = 'local' ): string {
+
+    const escapedMessage = MarkdownRenderHelpers.escapeHtml ( message ),
+          helpUrl = PlantUML.getErrorHelpUrl ( message, origin ),
+          helpLink = helpUrl ? ` <a href="${helpUrl}" target="_blank" rel="noopener noreferrer">Graphviz download</a>` : '';
+
+    return `<p class="plantuml-error text-warning">[plantuml ${origin} error: ${escapedMessage}]${helpLink}</p>`;
+
+  },
+
+  injectPlantUMLOpenExternal ( html: string ): string {
+
+    return html.replace ( /<div class="plantuml">/g, '<div class="plantuml"><div class="plantuml-open-external hidden" title="Open External Diagram"><i class="icon small">open_in_new</i></div>' );
 
   },
 

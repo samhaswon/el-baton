@@ -1,20 +1,34 @@
 
 .preview {
 
-  .mermaid {
+  .mermaid,
+  .plantuml {
 
     text-align: center;
 
     svg {
       max-width: 100%;
       height: auto;
-      background-color: transparent !important;
     }
 
     text[font-size="14"] { // Otherwise the configurated value does not get set
       font-size: 14px !important;
     }
 
+  }
+
+  .mermaid svg {
+    background-color: transparent !important;
+  }
+
+  .plantuml {
+    background-color: #FFFFFF !important;
+    border-radius: 8px;
+    padding: 8px;
+  }
+
+  .plantuml svg {
+    background-color: #FFFFFF !important;
   }
 
 }

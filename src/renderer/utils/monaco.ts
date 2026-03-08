@@ -364,6 +364,11 @@ const Monaco = {
       [/^\s*```\s*(?:katex|latex|tex)\s*$/i, { token: 'keyword.math.fence', next: '@mathblock' }]
     );
 
+    tokenizer.root.unshift (
+      [/^\s*~~~\s*(?:plantuml|puml|uml)\s*$/i, { token: 'keyword.graph.fence', next: '@plantumlblock' }],
+      [/^\s*```\s*(?:plantuml|puml|uml)\s*$/i, { token: 'keyword.graph.fence', next: '@plantumlblock' }]
+    );
+
     // Display math blocks delimited by $$ ... $$.
     tokenizer.root.unshift (
       [/^\s*\$\$\s*$/, { token: 'keyword.math.fence', next: '@mathdollarblock' }]
@@ -437,6 +442,21 @@ const Monaco = {
       [/[&^_=+\-*/<>|]/, 'operator.math'],
       [/[^\\%{}[\]()&^_=+\-*/<>|0-9]+/, 'string.math'],
       [/./, 'string.math']
+    ];
+
+    tokenizer.plantumlblock = [
+      [/^\s*~~~\s*$/, { token: 'keyword.graph.fence', next: '@pop' }],
+      [/^\s*```\s*$/, { token: 'keyword.graph.fence', next: '@pop' }],
+      [/^\s*[@](?:start(?:\w+)?\b.*)$/i, 'keyword.graph.directive'],
+      [/^\s*[@](?:end(?:\w+)?\b.*)$/i, 'keyword.graph.directive'],
+      [/^\s*!include(?:url)?\b.*$/i, 'keyword.graph.directive'],
+      [/^\s*(?:skinparam|title|caption|legend|left to right direction|top to bottom direction)\b.*$/i, 'keyword.graph.directive'],
+      [/^\s*(?:actor|boundary|control|entity|database|collections|participant|queue|rectangle|package|node|component|interface|class|enum|abstract|annotation)\b.*$/i, 'keyword.graph.entity'],
+      [/^\s*'.*$/, 'comment'],
+      [/\"(?:[^\"\\]|\\.)*\"/, 'string'],
+      [/[<>|:.*+#\\-]+/, 'operator'],
+      [/[^\"'<>|:.*+#\\-]+/, 'string'],
+      [/./, 'string']
     ];
 
   },

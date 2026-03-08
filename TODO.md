@@ -23,7 +23,6 @@
     - Sometimes breaks when mixing HTML and markdown
     - Breaks on inline math. It's just orange, not properly highlighted.
 - [X] Rename everything from "Notable" to "El Baton", including logo creation.
-    - Agents: Don't do this one until asked as it involves human input.
 - [X] Add unit tests where possible, mostly for markdown rendering and features that can use it.
 - [X] Correct file path handling so that it is compatible with relative paths of GFM (or just MD on GitHub).
     - As long as it lands within the data directory, call it good. We shouldn't allow `../../../../../../../../etc/passwd` or something like that.
@@ -54,13 +53,14 @@
 - [X] Add line numbers to the source view
     - [X] Literal line numbers from the shown start of the file
     - [X] Configurable option for vim-style line numbers
-- [ ] Add PlantUML support, with optional server parameter to use and external server for newer diagram features
+- [X] Add PlantUML support, with optional server parameter to use and external server for newer diagram features
     - The npm package is a bit older, and is missing some features.
     - Should have a limited client-side cache results. They're not cheap.
         - Should be memoized for a session.
         - Should have a global cache as well using SQLite.
-            - On load --> read SQLite cache
+            - On load --> read SQLite cache for PlantUML first.
             - On note save --> write SQLite cache
+            - Should be large enough to have a high hit rate, but capped at some configurable number of diagrams.
     - Add option to embed the rendered diagram (SVG) as an attachment.
     - External server example URL: https://plantuml.samhaswondom.duckdns.org/svg/SyfFKj2rKt3CoKnELR1Io4ZDoSa70000
       That is the default example,
@@ -114,7 +114,7 @@
     - Should appear as darker text in dark mode, lighter text in light mode.
     - Should include emojis.
 - [ ] Make notes tabs look like tabs on a manila folder.
-- [ ] Cheat sheets, including for KaTeX supported functions (https://katex.org/docs/supported.html)
+- [X] Cheat sheets, including for KaTeX supported functions (https://katex.org/docs/supported.html)
     - [X] Markdown features
     - [X] Extended markdown features
     - [X] KaTeX support:
@@ -123,7 +123,8 @@
     - [X] Mermaid support:
         - [X] Code blocks
         - [X] Key syntax points
-    - [ ] Basic PlantUML usage
+    - [X] Basic PlantUML usage
+        - Link to Graphviz in the cheatsheet for local usage: https://www.graphviz.org/download/
 - [ ] Ensure that spell checker localization is a thing. It might be automatic, so this is mostly audit and fix if broken.
 - [ ] Implement a presentation mode similar to whatever Pandoc has.
 - [ ] Additional settings:
@@ -172,3 +173,4 @@
 ## Blocked
 
 - [ ] Upgrade to the latest Electron version when Wayland support is fixed.
+- [ ] Move to built-in `node:sqlite` when the project can be upgraded to a later node version.

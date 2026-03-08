@@ -1,4 +1,3 @@
-
 /* IMPORT */
 
 import * as _ from 'lodash';
@@ -9,8 +8,10 @@ import * as path from 'path';
 import {Component} from 'react-component-renderless';
 import Config from '@common/config';
 import MarkdownRenderHelpers from '@common/markdown_render_helpers';
+import PlantUML, {PlantUMLRenderResult} from '@common/plantuml';
 import Main from '@renderer/containers/main';
 import MermaidCache from '@renderer/utils/mermaid_cache';
+import PlantUMLCache from '@renderer/utils/plantuml_cache';
 
 /* PREVIEW PLUGINS */
 
@@ -23,6 +24,10 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
   _lastPreviewRenderWasPartial = false;
   _forceFreshMermaidRender = false;
 
+  _plantumlRendering = false;
+  _plantumlRequestId = 0;
+  _plantumlPending = new Map<number, { resolve: ( value: PlantUMLRenderResult ) => void, reject: ( error: Error ) => void, timeoutId: number }> ();
+
   /* SPECIAL */
 
   componentDidMount () {
@@ -32,15 +37,20 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
     $.$document.on ( 'click', '.preview input[type="checkbox"]', this.__checkboxClick );
     $.$document.on ( 'click', '.preview .copy', this.__copyClick );
     $.$document.on ( 'click', '.preview .mermaid-open-external', this.__mermaidOpenExternalClick );
+    $.$document.on ( 'click', '.preview .plantuml-open-external', this.__plantumlOpenExternalClick );
+    ipc.on ( 'plantuml-render-result', this.__plantumlRenderResult );
     $.$window.on ( 'preview:render:start', this.__previewRenderStart );
     $.$window.on ( 'preview:rendered', this.__renderMermaids );
+    $.$window.on ( 'preview:rendered', this.__renderPlantUMLs );
     this.__renderMermaids ();
+    this.__renderPlantUMLs ();
 
   }
 
   componentDidUpdate () {
 
     this.__renderMermaids ();
+    this.__renderPlantUMLs ();
 
   }
 
@@ -51,9 +61,20 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
     $.$document.off ( 'click', this.__checkboxClick );
     $.$document.off ( 'click', this.__copyClick );
     $.$document.off ( 'click', this.__mermaidOpenExternalClick );
+    $.$document.off ( 'click', this.__plantumlOpenExternalClick );
+    ipc.removeListener ( 'plantuml-render-result', this.__plantumlRenderResult );
     $.$window.off ( 'preview:render:start', this.__previewRenderStart );
     $.$window.off ( 'preview:rendered', this.__renderMermaids );
+    $.$window.off ( 'preview:rendered', this.__renderPlantUMLs );
+
+    for ( const [id, pending] of this._plantumlPending.entries () ) {
+      window.clearTimeout ( pending.timeoutId );
+      pending.reject ( new Error ( 'PlantUML rendering was cancelled' ) );
+      this._plantumlPending.delete ( id );
+    }
+
     MermaidCache.clear ();
+    PlantUMLCache.clear ();
 
   }
 
@@ -71,11 +92,24 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
 
   }
 
+  __getPlantUMLServerUrl = () => {
+
+    return PlantUML.normalizeServerUrl ( Config.plantuml.externalServerUrl );
+
+  }
+
+  __getPlantUMLCacheKey = ( source: string, serverUrl?: string ) => {
+
+    return `${serverUrl || ''}\u0000${source}`;
+
+  }
+
   __previewRenderStart = ( _event, renderMeta? ) => {
 
     if ( this._lastPreviewRenderWasPartial && renderMeta && renderMeta.kind !== 'partial' ) {
       this._forceFreshMermaidRender = true;
       MermaidCache.clear ();
+      PlantUMLCache.clear ();
     }
 
   }
@@ -223,6 +257,164 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
 
   }
 
+  __plantumlRenderResult = ( _event, message: { id: number, ok: boolean, result?: PlantUMLRenderResult, error?: string } ) => {
+
+    const pending = this._plantumlPending.get ( message.id );
+
+    if ( !pending ) return;
+
+    this._plantumlPending.delete ( message.id );
+    window.clearTimeout ( pending.timeoutId );
+
+    if ( !message.ok || !message.result ) {
+      pending.reject ( new Error ( message.error || 'PlantUML render failed' ) );
+      return;
+    }
+
+    pending.resolve ( message.result );
+
+  }
+
+  __requestPlantUMLRender = ( source: string, serverUrl?: string ): Promise<PlantUMLRenderResult> => {
+
+    const id = ++this._plantumlRequestId,
+          timeoutMs = PlantUML.clampTimeoutMs ( Config.plantuml.requestTimeoutMs ) + 2000;
+
+    return new Promise<PlantUMLRenderResult> ( ( resolve, reject ) => {
+      const timeoutId = window.setTimeout ( () => {
+        this._plantumlPending.delete ( id );
+        reject ( new Error ( `PlantUML request timed out after ${timeoutMs}ms` ) );
+      }, timeoutMs );
+
+      this._plantumlPending.set ( id, { resolve, reject, timeoutId } );
+
+      ipc.send ( 'plantuml-render', {
+        id,
+        source,
+        options: {
+          externalServerUrl: serverUrl,
+          requestTimeoutMs: Config.plantuml.requestTimeoutMs,
+          cacheMaxEntries: Config.plantuml.cache.maxEntries,
+          cacheMaxBytes: Config.plantuml.cache.maxBytes
+        }
+      } );
+    } );
+
+  }
+
+  __applyPlantUMLRenderResult = ( $node, source: string, serverUrl: string | undefined, result: PlantUMLRenderResult ) => {
+
+    const $external = $node.children ( '.plantuml-open-external' ).detach ();
+
+    $node.empty ();
+
+    if ( $external.length ) $node.append ( $external );
+
+    if ( result.status === 'ok' && result.svg ) {
+      $node.append ( result.svg );
+    } else {
+      $node.append ( MarkdownRenderHelpers.renderPlantUMLError ( result.error || 'Unknown PlantUML render error', result.origin ) );
+    }
+
+    const externalUrl = ( result.origin === 'remote' && result.externalUrl ) ? result.externalUrl : undefined;
+
+    if ( $external.length ) {
+      if ( externalUrl ) {
+        $external.removeClass ( 'hidden' );
+        $external.attr ( 'title', 'Open External Diagram' );
+      } else {
+        $external.addClass ( 'hidden' );
+      }
+    }
+
+    $node.data ( 'plantumlSource', source );
+    $node.data ( 'plantumlServerUrl', serverUrl || '' );
+    $node.data ( 'plantumlOrigin', result.origin );
+
+    if ( externalUrl ) {
+      $node.data ( 'plantumlExternalUrl', externalUrl );
+    } else {
+      $node.data ( 'plantumlExternalUrl', '' );
+    }
+
+  }
+
+  __renderPlantUMLs = async () => {
+
+    if ( this._plantumlRendering ) return;
+
+    this._plantumlRendering = true;
+
+    try {
+
+      const serverUrl = this.__getPlantUMLServerUrl (),
+            nodes = Array.from ( document.querySelectorAll ( '.preview .plantuml' ) );
+
+      for ( const node of nodes ) {
+
+        const $node = $(node),
+              sourceNode = $node.find ( '.plantuml-source' )[0],
+              currentSource = $node.data ( 'plantumlSource' ),
+              currentServerUrl = $node.data ( 'plantumlServerUrl' );
+
+        if ( !sourceNode && currentSource && currentServerUrl === ( serverUrl || '' ) ) continue;
+        if ( !sourceNode ) continue;
+
+        const encoded = sourceNode.textContent || '';
+
+        let source = '';
+
+        try {
+          source = PlantUML.normalizeSource ( decodeURIComponent ( encoded ) );
+        } catch ( error ) {
+          const message = error instanceof Error ? error.message : String ( error );
+          console.error ( `[plantuml] ${message}` );
+          $node.html ( MarkdownRenderHelpers.renderPlantUMLError ( message, 'local' ) );
+          continue;
+        }
+
+        if ( !source.trim () ) continue;
+
+        const cacheKey = this.__getPlantUMLCacheKey ( source, serverUrl ),
+              cached = PlantUMLCache.get ( cacheKey );
+
+        if ( cached ) {
+          this.__applyPlantUMLRenderResult ( $node, source, serverUrl, cached );
+          continue;
+        }
+
+        try {
+          const result = await this.__requestPlantUMLRender ( source, serverUrl );
+
+          PlantUMLCache.set ( cacheKey, result );
+
+          if ( document.contains ( node ) ) {
+            this.__applyPlantUMLRenderResult ( $node, source, serverUrl, result );
+          }
+        } catch ( error ) {
+          const message = error instanceof Error ? error.message : String ( error );
+
+          console.error ( `[plantuml] ${message}` );
+
+          if ( document.contains ( node ) ) {
+            this.__applyPlantUMLRenderResult ( $node, source, serverUrl, {
+              status: 'error',
+              origin: serverUrl ? 'remote' : 'local',
+              error: message
+            } );
+          }
+        }
+
+      }
+
+    } finally {
+
+      this._plantumlRendering = false;
+
+    }
+
+  }
+
   __noteClick = ( event ) => {
 
     const filePath = $(event.currentTarget).data ( 'filepath' ),
@@ -296,7 +488,21 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
           base64 = Buffer.from ( html ).toString ( 'base64' ),
           data = `data:image/svg+xml;base64,${base64}`;
 
-    ipc.send ( 'mermaid-open', data ); //TODO: We should open this in the default browser instead, but it turns out that we can't open "data:*"" urls from here, perhaps we could set-up a special-purpose website to workaround this.
+    ipc.send ( 'mermaid-open', data );
+
+  }
+
+  __plantumlOpenExternalClick = ( event ) => {
+
+    const $btn = $(event.currentTarget),
+          $container = $btn.closest ( '.plantuml' ),
+          externalUrl = String ( $container.data ( 'plantumlExternalUrl' ) || '' );
+
+    if ( !externalUrl ) return false;
+
+    ipc.send ( 'plantuml-open-external', externalUrl );
+
+    return false;
 
   }
 

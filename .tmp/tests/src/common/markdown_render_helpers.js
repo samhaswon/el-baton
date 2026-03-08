@@ -2,6 +2,7 @@
 /* IMPORT */
 Object.defineProperty(exports, "__esModule", { value: true });
 const html_entities_1 = require("html-entities");
+const plantuml_1 = require("./plantuml");
 /* MARKDOWN RENDER HELPERS */
 const MarkdownRenderHelpers = {
     macroPlaceholders: {
@@ -176,6 +177,17 @@ const MarkdownRenderHelpers = {
     },
     injectMermaidOpenExternal(html) {
         return html.replace(/<div class="mermaid">/g, '<div class="mermaid"><div class="mermaid-open-external" title="Open in Separate Window"><i class="icon small">open_in_new</i></div>');
+    },
+    renderPlantUMLBlock(source) {
+        const payload = encodeURIComponent(source);
+        return `<div class="plantuml"><code class="plantuml-source hidden">${payload}</code></div>`;
+    },
+    renderPlantUMLError(message, origin = 'local') {
+        const escapedMessage = MarkdownRenderHelpers.escapeHtml(message), helpUrl = plantuml_1.default.getErrorHelpUrl(message, origin), helpLink = helpUrl ? ` <a href="${helpUrl}" target="_blank" rel="noopener noreferrer">Graphviz download</a>` : '';
+        return `<p class="plantuml-error text-warning">[plantuml ${origin} error: ${escapedMessage}]${helpLink}</p>`;
+    },
+    injectPlantUMLOpenExternal(html) {
+        return html.replace(/<div class="plantuml">/g, '<div class="plantuml"><div class="plantuml-open-external hidden" title="Open External Diagram"><i class="icon small">open_in_new</i></div>');
     },
     sanitizeUnsafeHtml(html, enabled = true) {
         if (!enabled)

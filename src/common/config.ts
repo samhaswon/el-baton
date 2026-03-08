@@ -92,6 +92,22 @@ const Config = {
       barHeight: 25,
       fontSize: 14
     }
+  },
+  plantuml: {
+    get externalServerUrl () {
+      return Config.global.plantuml.externalServerUrl;
+    },
+    get requestTimeoutMs () {
+      return Config.global.plantuml.requestTimeoutMs;
+    },
+    cache: {
+      get maxEntries () {
+        return Config.global.plantuml.cacheMaxEntries;
+      },
+      get maxBytes () {
+        return Config.global.plantuml.cacheMaxBytes;
+      }
+    }
   }
 };
 

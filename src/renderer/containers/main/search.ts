@@ -332,7 +332,7 @@ class Search extends Container<SearchState, MainCTX> {
 
                   if ( !parentElement ) return NodeFilter.FILTER_REJECT;
                   if ( !node.nodeValue || !node.nodeValue.trim () ) return NodeFilter.FILTER_REJECT;
-                  if ( parentElement.closest ( 'script, style, pre, code, svg, .katex, .mermaid, .local-search-preview-match, .global-search-jump-match' ) ) return NodeFilter.FILTER_REJECT;
+                  if ( parentElement.closest ( 'script, style, pre, code, svg, .katex, .mermaid, .plantuml, .local-search-preview-match, .global-search-jump-match' ) ) return NodeFilter.FILTER_REJECT;
 
                   return NodeFilter.FILTER_ACCEPT;
                 }
@@ -608,7 +608,7 @@ class Search extends Container<SearchState, MainCTX> {
 
         if ( !parentElement ) return NodeFilter.FILTER_REJECT;
         if ( !node.nodeValue || !node.nodeValue.trim () ) return NodeFilter.FILTER_REJECT;
-        if ( parentElement.closest ( 'script, style, pre, code, svg, .katex, .mermaid, .local-search-preview-match' ) ) return NodeFilter.FILTER_REJECT;
+        if ( parentElement.closest ( 'script, style, pre, code, svg, .katex, .mermaid, .plantuml, .local-search-preview-match' ) ) return NodeFilter.FILTER_REJECT;
 
         return NodeFilter.FILTER_ACCEPT;
       }

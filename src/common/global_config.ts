@@ -27,6 +27,12 @@ type GlobalConfigShape = {
       disableSuggestions: boolean,
       tabSize: number
     }
+  },
+  plantuml: {
+    externalServerUrl: string,
+    requestTimeoutMs: number,
+    cacheMaxEntries: number,
+    cacheMaxBytes: number
   }
 };
 
@@ -51,6 +57,12 @@ const DEFAULTS: GlobalConfigShape = {
       disableSuggestions: false,
       tabSize: 2
     }
+  },
+  plantuml: {
+    externalServerUrl: '',
+    requestTimeoutMs: 12000,
+    cacheMaxEntries: 400,
+    cacheMaxBytes: 64 * 1024 * 1024
   }
 };
 
@@ -98,6 +110,12 @@ const GlobalConfig = {
           disableSuggestions: DEFAULTS.monaco.editorOptions.disableSuggestions,
           tabSize: DEFAULTS.monaco.editorOptions.tabSize
         }
+      },
+      plantuml: {
+        externalServerUrl: DEFAULTS.plantuml.externalServerUrl,
+        requestTimeoutMs: DEFAULTS.plantuml.requestTimeoutMs,
+        cacheMaxEntries: DEFAULTS.plantuml.cacheMaxEntries,
+        cacheMaxBytes: DEFAULTS.plantuml.cacheMaxBytes
       }
     };
 
@@ -186,6 +204,34 @@ const GlobalConfig = {
 
       if ( Number.isFinite ( tabSize ) ) {
         normalized.monaco.editorOptions.tabSize = Math.max ( 1, Math.min ( 8, Math.round ( tabSize ) ) );
+      }
+    }
+
+    if ( GlobalConfig.isRecord ( config.plantuml ) && 'externalServerUrl' in config.plantuml ) {
+      normalized.plantuml.externalServerUrl = String ( config.plantuml.externalServerUrl || '' ).trim ();
+    }
+
+    if ( GlobalConfig.isRecord ( config.plantuml ) && 'requestTimeoutMs' in config.plantuml ) {
+      const timeout = Number ( config.plantuml.requestTimeoutMs );
+
+      if ( Number.isFinite ( timeout ) ) {
+        normalized.plantuml.requestTimeoutMs = Math.max ( 1000, Math.min ( 120000, Math.round ( timeout ) ) );
+      }
+    }
+
+    if ( GlobalConfig.isRecord ( config.plantuml ) && 'cacheMaxEntries' in config.plantuml ) {
+      const cacheMaxEntries = Number ( config.plantuml.cacheMaxEntries );
+
+      if ( Number.isFinite ( cacheMaxEntries ) ) {
+        normalized.plantuml.cacheMaxEntries = Math.max ( 20, Math.min ( 5000, Math.round ( cacheMaxEntries ) ) );
+      }
+    }
+
+    if ( GlobalConfig.isRecord ( config.plantuml ) && 'cacheMaxBytes' in config.plantuml ) {
+      const cacheMaxBytes = Number ( config.plantuml.cacheMaxBytes );
+
+      if ( Number.isFinite ( cacheMaxBytes ) ) {
+        normalized.plantuml.cacheMaxBytes = Math.max ( 1 * 1024 * 1024, Math.min ( 512 * 1024 * 1024, Math.round ( cacheMaxBytes ) ) );
       }
     }
 

@@ -1,11 +1,13 @@
 
 .preview {
 
-  .mermaid {
+  .mermaid,
+  .plantuml {
 
     position: relative;
 
-    .mermaid-open-external {
+    .mermaid-open-external,
+    .plantuml-open-external {
       position: absolute;
       top: $gutter-half;
       right: $gutter;
@@ -15,7 +17,8 @@
       z-index: 1;
     }
 
-    &:hover .mermaid-open-external {
+    &:hover .mermaid-open-external,
+    &:hover .plantuml-open-external {
       opacity: .5;
       &:hover {
         opacity: .75;
@@ -23,6 +26,18 @@
       &:active {
         opacity: 1;
       }
+    }
+
+  }
+
+  .plantuml {
+
+    .plantuml-open-external {
+      color: #FFFFFF;
+      background-color: rgba( 0, 0, 0, .72 );
+      border-radius: 999px;
+      padding: 4px;
+      line-height: 1;
     }
 
   }

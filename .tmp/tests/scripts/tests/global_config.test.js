@@ -9,7 +9,7 @@ const path = require("path");
 const global_config_1 = require("../../src/common/global_config");
 /* HELPERS */
 const withTempDir = (callback) => {
-    const dirPath = fs.mkdtempSync(path.join(os.tmpdir(), 'notable-config-'));
+    const dirPath = fs.mkdtempSync(path.join(os.tmpdir(), 'el-baton-config-'));
     try {
         callback(dirPath);
     }
@@ -39,6 +39,12 @@ const withTempDir = (callback) => {
                     disableSuggestions: false,
                     tabSize: 4
                 }
+            },
+            plantuml: {
+                externalServerUrl: '',
+                requestTimeoutMs: 12000,
+                cacheMaxEntries: 400,
+                cacheMaxBytes: 64 * 1024 * 1024
             }
         }), 'utf8');
         fs.writeFileSync(path.join(dirPath, '.notable.yml'), [
@@ -55,7 +61,12 @@ const withTempDir = (callback) => {
             '  editorOptions:',
             '    lineNumbers: relative',
             '    disableSuggestions: true',
-            '    tabSize: 3'
+            '    tabSize: 3',
+            'plantuml:',
+            '  externalServerUrl: https://plantuml.example.com/plantuml',
+            '  requestTimeoutMs: 9000',
+            '  cacheMaxEntries: 600',
+            '  cacheMaxBytes: 12582912'
         ].join('\n'), 'utf8');
         const config = global_config_1.default.read(dirPath);
         assert.equal(config.autoupdate, false);
@@ -67,6 +78,10 @@ const withTempDir = (callback) => {
         assert.equal(config.monaco.editorOptions.lineNumbers, 'relative');
         assert.equal(config.monaco.editorOptions.disableSuggestions, true);
         assert.equal(config.monaco.editorOptions.tabSize, 3);
+        assert.equal(config.plantuml.externalServerUrl, 'https://plantuml.example.com/plantuml');
+        assert.equal(config.plantuml.requestTimeoutMs, 9000);
+        assert.equal(config.plantuml.cacheMaxEntries, 600);
+        assert.equal(config.plantuml.cacheMaxBytes, 12582912);
     });
 });
 (0, node_test_1.test)('read: returns defaults when no config file is present', () => {
@@ -95,6 +110,12 @@ const withTempDir = (callback) => {
                 disableSuggestions: 'yes',
                 tabSize: 99
             }
+        },
+        plantuml: {
+            externalServerUrl: '  https://plantuml.example.com/plantuml  ',
+            requestTimeoutMs: -1,
+            cacheMaxEntries: 999999,
+            cacheMaxBytes: 1234
         }
     });
     assert.equal(config.autoupdate, false);
@@ -106,6 +127,10 @@ const withTempDir = (callback) => {
     assert.equal(config.monaco.editorOptions.lineNumbers, 'on');
     assert.equal(config.monaco.editorOptions.disableSuggestions, true);
     assert.equal(config.monaco.editorOptions.tabSize, 8);
+    assert.equal(config.plantuml.externalServerUrl, 'https://plantuml.example.com/plantuml');
+    assert.equal(config.plantuml.requestTimeoutMs, 1000);
+    assert.equal(config.plantuml.cacheMaxEntries, 5000);
+    assert.equal(config.plantuml.cacheMaxBytes, 1 * 1024 * 1024);
 });
 (0, node_test_1.test)('write: persists normalized config and read returns the saved values', () => {
     withTempDir(dirPath => {
@@ -128,6 +153,12 @@ const withTempDir = (callback) => {
                     disableSuggestions: true,
                     tabSize: 4
                 }
+            },
+            plantuml: {
+                externalServerUrl: 'https://plantuml.example.com/plantuml',
+                requestTimeoutMs: 8000,
+                cacheMaxEntries: 350,
+                cacheMaxBytes: 32 * 1024 * 1024
             }
         });
         assert.equal(filePath, path.join(dirPath, '.el-baton.yml'));
@@ -142,5 +173,9 @@ const withTempDir = (callback) => {
         assert.equal(config.monaco.editorOptions.lineNumbers, 'relative');
         assert.equal(config.monaco.editorOptions.disableSuggestions, true);
         assert.equal(config.monaco.editorOptions.tabSize, 4);
+        assert.equal(config.plantuml.externalServerUrl, 'https://plantuml.example.com/plantuml');
+        assert.equal(config.plantuml.requestTimeoutMs, 8000);
+        assert.equal(config.plantuml.cacheMaxEntries, 350);
+        assert.equal(config.plantuml.cacheMaxBytes, 32 * 1024 * 1024);
     });
 });

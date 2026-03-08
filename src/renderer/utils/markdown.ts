@@ -220,6 +220,8 @@ const Markdown = {
       ...Markdown.extensions.katex (),
       ...Markdown.extensions.mermaid (),
       ...Markdown.extensions.mermaidOpenExternal (),
+      ...Markdown.extensions.plantuml (),
+      ...Markdown.extensions.plantumlOpenExternal (),
       ...Markdown.extensions.highlight (),
       ...Markdown.extensions.copy (),
       ...Markdown.extensions.checkbox (),
@@ -270,6 +272,8 @@ const Markdown = {
       ...Markdown.extensions.katex (),
       ...Markdown.extensions.mermaid (),
       ...Markdown.extensions.mermaidOpenExternal (),
+      ...Markdown.extensions.plantuml (),
+      ...Markdown.extensions.plantumlOpenExternal (),
       ...Markdown.extensions.highlight (),
       ...Markdown.extensions.copy (),
       ...Markdown.extensions.checkbox (),
@@ -704,6 +708,31 @@ const Markdown = {
         regex: /<div class="mermaid">/g,
         replace ( match ) {
           return MarkdownRenderHelpers.injectMermaidOpenExternal ( match );
+        }
+      }];
+
+    },
+
+    plantuml () {
+
+      return [{
+        type: 'output',
+        regex: /<pre><code\s[^>]*language-(?:plantuml|puml|uml)[^>]*>([^]+?)<\/code><\/pre>/g,
+        replace ( match, $1 ) {
+          const source = entities.decode ( $1 );
+          return MarkdownRenderHelpers.renderPlantUMLBlock ( source );
+        }
+      }];
+
+    },
+
+    plantumlOpenExternal () {
+
+      return [{
+        type: 'output',
+        regex: /<div class="plantuml">/g,
+        replace ( match ) {
+          return MarkdownRenderHelpers.injectPlantUMLOpenExternal ( match );
         }
       }];
 

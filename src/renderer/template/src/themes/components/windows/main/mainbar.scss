@@ -129,7 +129,8 @@
       border-color: rgba( $settings-surface-active, .9 );
     }
 
-    .settings-select {
+    .settings-select,
+    .settings-input {
       color: $mainbar-fg;
       background-color: $settings-surface-strong;
       border-color: $settings-border;
@@ -147,6 +148,7 @@
     }
 
     .settings-select:focus,
+    .settings-input:focus,
     .settings-switch:focus {
       outline: none;
       box-shadow: 0 0 0 2px rgba( $mainbar-fg-color, .08 );

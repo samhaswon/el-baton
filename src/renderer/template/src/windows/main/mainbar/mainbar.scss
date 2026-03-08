@@ -565,6 +565,24 @@
     color-scheme: dark light;
   }
 
+  .settings-input {
+    width: 100%;
+    min-width: 260px;
+    height: 44px;
+    padding: 0 14px;
+    border-width: 1px;
+    border-style: solid;
+    border-color: currentColor;
+    border-radius: 14px;
+    background: transparent;
+    color: inherit;
+    font-weight: 600;
+  }
+
+  .settings-input:disabled {
+    opacity: .55;
+  }
+
   .settings-select:disabled {
     opacity: .55;
   }
@@ -625,7 +643,8 @@
     }
 
     .settings-switch,
-    .settings-select-wrap {
+    .settings-select-wrap,
+    .settings-input {
       max-width: 172px;
     }
 

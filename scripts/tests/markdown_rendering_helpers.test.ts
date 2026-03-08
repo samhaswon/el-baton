@@ -209,6 +209,48 @@ test ( 'mermaid external control: injects button into each mermaid container', (
 
 });
 
+test ( 'plantuml block: encodes source into a hidden payload container', () => {
+
+  const source = '@startuml\\nAlice -> Bob : hi\\n@enduml',
+        html = MarkdownRenderHelpers.renderPlantUMLBlock ( source );
+
+  assert.match ( html, /^<div class=\"plantuml\">/ );
+  assert.match ( html, /class=\"plantuml-source hidden\"/ );
+  assert.match ( html, /%40startuml/ );
+  assert.match ( html, /%40enduml/ );
+
+});
+
+test ( 'plantuml error: escapes message content and labels origin', () => {
+
+  const html = MarkdownRenderHelpers.renderPlantUMLError ( 'Failed <bad>', 'remote' );
+
+  assert.equal ( html, '<p class=\"plantuml-error text-warning\">[plantuml remote error: Failed &lt;bad&gt;]</p>' );
+
+});
+
+test ( 'plantuml error: includes Graphviz download link when dot/Graphviz is missing', () => {
+
+  const html = MarkdownRenderHelpers.renderPlantUMLError ( 'Dot Executable: /opt/local/bin/dot\nFile does not exist\nCannot find Graphviz.', 'local' );
+
+  assert.match ( html, /Graphviz download/ );
+  assert.match ( html, /https:\/\/www\.graphviz\.org\/download\// );
+  assert.match ( html, /target=\"_blank\"/ );
+
+});
+
+test ( 'plantuml external control: injects hidden open button into each plantuml container', () => {
+
+  const input = '<div class=\"plantuml\"></div><div class=\"plantuml\"></div>',
+        output = MarkdownRenderHelpers.injectPlantUMLOpenExternal ( input ),
+        count = ( output.match ( /plantuml-open-external/g ) || [] ).length;
+
+  assert.equal ( count, 2 );
+  assert.match ( output, /class=\"plantuml-open-external hidden\"/ );
+  assert.match ( output, /title=\"Open External Diagram\"/ );
+
+});
+
 test ( 'html sanitization: strips script tags and preserves safe html', () => {
 
   const html = '<div>safe</div><script>alert("xss")</script><p>ok</p><SCRIPT SRC="https://evil.test/x.js"></SCRIPT>',
