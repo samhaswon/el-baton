@@ -13,7 +13,7 @@ const tabsTop = [
 
 const tabsBottom = [
   { id: 'help', icon: 'note', title: 'Cheatsheets' },
-  { id: 'settings', icon: 'tag', title: 'Settings' }
+  { id: 'settings', icon: '⚙', title: 'Settings' }
 ];
 
 const Activitybar = ({ panel, setPanel }) => (
@@ -29,7 +29,7 @@ const Activitybar = ({ panel, setPanel }) => (
     <div className="activitybar-bottom">
       {tabsBottom.map ( tab => (
         <div key={tab.id} className={`activitybar-item button ${panel === tab.id ? 'active' : ''}`} title={tab.title} onClick={() => setPanel ( tab.id )}>
-          <i className="icon small">{tab.icon}</i>
+          {tab.id === 'settings' ? <span className="activitybar-gear small">{tab.icon}</span> : <i className="icon small">{tab.icon}</i>}
         </div>
       ))}
     </div>

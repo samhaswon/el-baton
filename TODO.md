@@ -98,8 +98,8 @@
     - [X] Find and replace (including with regex, specifically the match)
 - [ ] More unit tests for things that should be tested
     - [ ] Make sure footnotes work per the GFM spec.
-- [ ] Brighten up the settings page in dark mode.
-    - Currently, contrast is rather poor, making it hard to read.
+- [X] Brighten up the settings page in dark mode.
+    - [X] Currently, contrast is rather poor, making it hard to read.
 - [X] Make spell check added words persistent, exposing the list in the settings menu. 
     - [X] This should involve some kind of collapsed view initially as to not clog up the UI. 
     - [X] Users should be able to add/delete from this list.

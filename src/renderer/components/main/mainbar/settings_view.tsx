@@ -372,6 +372,7 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanS
                 <div className="settings-meta">
                   <div className="settings-label">External server URL (Optional)</div>
                   <div className="settings-field-copy xsmall">If set, remote rendering can override local output when remote succeeds.</div>
+                  <div className="settings-field-copy xsmall">Leave external server URL empty to use local rendering only.</div>
                 </div>
                 <div className="settings-control">
                   <input
@@ -467,7 +468,6 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanS
                 </div>
               </div>
             </div>
-            <p className="settings-footnote xsmall">Leave external server URL empty to use local rendering only.</p>
           </section>
 
           <section className="settings-section">

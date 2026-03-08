@@ -8,6 +8,7 @@
   @if type-of( $mainbar-fg ) == 'color' {
     $mainbar-fg-color: $mainbar-fg;
   }
+  $settings-is-dark: color.channel( $mainbar-bg, 'lightness', $space: hsl ) < 50;
   $settings-surface: color.mix( $mainbar-fg-color, $mainbar-bg, 14% );
   $settings-surface-strong: color.mix( $mainbar-fg-color, $mainbar-bg, 18% );
   $settings-surface-active: #F26D21;
@@ -20,7 +21,18 @@
   $settings-muted-strong: rgba( $mainbar-fg-color, .82 );
   $settings-highlight: rgba( $mainbar-fg-color, .03 );
   $settings-toggle-thumb: #FFFFFF;
-  $settings-is-dark: color.channel( $mainbar-bg, 'lightness', $space: hsl ) < 50;
+
+  @if $settings-is-dark {
+    $settings-surface: color.mix( $mainbar-fg-color, $mainbar-bg, 34% );
+    $settings-surface-strong: color.mix( $mainbar-fg-color, $mainbar-bg, 40% );
+    $settings-surface-hero-top: color.mix( $mainbar-fg-color, $mainbar-bg, 38% );
+    $settings-surface-hero-bottom: color.mix( $mainbar-fg-color, $mainbar-bg, 34% );
+    $settings-border: color.mix( $mainbar-fg-color, $mainbar-bg, 42% );
+    $settings-border-strong: color.mix( $mainbar-fg-color, $mainbar-bg, 52% );
+    $settings-muted: rgba( $mainbar-fg-color, .82 );
+    $settings-muted-strong: rgba( $mainbar-fg-color, .92 );
+    $settings-highlight: rgba( $mainbar-fg-color, .06 );
+  }
 
   .mainbar {
     background-color: $mainbar-bg;
