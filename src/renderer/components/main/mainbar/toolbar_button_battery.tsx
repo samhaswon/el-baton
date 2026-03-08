@@ -11,12 +11,10 @@ const ToolbarButtonBattery = ({ isBatteryModeActive, batteryModeEnabled, hasBatt
 
   const modeLabel = isBatteryModeActive ? 'On-Battery Mode: Active' : 'On-Battery Mode: Inactive',
         powerLabel = hasBatteryPowerDetection ? ( isOnBatteryPower ? 'Power Source: Battery' : 'Power Source: AC' ) : 'Power Source: Unknown',
-        icon = isBatteryModeActive ? 'battery_full' : 'battery_std',
+        icon = isOnBatteryPower ? 'on_battery' : 'on_ac',
         title = `${batteryModeEnabled ? 'Disable' : 'Enable'} Manual On-Battery Mode\n${modeLabel}\n${powerLabel}`;
 
-  return (
-    <ToolbarButton icon={icon} title={title} isActive={isBatteryModeActive} onClick={toggleBatteryMode} />
-  );
+  return <ToolbarButton icon={icon} title={title} isActive={isBatteryModeActive} onClick={toggleBatteryMode} />;
 
 };
 
