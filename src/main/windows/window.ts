@@ -3,7 +3,7 @@
 
 import * as _ from 'lodash';
 import * as path from 'path';
-import {BrowserWindow, BrowserWindowConstructorOptions} from 'electron';
+import {app, BrowserWindow, BrowserWindowConstructorOptions} from 'electron';
 import {is} from '@common/electron_util_shim';
 import * as windowStateKeeper from 'electron-window-state';
 import pkg from '@root/package.json';
@@ -162,6 +162,108 @@ class Window {
 
   /* API */
 
+  normalizeLocaleCode ( locale: string ): string {
+
+    const normalized = locale.trim ().replace ( /_/g, '-' );
+
+    if ( !normalized ) return '';
+
+    const [language, ...rest] = normalized.split ( '-' );
+
+    if ( !language ) return '';
+
+    const languageCode = language.toLowerCase ();
+    const regionCode = rest.map ( part => {
+      if ( part.length === 2 ) return part.toUpperCase ();
+      return part;
+    });
+
+    return [languageCode, ...regionCode].join ( '-' );
+
+  }
+
+  getPreferredLocales (): string[] {
+
+    const locales = new Set<string> ();
+    const addLocale = ( candidate?: string ) => {
+
+      if ( !candidate ) return;
+
+      const cleaned = candidate.split ( '.' )[0].split ( '@' )[0];
+      const normalized = this.normalizeLocaleCode ( cleaned );
+
+      if ( normalized ) locales.add ( normalized );
+
+    };
+
+    const preferred = app.getPreferredSystemLanguages?.() || [];
+
+    preferred.forEach ( addLocale );
+    addLocale ( app.getLocale?.() );
+    addLocale ( process.env.LC_ALL );
+    addLocale ( process.env.LC_MESSAGES );
+    addLocale ( process.env.LANG );
+
+    return [...locales];
+
+  }
+
+  resolveSpellcheckerLanguages ( available: string[], preferred: string[] ): string[] {
+
+    if ( !available.length ) return [];
+
+    const availableByLower = new Map ( available.map ( locale => [locale.toLowerCase (), locale] ) );
+    const selected = new Set<string> ();
+
+    preferred.forEach ( locale => {
+
+      const exact = availableByLower.get ( locale.toLowerCase () );
+
+      if ( exact ) {
+        selected.add ( exact );
+        return;
+      }
+
+      const base = locale.split ( '-' )[0].toLowerCase ();
+
+      if ( !base ) return;
+
+      const baseMatch = available.find ( entry => entry.toLowerCase () === base || entry.toLowerCase ().startsWith ( `${base}-` ) );
+
+      if ( baseMatch ) selected.add ( baseMatch );
+
+    });
+
+    if ( selected.size ) return [...selected];
+
+    const enUS = availableByLower.get ( 'en-us' );
+
+    if ( enUS ) return [enUS];
+
+    return [available[0]];
+
+  }
+
+  configureSpellcheckerLocalization ( win: BrowserWindow ) {
+
+    const session = win.webContents.session;
+    const available = session.availableSpellCheckerLanguages || [];
+
+    if ( !available.length ) return;
+
+    const preferred = this.getPreferredLocales ();
+    const languages = this.resolveSpellcheckerLanguages ( available, preferred );
+
+    if ( !languages.length ) return;
+
+    try {
+      session.setSpellCheckerLanguages ( languages );
+    } catch ( error ) {
+      console.warn ( '[spellcheck] Failed to set spellchecker languages', error );
+    }
+
+  }
+
   make ( id = this.name, options = this.options, stateOptions = this.stateOptions ) {
 
     stateOptions = _.merge ({
@@ -191,6 +293,8 @@ class Window {
     }, options );
 
     const win = new BrowserWindow ( options );
+
+    this.configureSpellcheckerLocalization ( win );
 
     remoteMain.enable ( win.webContents );
 

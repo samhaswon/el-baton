@@ -107,7 +107,7 @@
 
 ## QoL Features
 
-- [ ] Add code type prediction
+- [X] Add code type prediction
     - As the user types, a dialogue box should pop up showing potential options they may with to use. These options should be clickable.
 - [X] Add next word prediction that is light-weight, but only for text regions.
     - Should be tab-completed
@@ -125,7 +125,7 @@
         - [X] Key syntax points
     - [X] Basic PlantUML usage
         - Link to Graphviz in the cheatsheet for local usage: https://www.graphviz.org/download/
-- [ ] Ensure that spell checker localization is a thing. It might be automatic, so this is mostly audit and fix if broken.
+- [X] Ensure that spell checker localization is a thing. It might be automatic, so this is mostly audit and fix if broken.
 - [ ] Implement a presentation mode similar to whatever Pandoc has.
 - [X] Additional settings:
     - [X] Add option to disable sync for the split view. 
@@ -133,7 +133,7 @@
     - [X] Add option to disable automatic renaming of notes
     - [X] Add option to disable spell check
 - [ ] Build-in the tutorial as pages, rather than files, so it can more easily be referenced.
-- [ ] Evaluate memory usage in the production build.
+- [X] Evaluate memory usage in the production build.
     - See if it's good, bad, what. Dev is a bit heavy, but that's dev.
 - [ ] On-battery mode with toolbar toggle.
     - [ ] Look into what features Electron supports for this.

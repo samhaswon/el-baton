@@ -8,6 +8,7 @@ import {EditorContextKeys} from 'monaco-editor/esm/vs/editor/common/editorContex
 import * as LanguageMarkdown from 'monaco-editor/esm/vs/basic-languages/markdown/markdown.js';
 import * as path from 'path';
 import Config from '@common/config';
+import CodeFenceSuggestions from '@common/code_fence_suggestions';
 import Emoji from '@common/emoji';
 import Settings from '@common/settings';
 import ThemeLight from './monaco_light';
@@ -464,14 +465,34 @@ const Monaco = {
   initCompletions () {
 
     monaco.languages.registerCompletionItemProvider ( 'markdown', {
-      triggerCharacters: [':' ],
+      triggerCharacters: [':', '`', '~' ],
       provideCompletionItems ( model, position ) {
 
         const line = model.getLineContent ( position.lineNumber ),
-              beforeCursor = line.slice ( 0, position.column - 1 ),
-              match = beforeCursor.match ( /:([a-z0-9_+\-]*)$/i );
+              beforeCursor = line.slice ( 0, position.column - 1 );
 
         if ( Config.monaco.editorOptions.disableSuggestions ) return { suggestions: [] };
+
+        const codeFenceContext = CodeFenceSuggestions.getContext ( beforeCursor );
+
+        if ( codeFenceContext ) {
+          const monacoLanguageIds = monaco.languages.getLanguages ().map ( language => language.id );
+          const candidates = [...CodeFenceSuggestions.baseLanguages, ...monacoLanguageIds];
+          const suggestions = CodeFenceSuggestions.getSuggestions ( codeFenceContext.query, candidates, 30 ).map ( ( language, index ) => ({
+            label: language,
+            kind: monaco.languages.CompletionItemKind.Module,
+            insertText: language,
+            range: new monaco.Range ( position.lineNumber, codeFenceContext.queryStart + 1, position.lineNumber, position.column ),
+            sortText: index.toString ().padStart ( 4, '0' ),
+            filterText: language,
+            documentation: `Insert fenced code language \`${language}\``
+          }));
+
+          return { suggestions };
+        }
+
+        const match = beforeCursor.match ( /:([a-z0-9_+\-]*)$/i );
+
         if ( !match ) return { suggestions: [] };
 
         const query = match[1],
