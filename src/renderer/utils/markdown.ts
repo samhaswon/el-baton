@@ -2,7 +2,7 @@
 /* IMPORT */
 
 import * as _ from 'lodash';
-import {AllHtmlEntities as entities} from 'html-entities';
+import {decode} from 'html-entities';
 import * as isAbsoluteUrl from 'is-absolute-url';
 import * as path from 'path';
 import Emoji from '@common/emoji';
@@ -410,7 +410,7 @@ const Markdown = {
     // Stash math first so markdown parsing doesn't alter math content.
     // Escaped delimiters (e.g. `\$`) are not treated as open/close delimiters.
     str = MarkdownRenderHelpers.replaceMathDelimiters ( str, ( texRaw, displayMode ) => {
-      const tex = Markdown.normalizeTex ( entities.decode ( texRaw )
+      const tex = Markdown.normalizeTex ( decode ( texRaw )
         .replace ( /<br\s*\/?>/gi, '\n' )
         .replace ( /&nbsp;/gi, ' ' ) );
 
@@ -596,7 +596,7 @@ const Markdown = {
             if ( Markdown.extensions.utilities.isInsideAnchor ( content, index ) ) return match; // In order to better support encoded emails
             const asciimath = $1 || $2 || $3;
             try {
-              let tex = AsciiMath.toTeX ( entities.decode ( asciimath ) );
+              let tex = AsciiMath.toTeX ( decode ( asciimath ) );
               return `$$${tex}$$`;
             } catch ( e ) {
               console.error ( `[asciimath] ${e.message}` );
@@ -638,7 +638,7 @@ const Markdown = {
           regex: /<pre><code\s[^>]*language-(?:tex|latex|katex)[^>]*>([^]+?)<\/code><\/pre>/g,
           replace ( match, $1, index, content ) {
             if ( Markdown.extensions.utilities.isInsideCode ( content, index, false ) ) return match;
-            const tex = Markdown.normalizeTex ( entities.decode ( $1 )
+            const tex = Markdown.normalizeTex ( decode ( $1 )
               .replace ( /<br\s*\/?>/gi, '\n' )
               .replace ( /&nbsp;/gi, ' ' ) );
             try {
@@ -657,7 +657,7 @@ const Markdown = {
 
             if ( Markdown.extensions.utilities.isInsideCode ( content, mathIndex, false ) ) return match;
             if ( Markdown.extensions.utilities.isInsideAnchor ( content, mathIndex ) ) return match;
-            const tex = Markdown.normalizeTex ( entities.decode ( $displayInner || $inlineInner )
+            const tex = Markdown.normalizeTex ( decode ( $displayInner || $inlineInner )
               .replace ( /<br\s*\/?>/gi, '\n' )
               .replace ( /&nbsp;/gi, ' ' ) );
             try {
@@ -694,7 +694,7 @@ const Markdown = {
         type: 'output',
         regex: /<pre><code\s[^>]*language-mermaid[^>]*>([^]+?)<\/code><\/pre>/g,
         replace ( match, $1 ) {
-          const source = entities.decode ( $1 ),
+          const source = decode ( $1 ),
                 cachedSvg = MermaidCache.get ( source );
           return MarkdownRenderHelpers.renderMermaidBlock ( source, cachedSvg );
         }
@@ -720,7 +720,7 @@ const Markdown = {
         type: 'output',
         regex: /<pre><code\s[^>]*language-(?:plantuml|puml|uml)[^>]*>([^]+?)<\/code><\/pre>/g,
         replace ( match, $1 ) {
-          const source = entities.decode ( $1 );
+          const source = decode ( $1 );
           return MarkdownRenderHelpers.renderPlantUMLBlock ( source );
         }
       }];

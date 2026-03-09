@@ -1,6 +1,6 @@
 /* IMPORT */
 
-import {AllHtmlEntities as entities} from 'html-entities';
+import {decode} from 'html-entities';
 import PlantUML from './plantuml';
 
 /* MARKDOWN RENDER HELPERS */
@@ -51,7 +51,7 @@ const MarkdownRenderHelpers = {
 
   stripHtml ( html: string ): string {
 
-    return entities.decode (
+    return decode (
       html
       .replace ( /<[^>]*>/g, '' )
       .replace ( /\s+/g, ' ' )

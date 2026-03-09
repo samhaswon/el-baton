@@ -154,6 +154,15 @@
     "name": "Fabio Spampinato",
     "email": "spampinabio@gmail.com"
   },
+  "contributors": [
+    {
+      "name": "Fabio Spampinato",
+      "email": "spampinabio@gmail.com"
+    },
+    {
+      "name": "Samuel Howard"
+    }
+  ],
   "homepage": "https://github.com/samhaswon/el-baton",
   "repository": {
     "type": "git",
@@ -177,7 +186,7 @@
   "dependencies": {
     "@electron/remote": "^2.1.2",
     "asciimath2tex": "^1.5.0",
-    "calls-batch": "^1.2.0",
+    "calls-batch": "^2.0.3",
     "chokidar": "3.6.0",
     "cmark-gfm": "^0.9.0",
     "crc-32": "^1.2.2",
@@ -193,7 +202,7 @@
     "extract-zip": "^2.0.1",
     "filenamify": "^4.3.0",
     "gray-matter": "^4.0.3",
-    "html-entities": "^1.4.0",
+    "html-entities": "^2.6.0",
     "is-absolute-url": "^2.1.0",
     "is-shallow-equal": "^1.0.1",
     "js-yaml": "^4.1.1",

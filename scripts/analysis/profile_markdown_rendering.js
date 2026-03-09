@@ -3,7 +3,7 @@
 /* eslint-disable no-console */
 
 const {performance} = require('perf_hooks');
-const {AllHtmlEntities: Entities} = require('html-entities');
+const {decode} = require('html-entities');
 const cmark = require('cmark-gfm');
 const katex = require('katex');
 
@@ -16,8 +16,6 @@ try {
 } catch (error) {
   Prism = null;
 }
-
-const entities = new Entities();
 
 const DEFAULT_OPTIONS = {
   warmup: 8,
@@ -380,7 +378,7 @@ function highlightCodeBlocks(html) {
     if (!initPrismLanguage(resolved)) return match;
 
     try {
-      const decoded = entities.decode(rawCode);
+      const decoded = decode(rawCode);
       const highlighted = Prism.highlight(decoded, Prism.languages[resolved], resolved);
       return `<pre><code${attrs || ''}>${highlighted}</code></pre>`;
     } catch (error) {
@@ -405,7 +403,7 @@ function renderKatexBlocks(html) {
   return html.replace(
     /<pre><code\s[^>]*language-(?:tex|latex|katex)[^>]*>([\s\S]*?)<\/code><\/pre>/gi,
     (match, encoded) => {
-      const tex = entities.decode(encoded).replace(/<br\s*\/?>/gi, '\n').replace(/&nbsp;/gi, ' ');
+      const tex = decode(encoded).replace(/<br\s*\/?>/gi, '\n').replace(/&nbsp;/gi, ' ');
       return renderKatexSafe(tex, true);
     }
   );
@@ -413,11 +411,11 @@ function renderKatexBlocks(html) {
 
 function renderKatexInlineAndDisplay(html) {
   const display = html.replace(/(^|[^\\])\$\$([\s\S]+?)\$\$/gm, (match, prefix, tex) => {
-    return `${prefix}${renderKatexSafe(entities.decode(tex), true)}`;
+    return `${prefix}${renderKatexSafe(decode(tex), true)}`;
   });
 
   return display.replace(/(^|[^\\])\$(?!\$)([^\n$]+?)\$(?!\$)/gm, (match, prefix, tex) => {
-    return `${prefix}${renderKatexSafe(entities.decode(tex), false)}`;
+    return `${prefix}${renderKatexSafe(decode(tex), false)}`;
   });
 }
 

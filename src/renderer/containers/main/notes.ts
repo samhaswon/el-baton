@@ -13,6 +13,9 @@ import Utils from '@renderer/utils/utils';
 
 /* NOTES */
 
+type BatchQueueEntry = [method: Function, args?: unknown[]];
+type BatchWithQueue = { queue: BatchQueueEntry[] };
+
 class Notes extends Container<NotesState, MainCTX> {
 
   /* VARIABLES */
@@ -78,9 +81,10 @@ class Notes extends Container<NotesState, MainCTX> {
       wait: 100
     });
 
-    const optimizeBatch = ( batch: CallsBatch.type ) => {
+    const optimizeBatch = ( batch: CallsBatch ) => {
       /* GET */
-      let queueNext = batch.get ();
+      const batchWithQueue = batch as unknown as BatchWithQueue;
+      let queueNext = [...batchWithQueue.queue];
       /* SKIPPING UPDATES ON MULTIPLE ADDITIONS */
       const lastAddIndex = _.findLastIndex ( queueNext, call => call[0] === add );
       queueNext = queueNext.map ( ( call, index: number ) => {
@@ -112,7 +116,7 @@ class Notes extends Container<NotesState, MainCTX> {
         return call;
       });
       /* SET */
-      batch.set ( queueNext );
+      batchWithQueue.queue = queueNext;
     }
 
     function isFilePathSupported ( filePath: string ) {

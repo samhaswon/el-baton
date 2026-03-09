@@ -1,6 +1,37 @@
 ### Version 0.0.0
 
-<!-- Implemented TODO items, effectively -->
+- Rebrand and packaging updates:
+  - Renamed the app from Notable to El Baton, refreshed icons/logo, and updated project docs.
+  - Added/expanded release automation and cross-platform packaging workflows (Linux/Windows, including ARM builds).
+- Core editor experience:
+  - Move the sidebar and middle bar into a now collapsible sidebar.
+  - Added split-view editing feature: active source/preview synchronization, then improved sync behavior for large notes and typing-heavy scenarios.
+  - Added controls for split sync behavior (including disabling sync and capping sync FPS, including on-battery behavior).
+  - Added line numbers in the source editor (including vim-style relative line numbers), tab-size improvements, and note-tabs.
+  - Enabled DevTools in production builds for debugging.
+- Markdown and rendering improvements:
+  - Added PlantUML support (including caching, local rendering, and tests), emoji expansion support, `[@toc]`/`[@pagebreak]` macros, and safer relative Markdown path handling.
+  - Improved KaTeX handling (memoization lower bound, edge-case rendering/tests) and surfaced Mermaid render errors directly in preview.
+  - Added automatic table formatting with configurable delay and unit tests.
+  - Added an option to disable script sanitization (with explicit risk framing).
+- Editor/search/productivity features:
+  - Added code fence language suggestions and lightweight next-word prediction.
+  - Improved note-local search with regex and find/replace support.
+  - Added natural sorting for notes and sped up explorer/tab interactions.
+  - Added better global search support alongside local search improvements.
+- Configuration, settings, and UX:
+  - Added global configuration support and persistent spellcheck custom dictionary management in settings.
+  - Added toggles for split-view sync, auto table formatting, auto note renaming, and spellcheck behavior.
+  - Added Linux middle-click-paste control, improved settings contrast/theming, and broader UI/CSS polish (including info-pane refinement and tab styling).
+  - Added persistent editor/view state behavior and persisted sidebar panel open/closed state.
+  - Added built-in tutorial/cheatsheet content for Markdown, KaTeX, Mermaid, and PlantUML usage.
+    - Folded in old tutorial setup.
+- Power/battery and performance work:
+  - Added on-battery mode with toolbar control, FPS throttling options, and battery-aware feature toggles (spellcheck/autocomplete/animations).
+  - Added profiling/optimization passes for large-note preview behavior and rendering smoothness.
+- Quality and validation:
+  - Added substantial unit test coverage for markdown-related features and helpers (emoji, paths, KaTeX ranges, tables, PlantUML/cache, sorting, config, suggestions).
+  - Added CI test workflows and UI smoke/screenshot automation to validate behavior continuously.
 
 # Notable Changelog
 

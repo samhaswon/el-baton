@@ -1,18 +1,23 @@
 
 /* IMPORT */
 
-import CallsBatch from 'calls-batch';
 import * as os from 'os';
 
 /* UTILS */
+
+type BatchableMethod<Args extends unknown[] = unknown[]> = ( ...args: Args ) => unknown;
+
+type BatchLike = {
+  add: <Args extends unknown[]> ( method: BatchableMethod<Args>, args?: Args ) => void;
+};
 
 const Utils = {
 
   pathSepRe: /(?:\/|\\)+/g,
 
-  batchify ( batch: CallsBatch.type, fn: Function ) {
+  batchify<Args extends unknown[]> ( batch: BatchLike, fn: BatchableMethod<Args> ) {
 
-    return function ( ...args: any[] ) {
+    return function ( ...args: Args ) {
       batch.add ( fn, args );
     };
 
