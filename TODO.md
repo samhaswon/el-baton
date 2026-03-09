@@ -179,4 +179,5 @@
 ## Blocked
 
 - [ ] Upgrade to the latest Electron version when Wayland support is fixed.
+    - https://github.com/electron/electron/issues/49244
 - [ ] Move to built-in `node:sqlite` when the project can be upgraded to a later node version.
