@@ -45,6 +45,7 @@ You might also need:
 
 - `wine`
 - `Graphviz`
+- Inkscape
 - An LLM to deal with whatever is currently going on with the CSS since `svelto` is broken and had to be replaced.
 
 ## Onboarding test note
