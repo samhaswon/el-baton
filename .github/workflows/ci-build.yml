@@ -59,13 +59,22 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      - name: Setup Python
+        if: matrix.os == 'windows'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: ${{ matrix.arch == 'arm64' && 'arm64' || 'x64' }}
+
       - name: Prepare Windows Python for node-gyp
         if: matrix.os == 'windows'
         shell: pwsh
         run: |
-          py -3 -m pip install --upgrade pip setuptools
+          python -m pip install --upgrade pip setuptools wheel
 
       - name: Install dependencies
+        env:
+          npm_config_python: ${{ matrix.os == 'windows' && 'python' || '' }}
         run: npm ci
 
       - name: Install Linux build dependencies
@@ -103,6 +112,8 @@ jobs:
           CSC_FOR_PULL_REQUEST: "true"
           GH_TOKEN: ""
           EL_BATON_SKIP_ICON_REGEN: ${{ matrix.os == 'windows' && '1' || '0' }}
+          EL_BATON_SKIP_ICON_FONT_BUILD: ${{ matrix.os == 'windows' && '1' || '0' }}
+          npm_config_python: ${{ matrix.os == 'windows' && 'python' || '' }}
         run: npm run -s ${{ matrix.build_script }}
 
       - name: Upload build artifacts

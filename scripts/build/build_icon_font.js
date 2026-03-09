@@ -25,6 +25,12 @@ const copyFont = ( sourcePath, destinationPath ) => {
 
 };
 
+const ensureFile = filePath => {
+  if ( !fs.existsSync ( filePath ) ) {
+    throw new Error ( `Missing required file: ${path.relative ( rootPath, filePath )}` );
+  }
+};
+
 const build = async () => {
 
   const config = readConfig (),
@@ -40,6 +46,13 @@ const build = async () => {
             formats: ['woff2']
           }
         });
+
+  if ( process.env.EL_BATON_SKIP_ICON_FONT_BUILD === '1' ) {
+    ensureFile ( generatedFontPath );
+    copyFont ( generatedFontPath, mirroredFontPath );
+    console.log ( '[icon:font] Skipped icon font regeneration (EL_BATON_SKIP_ICON_FONT_BUILD=1), reused existing font asset' );
+    return;
+  }
 
   await builder.build ();
 
