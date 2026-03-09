@@ -24,7 +24,7 @@ jobs:
           - os: linux
             arch: x64
             runs_on: ubuntu-latest
-            builder_args: --linux AppImage deb rpm snap pacman --x64
+            builder_args: --linux AppImage deb rpm pacman --x64
           - os: linux
             arch: arm64
             runs_on: ubuntu-24.04-arm
@@ -80,15 +80,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y inkscape imagemagick libarchive-tools
 
-      - name: Install Linux snapcraft (x64 only)
-        if: matrix.os == 'linux' && matrix.arch == 'x64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y snapd
-          sudo systemctl start snapd || true
-          sudo snap install snapcraft --classic
-          echo "/snap/bin" >> "$GITHUB_PATH"
-
       - name: Install macOS build dependencies
         if: matrix.os == 'macos'
         run: brew install inkscape imagemagick
@@ -118,4 +109,4 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           CSC_FOR_PULL_REQUEST: "false"
           npm_config_python: ${{ matrix.os == 'windows' && 'python' || '' }}
-        run: npx electron-builder ${{ matrix.builder_args }} --publish always -c.publish.releaseType=prerelease
+        run: npx electron-builder ${{ matrix.builder_args }} --publish always --config.publish.releaseType=prerelease

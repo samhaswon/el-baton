@@ -144,7 +144,7 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "el-baton",
+      "owner": "samhaswon",
       "releaseType": "release",
       "publishAutoUpdate": true
     }
