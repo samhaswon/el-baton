@@ -62,7 +62,33 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y inkscape xvfb
+          sudo apt-get install -y \
+            inkscape \
+            xvfb \
+            xauth \
+            libasound2 \
+            libatk-bridge2.0-0 \
+            libatk1.0-0 \
+            libcups2 \
+            libdrm2 \
+            libgbm1 \
+            libgtk-3-0 \
+            libnspr4 \
+            libnss3 \
+            libx11-xcb1 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxfixes3 \
+            libxkbcommon0 \
+            libxrandr2 \
+            libxss1 \
+            libxtst6
 
       - name: Run UI tests (Xvfb)
-        run: xvfb-run -a npm run -s test:ui
+        env:
+          ELECTRON_DISABLE_SANDBOX: "1"
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          ELECTRON_ENABLE_LOGGING: "1"
+          ELECTRON_ENABLE_STACK_DUMPING: "1"
+          DEBUG: "pw:browser*"
+        run: xvfb-run -a --server-args="-screen 0 1365x720x24" npm run -s test:ui

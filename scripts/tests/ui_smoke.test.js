@@ -237,12 +237,21 @@ const launchApp = async ({ runtimeId, theme = 'dark' }) => {
   writeSettings ({ theme, runtimePaths });
 
   const electronApp = await electron.launch ({
-    args: ['.'],
+    args: [
+      '.',
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-software-rasterizer'
+    ],
     cwd: rootPath,
     env: {
       ...process.env,
       NODE_ENV: 'production',
       ELECTRON_WEBPACK_WDS_PORT: '',
+      ELECTRON_DISABLE_SANDBOX: '1',
+      LIBGL_ALWAYS_SOFTWARE: '1',
       HOME: runtimePaths.homePath,
       USERPROFILE: runtimePaths.homePath
     }
