@@ -10,27 +10,27 @@
 - [X] Store editor state somewhere.
     - Just use JSON somewhere, we'll decide where. There might already be state stored somewhere, so that would be ideal.
 - [X] Fix the scroll synchronization for the split view.
-    - It is currently still wonky, especially when the source isn't pure markdown (i.e., includes tables, math, etc.)
+    - It is currently still wonky, especially when the source isn't pure Markdown (i.e., includes tables, math, etc.)
 - [X] Fix scrolling while typing in large notes.
     - When the preview renders the smaller subsection of the note, it sometimes scrolls while typing.
 - [X] Allow dev tools in production build
 - [X] Disable middle-click paste for relevant Linux systems (with a configuration option).
     - The likely solution is to just capture it and discard it if enabled.
 - [X] Fix scroll jumping when rendering the larger preview on large notes
-- [X] Make source-view markdown syntax highlighting more complete.
+- [X] Make source-view Markdown syntax highlighting more complete.
     - Quote text is not differentiated
     - Possibly some other styling changes for better distinction
-    - Sometimes breaks when mixing HTML and markdown
+    - Sometimes breaks when mixing HTML and Markdown
     - Breaks on inline math. It's just orange, not properly highlighted.
 - [X] Rename everything from "Notable" to "El Baton", including logo creation.
-- [X] Add unit tests where possible, mostly for markdown rendering and features that can use it.
+- [X] Add unit tests where possible, mostly for Markdown rendering and features that can use it.
 - [X] Correct file path handling so that it is compatible with relative paths of GFM (or just MD on GitHub).
     - As long as it lands within the data directory, call it good. We shouldn't allow `../../../../../../../../etc/passwd` or something like that.
 - [X] Capture mermaid errors and place them in the preview (as text), rather than allowing them to appear at the bottom of the window.
     - There's likely a way to emit errors as text which includes more relevant information, so let's try to do that. It at least used to be a feature.
 - [X] Add better global search, separate from local (note) and note (name) searches.
-    - Notes themselves need CTRL + F support for searching within a note. This should support regex.
-    - Should be fast, and ideally support regex as well. 
+    - Notes themselves need CTRL + F support for searching within a note. This should support regular expression.
+    - Should be fast, and ideally support regular expression as well. 
     - Would be nice to use fuzzy string matching, but that will likely be too heavy for larger notes.
     - Could build a search index ahead of time, depending on which implementation we go for.
 - [X] Add spellcheck
@@ -45,7 +45,7 @@
 - [X] Fix preview issue when the title is not the first line of the file?
     - Preview of the split view is truncated to mostly just what is visible when formatted for pandoc
     - Preview view truncates to the first two chapters.
-    - The offending file does include a lot of HTML entities and is the largest single markdown file I have. It's mostly plain markdown and HTML entities, but includes book information at the start.
+    - The offending file does include a lot of HTML entities and is the largest single Markdown file I have. It's mostly plain Markdown and HTML entities, but includes book information at the start.
 
 ## Should Implement
 
@@ -84,7 +84,7 @@
     - [X] Move the JS target to ES2017 and keep `npx tsc --noEmit` passing.
     - [ ] Continue tightening compiler flags like `noImplicitAny` and `strict`.
 - [X] Automatic table formatting
-    - [X] Auto-format tables
+    - [X] Autoformat tables
     - [X] Unit test for the correct styling. 
         - Depending on the alignment of the column, the source should be similarly aligned. There will be cases for which this won't fit perfectly, so that should be kept in mind.
         - A column formatted `|:-:|` should be turned into `| :-: |`, with the middle hyphen count being determined by the width of the column. Specifically, the maximum character count of the column should line up with the character count of the format specifier (`:-:`) for the column.
@@ -94,8 +94,8 @@
 - [X] Use the React Compiler
 - [X] Option to turn off script sanitization, with a clear danger warning.
 - [X] Make local search support:
-    - [X] Regex
-    - [X] Find and replace (including with regex, specifically the match)
+    - [X] Regular expressions
+    - [X] Find and replace (including with regular expression, specifically the match)
 - [ ] More unit tests for things that should be tested
     - [ ] Make sure footnotes work per the GFM spec.
 - [X] Brighten up the settings page in dark mode.
@@ -116,7 +116,7 @@
 - [X] Make notes tabs look like tabs on a manila folder.
 - [X] Cheat sheets, including for KaTeX supported functions (https://katex.org/docs/supported.html)
     - [X] Markdown features
-    - [X] Extended markdown features
+    - [X] Extended Markdown features
     - [X] KaTeX support:
         - [X] Code blocks, `$...$` and `$$\n...\n$$`
         - [X] Syntax
@@ -170,7 +170,7 @@
 - [ ] Plugins
 - [ ] Double-click in preview places cursor there in the source.
     - It would be nice if this, at the very least, dropped the cursor on the correct source line. That might be doable with the current scroll synchronization implementation.
-- [ ] Maybe add some kind of OCR if one can be found that's good for creating markdown source.
+- [ ] Maybe add some kind of OCR if one can be found that's good for creating Markdown source.
     - Or maybe just VLLM integration somehow.
     - Pix2tex for KaTeX, possibly as some kind of plugin
 
