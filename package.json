@@ -5,9 +5,9 @@
   "version": "1.5.1",
   "scripts": {
     "clean:env": "rm -rf node_modules package-lock.json",
-    "clean:deps": "npx del 'node_modules/**/{README,LICENSE,license,.travis.yml,tsconfig.json,*.{md,MD,map,png,ts}}' 'node_modules/monaco-editor/{dev,min}' '!node_modules/**/*.d.ts'",
-    "clean:dist": "npx del dist",
-    "clean:releases": "npx del releases",
+    "clean:deps": "npx del-cli \"node_modules/**/{README,LICENSE,license,.travis.yml,tsconfig.json,*.{md,MD,map,png,ts}}\" \"node_modules/monaco-editor/{dev,min}\" \"!node_modules/**/*.d.ts\"",
+    "clean:dist": "npx del-cli dist",
+    "clean:releases": "npx del-cli releases",
     "clean": "npm run clean:dist && npm run clean:releases",
     "template:seed": "node ./scripts/build/build_template_seed.js",
     "template:seed:watch": "node ./scripts/build/build_template_seed.js --watch",
