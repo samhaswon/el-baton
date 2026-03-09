@@ -84,6 +84,12 @@ const copyFile = ( sourcePath, destinationPath ) => {
   fs.copyFileSync ( sourcePath, destinationPath );
 };
 
+const ensureFile = filePath => {
+  if ( !fs.existsSync ( filePath ) ) {
+    throw new Error ( `Missing required file: ${path.relative ( rootPath, filePath )}` );
+  }
+};
+
 const getImageMagickCommand = () => {
   if ( hasCommand ( 'magick' ) ) return 'magick';
   if ( hasCommand ( 'convert' ) ) return 'convert';
@@ -100,6 +106,26 @@ const main = () => {
 
   if ( !fs.existsSync ( sourceSvgPath ) ) {
     throw new Error ( `Missing source SVG: ${path.relative ( rootPath, sourceSvgPath )}` );
+  }
+
+  if ( process.env.EL_BATON_SKIP_ICON_REGEN === '1' ) {
+    ensureFile ( iconPngPath );
+    ensureFile ( iconIcoPath );
+    ensureFile ( faviconPath );
+    ensureFile ( iconSmallPath );
+
+    for ( const size of linuxIconSizes ) {
+      ensureFile ( path.join ( iconDirPath, `${size}x${size}.png` ) );
+    }
+
+    copyFile ( iconPngPath, templateBaseIconPngPath );
+    copyFile ( iconIcoPath, templateBaseIconIcoPath );
+    copyFile ( iconPngPath, templateStaticIconPngPath );
+    copyFile ( iconIcoPath, templateStaticIconIcoPath );
+    copyFile ( iconSmallPath, themingIconSmallPath );
+
+    console.log ( '[icon] Skipped icon regeneration (EL_BATON_SKIP_ICON_REGEN=1), reused existing icon assets' );
+    return;
   }
 
   const inkscapeCommand = getInkscapeCommand ();

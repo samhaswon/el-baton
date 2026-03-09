@@ -102,6 +102,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           CSC_FOR_PULL_REQUEST: "true"
           GH_TOKEN: ""
+          EL_BATON_SKIP_ICON_REGEN: ${{ matrix.os == 'windows' && '1' || '0' }}
         run: npm run -s ${{ matrix.build_script }}
 
       - name: Upload build artifacts
