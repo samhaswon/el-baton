@@ -5,7 +5,8 @@ import * as _ from 'lodash';
 import * as isShallowEqual from 'is-shallow-equal';
 import * as React from 'react';
 import {createElement} from 'react';
-import {FixedSizeList} from 'react-window';
+import {List} from 'react-window';
+import type {ListImperativeAPI, RowComponentProps} from 'react-window';
 
 /* TREE */
 
@@ -13,9 +14,7 @@ class Tree extends React.Component<{ children, data: any[], className?: string, 
 
   /* VARIABLES */
 
-  listRef = React.createRef<FixedSizeList> ();
-  innerRef = React.createRef<HTMLElement> ();
-  outerRef = React.createRef<HTMLElement> ();
+  listRef = React.createRef<ListImperativeAPI> ();
   fixedOuterRef = React.createRef<HTMLDivElement> ();
 
   /* STATE */
@@ -65,12 +64,13 @@ class Tree extends React.Component<{ children, data: any[], className?: string, 
 
   scrollToItem = ( event: Event, index: number ) => {
 
-    const hasVirtualList = !!this.listRef.current && !!this.outerRef.current;
+    const listElement = this.listRef.current?.element || null,
+          hasVirtualList = !!this.listRef.current && !!listElement;
     const hasFixedList = !!this.fixedOuterRef.current;
 
     if ( !hasVirtualList && !hasFixedList ) return;
 
-    if ( hasVirtualList && this.outerRef.current && !this.outerRef.current.contains ( event.target as Node ) ) return; //TSC
+    if ( hasVirtualList && listElement && !listElement.contains ( event.target as Node ) ) return; //TSC
     if ( !hasVirtualList && hasFixedList && this.fixedOuterRef.current && !this.fixedOuterRef.current.contains ( event.target as Node ) ) return; //TSC
 
     if ( !_.isNumber ( index ) ) {
@@ -83,12 +83,12 @@ class Tree extends React.Component<{ children, data: any[], className?: string, 
 
     if ( hasVirtualList && this.listRef.current ) {
 
-      this.listRef.current.scrollToItem ( index, 'auto' );
+      this.listRef.current.scrollToRow ({ index, align: 'auto' });
 
       if ( index === 0 ) { //FIXME: https://github.com/bvaughn/react-window/issues/136
         setTimeout ( () => {
-          if ( !this.outerRef.current ) return;
-          this.outerRef.current.scrollTop = 0
+          if ( !listElement ) return;
+          listElement.scrollTop = 0
         });
       }
 
@@ -260,6 +260,18 @@ class Tree extends React.Component<{ children, data: any[], className?: string, 
 
   /* RENDER */
 
+  renderRow = ({index, style}: RowComponentProps<object>) => {
+
+    const {children} = this.props;
+    const item = this.getItem ( index );
+    const itemKey = this.getItemKey ( item );
+    const level = this.getItemLevel ( index );
+    const isLeaf = this.getItemIsLeaf ( index );
+
+    return createElement ( children, { index, style, item, itemKey, level, isLeaf });
+
+  }
+
   render () {
 
     const {children, className, isFixed, FallbackEmptyComponent, fallbackEmptyMessage} = this.props;
@@ -298,15 +310,15 @@ class Tree extends React.Component<{ children, data: any[], className?: string, 
     } else {
 
       return (
-        <FixedSizeList ref={this.listRef} innerRef={this.innerRef} outerRef={this.outerRef} className={`tree list ${className || ''}`} height={height} width="auto" itemSize={32} itemCount={items.length} itemKey={this.getItemKey}>
-          {({ index, style }) => {
-            const item = this.getItem ( index );
-            const itemKey = this.getItemKey ( item );
-            const level = this.getItemLevel ( index );
-            const isLeaf = this.getItemIsLeaf ( index );
-            return createElement ( children, { index, style, item, itemKey, level, isLeaf });
-          }}
-        </FixedSizeList>
+        <List
+          listRef={this.listRef}
+          className={`tree list ${className || ''}`}
+          style={{ height }}
+          rowHeight={32}
+          rowCount={items.length}
+          rowProps={{}}
+          rowComponent={this.renderRow}
+        />
       );
 
     }
