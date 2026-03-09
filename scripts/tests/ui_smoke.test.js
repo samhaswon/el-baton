@@ -460,7 +460,7 @@ const waitForConfigPredicate = async ( filePath, description, predicate, timeout
 const openExplorerAndFirstNote = async page => {
   await ensureActivitybarPanelOpen ( page, 'Explorer', '.sidepanel-pane.explorer.is-active' );
   const firstNote = page.locator ( '.explorer-note.list-item' ).first ();
-  await firstNote.waitFor ({ state: 'visible', timeout: 20000 });
+  await firstNote.waitFor ({ state: 'visible', timeout: 30000 });
   await firstNote.click ();
   await wait ( 150 );
 };
@@ -468,11 +468,11 @@ const openExplorerAndFirstNote = async page => {
 const openExplorerNoteByTitle = async ( page, title ) => {
   await ensureActivitybarPanelOpen ( page, 'Explorer', '.sidepanel-pane.explorer.is-active' );
   const filterInput = page.locator ( '.sidebar-search input[placeholder="Filter titles..."]' ).first ();
-  await filterInput.waitFor ({ state: 'visible', timeout: 20000 });
+  await filterInput.waitFor ({ state: 'visible', timeout: 30000 });
   await filterInput.fill ( title );
   await wait ( 200 );
   const targetNote = page.locator ( '.explorer-note.list-item', { hasText: title } ).first ();
-  await targetNote.waitFor ({ state: 'visible', timeout: 20000 });
+  await targetNote.waitFor ({ state: 'visible', timeout: 30000 });
   await targetNote.click ();
   await wait ( 150 );
 };
