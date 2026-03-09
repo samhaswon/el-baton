@@ -387,7 +387,7 @@ const Monaco = {
 
     // Inline math highlighting in markdown source.
     tokenizer.linecontent.unshift (
-      [/<!--(?:-?[^-]|-[^-])*-->/, 'comment'],
+      [/<!--(?:[^-]|-(?!-))*-->/, 'comment'],
       [/<\/?(?:[A-Za-z][\w:-]*)(?:\s+[^<>]*?)?\/?>/, 'tag'],
       [/\\\$/, 'string'],
       [/\$\$(?!\s*$)/, { token: 'keyword.math.delimiter', next: '@mathinlineblock' }],

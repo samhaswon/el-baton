@@ -13,7 +13,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  cleanup_release:
+    name: Cleanup Existing Nightly Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Delete existing release for this nightly tag (if any)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release delete "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --yes
+          else
+            echo "No existing release found for tag $TAG_NAME"
+          fi
+
   publish:
+    needs: cleanup_release
     name: Publish Nightly ${{ matrix.os }} / ${{ matrix.arch }}
     runs-on: ${{ matrix.runs_on }}
     timeout-minutes: 120
