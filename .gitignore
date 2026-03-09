@@ -39,4 +39,3 @@ dist
 releases
 extracted/
 .tmp/
-src/renderer/template/base/fonts/IconFont.woff2
