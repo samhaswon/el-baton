@@ -80,8 +80,8 @@ const InfoPane = ({ className = 'mainbar-pane-info', hasNote, isMultiEditing, co
   const headings = React.useMemo ( () => getHeadings ( content ), [content] );
   const words = React.useMemo ( () => ( content.match ( /\S+/g ) || [] ).length, [content] );
   const characters = content.length;
-  const isSidepanel = className === 'sidepanel-pane-info';
-  const contentClassName = isSidepanel ? 'info-pane toc-pane sidepanel-pane-info-content' : 'layout-content info-pane toc-pane';
+  const isSidepanel = className.split ( /\s+/ ).includes ( 'sidepanel-pane-info' );
+  const contentClassName = isSidepanel ? 'info-pane toc-pane sidepanel-pane-info-content' : 'info-pane toc-pane mainbar-pane-info-content';
 
   const scrollToHeading = ( index: number ) => {
 
@@ -220,11 +220,12 @@ const InfoPane = ({ className = 'mainbar-pane-info', hasNote, isMultiEditing, co
 
 export default connect ({
   container: Main,
-  selector: ({ container }) => {
+  selector: ({ container, className }) => {
     const note = container.note.get (),
           hasNote = !!note;
 
     return {
+      className,
       attachments: hasNote ? container.note.getAttachments ( note ) : [],
       checksum: hasNote ? container.note.getChecksum ( note ) : NaN,
       created: hasNote ? container.note.getCreated ( note ) : new Date (),

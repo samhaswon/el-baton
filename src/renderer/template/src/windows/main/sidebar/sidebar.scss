@@ -157,23 +157,23 @@
   height: 100%;
   min-height: 0;
 
-  > .layout-content.info-pane.toc-pane,
-  .layout-content.info-pane.toc-pane,
-  .layout-content,
+  > .sidepanel-pane-info-content,
   .sidepanel-pane-info-content {
     flex: 1 1 auto;
     min-height: 0;
-    height: 100% !important;
     display: flex;
     flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .toc-pane {
-    height: 100%;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     min-height: 0;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .toc-pane-headings {
@@ -282,12 +282,13 @@
   }
 }
 
-.sidepanel .layout-content.info-pane.toc-pane {
+.sidepanel .sidepanel-pane-info-content {
   flex: 1 1 auto;
   min-height: 0;
-  height: 100% !important;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .sidepanel-pane.explorer {
