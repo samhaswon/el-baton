@@ -48,8 +48,12 @@ const build = async () => {
         });
 
   if ( process.env.EL_BATON_SKIP_ICON_FONT_BUILD === '1' ) {
-    ensureFile ( generatedFontPath );
-    copyFont ( generatedFontPath, mirroredFontPath );
+    const existingFontPath = fs.existsSync ( generatedFontPath ) ? generatedFontPath : mirroredFontPath;
+
+    ensureFile ( existingFontPath );
+    copyFont ( existingFontPath, generatedFontPath );
+    copyFont ( existingFontPath, mirroredFontPath );
+
     console.log ( '[icon:font] Skipped icon font regeneration (EL_BATON_SKIP_ICON_FONT_BUILD=1), reused existing font asset' );
     return;
   }
