@@ -172,7 +172,7 @@
     "url": "https://github.com/samhaswon/el-baton/issues"
   },
   "engines": {
-    "node": ">=22 <23"
+    "node": ">=24 <25"
   },
   "download": {
     "url": "https://github.com/samhaswon/el-baton/releases"
@@ -255,7 +255,10 @@
     "tmp": "0.2.4",
     "@xmldom/xmldom": "^0.8.11",
     "mime-types": "2.1.35",
-    "node-sass": "npm:sass@^1.93.2"
+    "node-sass": "npm:sass@^1.93.2",
+    "cmark-gfm": {
+      "node-addon-api": "^8.6.0"
+    }
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
