@@ -280,7 +280,7 @@
     "cross-env": "^7.0.3",
     "css-loader": "^7.1.2",
     "del-cli": "^7.0.0",
-    "electron": "^30.5.1",
+    "electron": "^39.8.0",
     "electron-builder": "^26.8.1",
     "electron-builder-squirrel-windows": "^26.8.1",
     "execa": "^9.6.1",
