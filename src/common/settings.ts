@@ -48,7 +48,8 @@ const Settings = new Store ({
     openCheatsheetOnStart: false,
     window: {
       sidebar: true,
-      zen: false
+      zen: false,
+      panel: 'info'
     }
   }
 });

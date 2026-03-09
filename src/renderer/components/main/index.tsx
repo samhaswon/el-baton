@@ -26,8 +26,19 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
   panelOpenTimeout?: ReturnType<typeof setTimeout>;
   panelCloseTimeout?: ReturnType<typeof setTimeout>;
 
+  getInitialPanel = (): string | null => {
+
+    const persisted = Settings.get ( 'window.panel' );
+
+    if ( persisted === null ) return null;
+    if ( typeof persisted === 'string' ) return persisted;
+
+    return 'info';
+
+  };
+
   state = {
-    panel: 'info' as string | null,
+    panel: this.getInitialPanel (),
     panelResetCounter: 0,
     isClosingPanel: false,
     isOpeningPanel: false
@@ -73,7 +84,11 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
 
   }
 
-  componentDidUpdate () {
+  componentDidUpdate ( _prevProps, prevState ) {
+
+    if ( prevState.panel !== this.state.panel ) {
+      Settings.set ( 'window.panel', this.state.panel );
+    }
 
     if ( !this.props.animationsDisabled ) return;
 
