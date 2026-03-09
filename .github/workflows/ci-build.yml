@@ -1,0 +1,78 @@
+name: CI Build Matrix
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }} / ${{ matrix.arch }}
+    runs-on: ${{ matrix.runs_on }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            arch: x64
+            runs_on: ubuntu-latest
+            build_script: build:linux
+          - os: linux
+            arch: arm64
+            runs_on: ubuntu-24.04-arm
+            build_script: build:linux:arm64
+          - os: windows
+            arch: x64
+            runs_on: windows-latest
+            build_script: build:win
+          - os: windows
+            arch: arm64
+            runs_on: windows-11-arm
+            build_script: build:win:arm64
+          - os: macos
+            arch: x64
+            runs_on: macos-13
+            build_script: build:mac:x64
+          - os: macos
+            arch: arm64
+            runs_on: macos-14
+            build_script: build:mac:arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          CSC_FOR_PULL_REQUEST: "true"
+          GH_TOKEN: ""
+        run: npm run -s ${{ matrix.build_script }}
+
+      - name: Upload build artifacts
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}-${{ matrix.arch }}
+          path: releases/**
+          if-no-files-found: error

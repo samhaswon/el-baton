@@ -22,6 +22,8 @@
     "compile": "npm run icon:build && npm run icon:font && npm run template:seed && npm run template:scss && npm run template:css && npm run clean:deps && cross-env NODE_ENV=development npm run bundle:main && cross-env NODE_ENV=development npm run bundle:renderer",
     "compile:release": "npm run icon:build && npm run icon:font && npm run template:seed && npm run template:scss && npm run template:css && npm run clean:deps && cross-env NODE_ENV=production npm run bundle:main && cross-env NODE_ENV=production npm run bundle:renderer",
     "build:mac": "npm run compile:release && npm run script:build:patch-peers && electron-builder --mac",
+    "build:mac:x64": "npm run compile:release && npm run script:build:patch-peers && electron-builder --mac --x64",
+    "build:mac:arm64": "npm run compile:release && npm run script:build:patch-peers && electron-builder --mac --arm64",
     "build:win": "npm run compile:release && npm run script:build:patch-peers && electron-builder --win --x64 && npm run script:build:fixlatestwin",
     "build:win:arm64": "npm run compile:release && npm run script:build:patch-peers && electron-builder --win --arm64 && npm run script:build:fixlatestwin",
     "build:linux": "npm run compile:release && npm run script:build:patch-peers && electron-builder --linux --x64 && npm run script:build:fixlatestlinux",
