@@ -26,10 +26,17 @@ const oldLogoSources = [
 
 const linuxIconSizes = [16, 24, 32, 48, 64, 96, 128, 256, 512, 1024];
 
-const ensureCommand = command => {
+const hasCommand = command => {
   try {
     execFileSync ( command, ['--version'], { stdio: 'ignore' } );
+    return true;
   } catch ( error ) {
+    return false;
+  }
+};
+
+const ensureCommand = command => {
+  if ( !hasCommand ( command ) ) {
     throw new Error ( `Required command not found: ${command}` );
   }
 };
@@ -61,6 +68,12 @@ const copyFile = ( sourcePath, destinationPath ) => {
   fs.copyFileSync ( sourcePath, destinationPath );
 };
 
+const getImageMagickCommand = () => {
+  if ( hasCommand ( 'magick' ) ) return 'magick';
+  if ( hasCommand ( 'convert' ) ) return 'convert';
+  throw new Error ( 'Required command not found: magick or convert' );
+};
+
 const main = () => {
 
   if ( !fs.existsSync ( sourceSvgPath ) ) {
@@ -68,7 +81,7 @@ const main = () => {
   }
 
   ensureCommand ( 'inkscape' );
-  ensureCommand ( 'convert' );
+  const imageMagickCommand = getImageMagickCommand ();
 
   for ( const size of linuxIconSizes ) {
     removeIfExists ( path.join ( iconDirPath, `${size}x${size}.png` ) );
@@ -97,7 +110,7 @@ const main = () => {
     renderPng ( sizePath, size );
   }
 
-  execFileSync ( 'convert', [...icoSourcePngPaths, iconIcoPath], { stdio: 'inherit' } );
+  execFileSync ( imageMagickCommand, [...icoSourcePngPaths, iconIcoPath], { stdio: 'inherit' } );
 
   copyFile ( iconPngPath, templateBaseIconPngPath );
   copyFile ( iconIcoPath, templateBaseIconIcoPath );
