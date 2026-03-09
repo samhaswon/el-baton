@@ -402,3 +402,30 @@ test ( 'html sanitization: strips unsafe URL schemes but preserves file and http
   assert.doesNotMatch ( sanitized, /javascript:/i );
 
 });
+
+test ( 'html sanitization: strips entity-obfuscated javascript and disallowed data payload urls', () => {
+
+  const html = [
+          '<a href="java&#x73;cript:alert(1)">entity-bad</a>',
+          '<a href="&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;:alert(1)">numeric-bad</a>',
+          '<img src="data:text/html;base64,PHNjcmlwdD5ldmlsKCk8L3NjcmlwdD4=">',
+          '<img src="data:image/png;base64,AAAA">'
+        ].join ( '' ),
+        sanitized = sanitize ( html );
+
+  assert.equal ( sanitized, '<a>entity-bad</a><a>numeric-bad</a><img><img src="data:image/png;base64,AAAA">' );
+  assert.doesNotMatch ( sanitized, /javascript:/i );
+  assert.doesNotMatch ( sanitized, /data:text\/html/i );
+
+});
+
+test ( 'html sanitization: removes nested script-tag payloads while preserving subsequent safe html', () => {
+
+  const html = '<script><script>alert(1)</script></script><div>safe</div><script>alert(2)</script>',
+        sanitized = sanitize ( html );
+
+  assert.equal ( sanitized, '<div>safe</div>' );
+  assert.doesNotMatch ( sanitized, /<script/i );
+  assert.doesNotMatch ( sanitized, /alert\s*\(/i );
+
+});

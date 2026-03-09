@@ -297,6 +297,32 @@ const MarkdownRenderHelpers = {
 
     if ( !enabled ) return html;
 
+    const decodeUrlValue = ( value: string ): string => {
+      let output = value.trim ();
+
+      for ( let i = 0; i < 3; i++ ) {
+        const decodedEntities = decode ( output );
+
+        if ( decodedEntities === output ) break;
+        output = decodedEntities;
+      }
+
+      for ( let i = 0; i < 3; i++ ) {
+        if ( !/%[0-9A-Fa-f]{2}/.test ( output ) ) break;
+
+        try {
+          const decodedPercent = decodeURIComponent ( output );
+
+          if ( decodedPercent === output ) break;
+          output = decodedPercent;
+        } catch {
+          break;
+        }
+      }
+
+      return output;
+    };
+
     return html
       .replace ( /<(script|style|title|textarea|xmp|noembed|noframes|plaintext)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '' )
       .replace ( /<(script|style|title|textarea|xmp|noembed|noframes|plaintext)\b[^>]*\/?>/gi, '' )
@@ -304,7 +330,8 @@ const MarkdownRenderHelpers = {
       .replace ( /\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '' )
       .replace ( /\s+srcdoc\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '' )
       .replace ( /\s+(href|src|xlink:href|action|formaction|poster)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi, ( match, name, doubleQuoted, singleQuoted, bareValue ) => {
-        const value = String ( doubleQuoted ?? singleQuoted ?? bareValue ?? '' ).trim (),
+        const rawValue = String ( doubleQuoted ?? singleQuoted ?? bareValue ?? '' ),
+              value = decodeUrlValue ( rawValue ),
               normalized = value.replace ( /[\u0000-\u001F\u007F\s]+/g, '' ).toLowerCase (),
               isUnsafeProtocol = (
                 normalized.startsWith ( 'javascript:' ) ||
