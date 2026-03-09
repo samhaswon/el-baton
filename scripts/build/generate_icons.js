@@ -54,13 +54,31 @@ const removeIfExists = filePath => {
 const renderPng = ( destinationPath, size ) => {
   ensureDirectory ( destinationPath );
 
+  removeIfExists ( destinationPath );
+
   execFileSync ( 'inkscape', [
     sourceSvgPath,
     '--export-type=png',
-    `--export-filename=${destinationPath}`,
-    `--export-width=${size}`,
-    `--export-height=${size}`
+    '--export-filename',
+    destinationPath,
+    '--export-width',
+    String ( size ),
+    '--export-height',
+    String ( size )
   ], { stdio: 'inherit' } );
+
+  if ( !fs.existsSync ( destinationPath ) ) {
+    // Fallback for CLI variants that prefer short output arguments.
+    execFileSync ( 'inkscape', [
+      sourceSvgPath,
+      '-o',
+      destinationPath,
+      '-w',
+      String ( size ),
+      '-h',
+      String ( size )
+    ], { stdio: 'inherit' } );
+  }
 
   if ( !fs.existsSync ( destinationPath ) ) {
     throw new Error ( `Inkscape did not produce expected file: ${destinationPath}` );

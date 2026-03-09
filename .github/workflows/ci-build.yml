@@ -66,7 +66,13 @@ jobs:
         if: matrix.os == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y inkscape imagemagick snapd
+          sudo apt-get install -y inkscape imagemagick
+
+      - name: Install Linux snapcraft (x64 only)
+        if: matrix.os == 'linux' && matrix.arch == 'x64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y snapd
           sudo systemctl start snapd || true
           sudo snap install snapcraft --classic
           echo "/snap/bin" >> "$GITHUB_PATH"
