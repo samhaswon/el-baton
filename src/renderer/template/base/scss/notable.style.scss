@@ -6140,6 +6140,16 @@ span {
 
 
 @mixin theme-window-main-mainbar ( $theme ) {
+  $mainbar-bg: map-get( $theme, 'mainbar.background' );
+  $note-tab-surface: rgb( 192, 192, 192 );
+  $note-tab-surface-hover: rgba( 127, 127, 127, .11 );
+  $note-tab-surface-active: color.mix( #FFFFFF, $mainbar-bg, 82% );
+
+  @if not is-light( map-get( $theme, 'body.background' ) ) {
+    $note-tab-surface: rgba( 127, 127, 127, .24 );
+    $note-tab-surface-hover: rgba( 127, 127, 127, .32 );
+    $note-tab-surface-active: map-get( $theme, 'middlebar.list.item.backgroundHover' );
+  }
 
   .mainbar {
     background-color: map-get( $theme, 'mainbar.background' );
@@ -6155,11 +6165,15 @@ span {
 
     .note-tab {
       border-color: map-get( $theme, 'middlebar.list.item.border' );
+      background-color: $note-tab-surface;
     }
 
-    .note-tab:hover,
+    .note-tab:hover {
+      background-color: $note-tab-surface-hover;
+    }
+
     .note-tab.active {
-      background-color: map-get( $theme, 'middlebar.list.item.backgroundHover' );
+      background-color: $note-tab-surface-active;
     }
 
     .chip {
@@ -6215,6 +6229,13 @@ span {
 // @require themes/components/colors/abstract.scss
 
 @mixin theme-window-main-sidebar ( $theme ) {
+  $activitybar-item-hover-bg: map-get( $theme, 'sidebar.list.item.backgroundHover' );
+  $activitybar-item-active-bg: map-get( $theme, 'sidebar.list.item.backgroundActive' );
+
+  @if is-light( map-get( $theme, 'body.background' ) ) {
+    $activitybar-item-hover-bg: rgba( map-get( $theme, 'sidebar.foreground' ), .12 );
+    $activitybar-item-active-bg: rgba( map-get( $theme, 'sidebar.foreground' ), .2 );
+  }
 
   .activitybar {
     background-color: map-get( $theme, 'sidebar.background' );
@@ -6225,9 +6246,13 @@ span {
       border-color: map-get( $theme, 'sidebar.list.item.border' );
     }
 
-    .activitybar-item:hover,
+    .activitybar-item:hover {
+      background-color: $activitybar-item-hover-bg;
+      opacity: 1;
+    }
+
     .activitybar-item.active {
-      background-color: map-get( $theme, 'sidebar.list.item.backgroundActive' );
+      background-color: $activitybar-item-active-bg;
       opacity: 1;
     }
   }

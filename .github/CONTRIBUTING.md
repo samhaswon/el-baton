@@ -24,6 +24,8 @@ We also consider the number of ":+1:" an issue has when deciding what to priorit
 
 Pull requests are especially welcome for issues labeled as [`bug`](https://github.com/samhaswon/el-baton/issues?q=is%3Aissue+is%3Aopen+label%3Abug) or [`help wanted`](https://github.com/samhaswon/el-baton/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22). Pull requests for other issues can be considered too but before working on them you should let us know that you'd like to submit one, so that we can tell you if a pull request can be considered for that particular issue, what the pull request should actually implement and how.
 
+# Local Development Setup
+
 Follow these steps in order to get El Baton ready for development:
 
 ```bash
@@ -50,3 +52,11 @@ HOME=/tmp/elbaton-onboarding-test/home npm run dev
 ```
 
 Then select `/tmp/elbaton-onboarding-test/data-empty` as the data directory.
+
+## Screenshots
+
+Screenshots are automated with Playwright. To capture screenshots:
+
+```bash
+npm run screenshots:demo -- --compile
+```

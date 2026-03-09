@@ -21,8 +21,9 @@
   $settings-muted-strong: rgba( $mainbar-fg-color, .82 );
   $settings-highlight: rgba( $mainbar-fg-color, .03 );
   $settings-toggle-thumb: #FFFFFF;
-  $note-tab-surface: rgba( 127, 127, 127, .18 );
-  $note-tab-surface-hover: rgba( 127, 127, 127, .26 );
+  $note-tab-surface: rgb( 192, 192, 192 );
+  $note-tab-surface-hover: rgba( 127, 127, 127, .11 );
+  $note-tab-surface-active: color.mix( #FFFFFF, $mainbar-bg, 82% );
 
   @if $settings-is-dark {
     $settings-surface: color.mix( $mainbar-fg-color, $mainbar-bg, 34% );
@@ -36,6 +37,7 @@
     $settings-highlight: rgba( $mainbar-fg-color, .06 );
     $note-tab-surface: rgba( 127, 127, 127, .24 );
     $note-tab-surface-hover: rgba( 127, 127, 127, .32 );
+    $note-tab-surface-active: map-get( $theme, 'middlebar.list.item.backgroundHover' );
   }
 
   .mainbar {
@@ -60,7 +62,7 @@
     }
 
     .note-tab.active {
-      background-color: map-get( $theme, 'middlebar.list.item.backgroundHover' );
+      background-color: $note-tab-surface-active;
     }
 
     .note-tab-close:hover {

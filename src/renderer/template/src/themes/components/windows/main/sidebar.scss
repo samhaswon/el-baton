@@ -2,6 +2,13 @@
 // @require themes/components/colors/abstract.scss
 
 @mixin theme-window-main-sidebar ( $theme ) {
+  $activitybar-item-hover-bg: map-get( $theme, 'sidebar.list.item.backgroundHover' );
+  $activitybar-item-active-bg: map-get( $theme, 'sidebar.list.item.backgroundActive' );
+
+  @if is-light( map-get( $theme, 'body.background' ) ) {
+    $activitybar-item-hover-bg: rgba( map-get( $theme, 'sidebar.foreground' ), .12 );
+    $activitybar-item-active-bg: rgba( map-get( $theme, 'sidebar.foreground' ), .2 );
+  }
 
   .activitybar {
     background-color: map-get( $theme, 'sidebar.background' );
@@ -12,9 +19,13 @@
       border-color: map-get( $theme, 'sidebar.list.item.border' );
     }
 
-    .activitybar-item:hover,
+    .activitybar-item:hover {
+      background-color: $activitybar-item-hover-bg;
+      opacity: 1;
+    }
+
     .activitybar-item.active {
-      background-color: map-get( $theme, 'sidebar.list.item.backgroundActive' );
+      background-color: $activitybar-item-active-bg;
       opacity: 1;
     }
   }
