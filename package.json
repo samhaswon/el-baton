@@ -166,7 +166,7 @@
     "critically": "1.1.1",
     "diff": "^8.0.3",
     "electron-context-menu": "^0.16.0",
-    "electron-dialog": "^1.0.2",
+    "electron-dialog": "^2.0.0",
     "electron-store": "^2.0.0",
     "electron-updater": "^6.8.3",
     "electron-util": "0.11.0",
