@@ -61,6 +61,10 @@ const renderPng = ( destinationPath, size ) => {
     `--export-width=${size}`,
     `--export-height=${size}`
   ], { stdio: 'inherit' } );
+
+  if ( !fs.existsSync ( destinationPath ) ) {
+    throw new Error ( `Inkscape did not produce expected file: ${destinationPath}` );
+  }
 };
 
 const copyFile = ( sourcePath, destinationPath ) => {
@@ -96,12 +100,6 @@ const main = () => {
   renderPng ( faviconPath, 64 );
   renderPng ( iconSmallPath, 64 );
 
-  const icoSourcePngPaths = [16, 24, 32, 48, 64, 128, 256].map ( size => {
-    const filePath = path.join ( iconDirPath, `${size}x${size}.png` );
-    renderPng ( filePath, size );
-    return filePath;
-  });
-
   for ( const size of linuxIconSizes ) {
     const sizePath = path.join ( iconDirPath, `${size}x${size}.png` );
 
@@ -110,7 +108,11 @@ const main = () => {
     renderPng ( sizePath, size );
   }
 
-  execFileSync ( imageMagickCommand, [...icoSourcePngPaths, iconIcoPath], { stdio: 'inherit' } );
+  execFileSync (
+    imageMagickCommand,
+    [iconPngPath, '-define', 'icon:auto-resize=256,128,64,48,32,24,16', iconIcoPath],
+    { stdio: 'inherit' }
+  );
 
   copyFile ( iconPngPath, templateBaseIconPngPath );
   copyFile ( iconIcoPath, templateBaseIconIcoPath );
