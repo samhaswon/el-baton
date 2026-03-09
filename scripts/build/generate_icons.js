@@ -35,12 +35,6 @@ const hasCommand = command => {
   }
 };
 
-const ensureCommand = command => {
-  if ( !hasCommand ( command ) ) {
-    throw new Error ( `Required command not found: ${command}` );
-  }
-};
-
 const ensureDirectory = filePath => {
   fs.mkdirSync ( path.dirname ( filePath ), { recursive: true } );
 };
@@ -51,12 +45,12 @@ const removeIfExists = filePath => {
   }
 };
 
-const renderPng = ( destinationPath, size ) => {
+const renderPng = ( destinationPath, size, inkscapeCommand ) => {
   ensureDirectory ( destinationPath );
 
   removeIfExists ( destinationPath );
 
-  execFileSync ( 'inkscape', [
+  execFileSync ( inkscapeCommand, [
     sourceSvgPath,
     '--export-type=png',
     '--export-filename',
@@ -69,7 +63,7 @@ const renderPng = ( destinationPath, size ) => {
 
   if ( !fs.existsSync ( destinationPath ) ) {
     // Fallback for CLI variants that prefer short output arguments.
-    execFileSync ( 'inkscape', [
+    execFileSync ( inkscapeCommand, [
       sourceSvgPath,
       '-o',
       destinationPath,
@@ -96,13 +90,19 @@ const getImageMagickCommand = () => {
   throw new Error ( 'Required command not found: magick or convert' );
 };
 
+const getInkscapeCommand = () => {
+  if ( process.platform === 'win32' && hasCommand ( 'inkscape.com' ) ) return 'inkscape.com';
+  if ( hasCommand ( 'inkscape' ) ) return 'inkscape';
+  throw new Error ( 'Required command not found: inkscape' );
+};
+
 const main = () => {
 
   if ( !fs.existsSync ( sourceSvgPath ) ) {
     throw new Error ( `Missing source SVG: ${path.relative ( rootPath, sourceSvgPath )}` );
   }
 
-  ensureCommand ( 'inkscape' );
+  const inkscapeCommand = getInkscapeCommand ();
   const imageMagickCommand = getImageMagickCommand ();
 
   for ( const size of linuxIconSizes ) {
@@ -114,16 +114,16 @@ const main = () => {
   removeIfExists ( iconIcoPath );
   removeIfExists ( iconSmallPath );
 
-  renderPng ( iconPngPath, 1024 );
-  renderPng ( faviconPath, 64 );
-  renderPng ( iconSmallPath, 64 );
+  renderPng ( iconPngPath, 1024, inkscapeCommand );
+  renderPng ( faviconPath, 64, inkscapeCommand );
+  renderPng ( iconSmallPath, 64, inkscapeCommand );
 
   for ( const size of linuxIconSizes ) {
     const sizePath = path.join ( iconDirPath, `${size}x${size}.png` );
 
     if ( fs.existsSync ( sizePath ) ) continue;
 
-    renderPng ( sizePath, size );
+    renderPng ( sizePath, size, inkscapeCommand );
   }
 
   execFileSync (
