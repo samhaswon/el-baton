@@ -73,4 +73,8 @@ There are multiple ways to contribute to this project, read about them [here](ht
 
 ## License
 
+Base:
 AGPLv3 © Fabio Spampinato
+
+Fork code:
+AGPLv3 © Samuel Howard

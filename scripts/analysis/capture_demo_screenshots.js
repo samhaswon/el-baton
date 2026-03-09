@@ -29,7 +29,7 @@ const noteFileNames = [
   '1 Test Note.md',
   'Test.md',
   'CSC 3300 CH1.md',
-  'Matthew 7:1-6.md',
+  'Matthew 7-1-6.md',
   'CSC 6400 Lecture 12.md',
   'CSC 3570 Labs Changelog.md',
   'Malformer Dataset Notes.md',
