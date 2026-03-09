@@ -30,7 +30,7 @@ So I built my own.
 
 - **Indefinitely nestable tags**: Pretty much all the other note-taking apps differentiate between notebooks, tags and templates. IMHO this unnecessarily complicates things. In El Baton you can have root tags (`foo`), indefinitely nestable tags (`foo/bar`, `foo/.../qux`) and it still supports notebooks and templates, they are just special tags with a different icon (`Notebooks/foo`, `Templates/foo/bar`).
 
-Upon first instantiation, some tutorial notes will be added to the app, check them out for more in-depth details about the app and how to use it. You can also find the raw version [here](https://github.com/samhaswon/el-baton/tree/master/resources/tutorial/notes).
+On first launch with a new empty data directory, El Baton opens the built-in Cheatsheets panel so new users can quickly learn the workflow and core features.
 
 ## [Comparison](resources/comparison/table.png?raw=true)
 
