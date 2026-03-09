@@ -162,7 +162,7 @@
 
 ## Likely Won't Implement
 
-- [ ] LLM integration
+- [ ] (V)LLM integration
 - [ ] Replace as much rendering logic as possible and sensible with native code.
 - [ ] Custom CSS/JS
 - [ ] Plugins
