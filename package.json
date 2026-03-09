@@ -61,14 +61,18 @@
     "dev": "npm run icon:font && npm run template:seed && npm run template:scss && concurrently -k \"npm:template:seed:watch\" \"npm:template:scss:watch\" \"npm:template:css:watch\" \"npm:dev:main\" \"npm:dev:renderer\" \"npm:dev:electron\"",
     "prod": "npm run compile:release && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir && open releases/mac/*.app"
   },
-  "main": "dist/main/main.js",
+  "main": "main.js",
   "build": {
     "appId": "com.elbaton.app",
     "copyright": "Copyright © 2018-present Fabio Spampinato",
     "afterAllArtifactBuild": "scripts/build/hook_after_build.js",
     "afterPack": "scripts/build/hook_after_pack.js",
     "disableDefaultIgnoredFiles": true,
+    "extraMetadata": {
+      "main": "main.js"
+    },
     "files": [
+      "main.js",
       "dist/**/*",
       "node_modules/**/*",
       "package.json"
