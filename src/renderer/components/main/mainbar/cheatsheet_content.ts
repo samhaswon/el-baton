@@ -145,152 +145,126 @@ A compact reference for the editor, markdown, and diagram features built into El
 
 ## Tutorial
 
-Get to know El Baton and how it helps you conduct your knowledge.
+Get to know El Baton and how it helps you conduct your knowledge. This section is a quick tour of the main features so you can start writing right away.
 
-### Welcome
+### Start Here
 
-Welcome to El Baton. The app stores notes as plain markdown files, and the tutorial is focused on helping you understand the workspace, editing flow, and data portability model.
+1. Pick a data directory.
+2. Create or open a note.
+3. Write in source, preview, or split view.
+4. Use settings to tailor editing behavior to your workflow.
 
-### Basics
+### Your Files Stay Yours
 
-#### 01 - The Data Directory
+El Baton stores notes and attachments as normal files:
 
-The data directory stores everything:
-
-\`\`\`dircolors
+\`\`\`text
 /path/to/your/data_directory
 ├─┬ attachments
-│ ├── foo.ext
-│ ├── bar.ext
+│ ├── file.ext
 │ └── …
 └─┬ notes
-  ├── foo.md
-  ├── bar.md
+  ├── note.md
   └── …
 \`\`\`
 
-- Your notes are regular plaintext markdown files, not a proprietary database.
-- You can open or change the data directory from the app menu.
-- External edits are reflected automatically.
+- Notes are plain markdown files.
+- Attachments are regular files in \`attachments/\`.
+- Edits made outside El Baton are picked up automatically.
 
-#### 02 - The Sidebar
+### Navigation at a Glance
 
-The sidebar categorizes notes into:
+- **Activity bar + side panel panes**: Switch between Explorer, Search, File menu, Info, and other panes.
+- **Explorer pane**: Browse All Notes, Favorites, Notebooks, Tags, Templates, Untagged, and Trash.
+- **Search pane**: Search and sort visible notes/results.
+- **Mainbar**: Open multiple notes as tabs, close tabs, and create new notes quickly.
 
-- All Notes
-- Favorites
-- Notebooks ('Notebooks/*')
-- Tags
-- Templates ('Templates/*')
-- Untagged
-- Trash
+### Editing Modes
 
-Nested tags create nested notebook/tag/template categories.
+- **Preview** for clean reading.
+- **Source** for direct markdown editing in Monaco.
+- **Split view** to edit and preview side by side.
 
-#### 03 - The Middlebar
+Editor highlights:
 
-The middlebar shows notes for the selected category, filtered by search.
+- Configurable line numbers (absolute, relative, hidden).
+- Configurable tab size.
+- Optional split-view scroll sync.
+- Optional automatic markdown table formatting with configurable delay.
+- Code-fence language suggestions while typing fenced blocks.
+- Emoji shortcodes (\`:\`) if you're into that.
 
-- Title search is fuzzy.
-- Content search requires direct matches.
-- Sorting can be changed (for example, Title ascending vs Date Modified descending).
-- Badges indicate pinned/favorited/attachments.
+### Find What You Need
 
-#### 04 - The Mainbar
+#### In-note search (\`Ctrl/Cmd+F\`)
 
-The mainbar contains:
+- Search inside the current note.
+- Regex search with the \`.*\` toggle.
+- In source view, replace one match or replace all.
+- Keyboard control: \`Enter\` next, \`Shift+Enter\` previous.
 
-- Toolbar actions for the current note
-- Preview mode
-- Editor mode (Monaco-based)
-- Multi-editor mode when multiple notes are selected
+#### Cross-note search
 
-#### 05 - Notes
+- Search across all of your notes in the search panel.
+- Open results with contextual snippets.
+- Jump directly to matching content.
 
-- Notes use GitHub-flavored markdown.
-- Metadata is stored in front matter.
-- Built-in syntax features include KaTeX and Mermaid.
-- Attachments are stored in 'attachments' and linked from notes.
+### Spellcheck and Dictionary
 
-#### 06 - Tags
+- Misspellings are marked in source editing.
+- Right-click suggestions and add-to-dictionary are supported.
+- Personal dictionary words are persistent and editable in Settings.
+- Spellcheck language follows available system locales when possible.
 
-- Root tags: 'foo'
-- Nested tags: 'foo/bar/baz'
-- Special tag families:
-  - 'Notebooks/*'
-  - 'Templates/*'
+### On-Battery Mode
 
-Tags can be managed per note or across multiple notes.
+Use the toolbar battery button or Settings to reduce editor/preview work on battery power.
 
-### Intermediate
+Options include:
 
-#### 07 - Shortcuts
+- Manual on-battery mode.
+- Auto-detect battery power.
+- Split-sync FPS cap.
+- Extra render delay while typing.
+- Optional battery-only disabling of spellcheck, autocomplete, and animations.
 
-Keyboard shortcuts are extensive and mostly map to the Note, Editor, Multi-Editor, and Navigation actions in menus/toolbars.
+### Settings You'll Likely Use
 
-The original tutorial note uses macOS notation and recommends replacing 'Cmd' with 'Ctrl' on non-macOS platforms.
+Settings are stored in global config (for example \`.el-baton.yml\`) in your data directory.
 
-#### 08 - Importing
+- **General**: update checks, animations, \`Use GPU\`.
+- **Editor**: line numbers, tab size, split sync, table formatting, large-note preview delay.
+- **Spellcheck Dictionary**: disable spellcheck and manage saved words.
+- **PlantUML**: optional external server, timeout, cache limits.
+- **Input**: optional Linux/X11 middle-click paste disable.
 
-Import is available from 'El Baton -> Import' and supports:
+### Links and Organization
 
-- Markdown/text files ('md', 'markdown', 'txt', etc.)
-- Evernote exports ('enex')
-
-Imported notes can be grouped with generated 'Import-XXXX' tags for cleanup/editing.
-
-#### 09 - Multi-Note Editing
-
-When multiple notes are selected, batch actions are available:
-
-- Favorite/unfavorite
-- Pin/unpin
-- Trash/restore/delete
-- Open in default app
-- Add/remove tags
-
-For advanced bulk edits (including regex), edit the files directly with external tools.
-
-#### 10 - Linking Attachments/Notes/Tags
-
-Special link tokens:
+Use built-in markdown link helpers:
 
 \`\`\`markdown
-![Icon](@attachment/icon_small.png)
-[Note](@note/07 - Shortcuts.md)
-[Tag](@tag/Basics)
-[[Importing|08 - Importing.md]]
-[[08 - Importing]]
+![Attachment](@attachment/file.png)
+[Note](@note/Some Note.md)
+[Tag](@tag/Projects)
+[[Wiki Link|Some Note.md]]
+[[Some Note]]
 \`\`\`
 
-These links support both inline rendering and navigation.
+You can also organize notes with nested tags, notebooks (\`Notebooks/*\`), and templates (\`Templates/*\`).
 
-### Advanced
+### Advanced Workflows
 
-#### 11 - Synchronization
+Because your notes are file-based, you can easily add:
 
-No built-in sync is required; place your data directory inside a synced folder (Dropbox/Google Drive/etc.).
+- Folder sync tools (Dropbox, Drive, Syncthing, etc.)
+- Git version history
+- Encrypted volumes/containers
 
-#### 12 - Mobile Editing
+### Need More Help?
 
-No official mobile app is required for basic workflows; mobile markdown editors can edit synced note files.
-
-#### 13 - Collaborative Editing
-
-Shared-folder collaboration is possible, with the usual caveat that simultaneous edits to the same file can conflict.
-
-#### 14 - Version Control
-
-Because notes are plain files, the data directory can be tracked with Git for snapshots/history.
-
-#### 15 - Encrypted Notes
-
-There is no native encrypted-note format, but you can store the data directory in an encrypted volume/container.
-
-### Wrap-up
-
-- You can revisit these instructions from the cheatsheet at any time.
-- Feedback and feature requests can be filed at: <https://github.com/samhaswon/el-baton/issues>
+- This tutorial is available at any time from the cheatsheet button at the bottom left.
+  - Need other markdown or syntax help? Keep reading for more.
+- Issues and feature requests: <https://github.com/samhaswon/el-baton/issues>
 
 ## Markdown Basics
 
