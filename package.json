@@ -67,6 +67,11 @@
     "copyright": "Copyright © 2018-present Fabio Spampinato",
     "afterAllArtifactBuild": "scripts/build/hook_after_build.js",
     "afterPack": "scripts/build/hook_after_pack.js",
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
     "directories": {
       "output": "releases"
     },
