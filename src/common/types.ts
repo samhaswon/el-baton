@@ -195,8 +195,6 @@ type ThemesState = {
 
 type TrashState = {};
 
-type TutorialState = {};
-
 type WindowState = {
   focus: boolean,
   fullscreen: boolean,
@@ -231,7 +229,6 @@ type MainState = {
   theme: ThemeState,
   themes: ThemesState,
   trash: TrashState,
-  tutorial: TutorialState,
   window: WindowState
 };
 
@@ -265,7 +262,6 @@ type MainCTX = {
   theme: import ( '@renderer/containers/main/theme' ).default,
   themes: import ( '@renderer/containers/main/themes' ).default,
   trash: import ( '@renderer/containers/main/trash' ).default,
-  tutorial: import ( '@renderer/containers/main/tutorial' ).default,
   window: import ( '@renderer/containers/main/window' ).default
 };
 
@@ -281,8 +277,7 @@ type CWDCTX = {
   select (),
   selectDefault (),
   openInApp (),
-  dialog (),
-  tutorial: import ( '@renderer/containers/main/tutorial' ).default
+  dialog ()
 };
 
 type ICWD = CWDCTX & { ctx: CWDCTX };

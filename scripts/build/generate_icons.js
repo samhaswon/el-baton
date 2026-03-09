@@ -18,8 +18,6 @@ const templateBaseIconIcoPath = path.join ( rootPath, 'src', 'renderer', 'templa
 const templateStaticIconPngPath = path.join ( rootPath, 'src', 'renderer', 'template', 'src', 'static', 'icon.png' );
 const templateStaticIconIcoPath = path.join ( rootPath, 'src', 'renderer', 'template', 'src', 'static', 'icon.ico' );
 
-const tutorialIconPath = path.join ( rootPath, 'resources', 'tutorial', 'attachments', 'icon.png' );
-const tutorialIconSmallPath = path.join ( rootPath, 'resources', 'tutorial', 'attachments', 'icon_small.png' );
 const themingIconSmallPath = path.join ( rootPath, 'resources', 'theming', 'attachments', 'icon_small.png' );
 
 const oldLogoSources = [
@@ -106,8 +104,6 @@ const main = () => {
   copyFile ( iconPngPath, templateStaticIconPngPath );
   copyFile ( iconIcoPath, templateStaticIconIcoPath );
 
-  copyFile ( iconPngPath, tutorialIconPath );
-  copyFile ( iconSmallPath, tutorialIconSmallPath );
   copyFile ( iconSmallPath, themingIconSmallPath );
 
   for ( const oldLogoSourcePath of oldLogoSources ) {

@@ -425,8 +425,8 @@ class Main extends Route {
             click: () => shell.openExternal ( pkg.bugs.url )
           },
           {
-            label: 'Tutorial',
-            click: () => this.win.webContents.send ( 'tutorial-dialog' )
+            label: 'Cheatsheets',
+            click: () => this.win.webContents.send ( 'open-cheatsheet' )
           },
           { type: 'separator' },
           {

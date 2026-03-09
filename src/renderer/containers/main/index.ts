@@ -24,7 +24,6 @@ import Tags from './tags';
 import Theme from './theme';
 import Themes from './themes';
 import Trash from './trash';
-import Tutorial from './tutorial';
 import Window from './window';
 import compose from '@renderer/utils/compose';
 import File from '@renderer/utils/file';
@@ -218,6 +217,5 @@ export default compose ({
   theme: Theme,
   themes: Themes,
   trash: Trash,
-  tutorial: Tutorial,
   window: Window
 })( Main ) as unknown as IMain;

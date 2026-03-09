@@ -10,8 +10,6 @@ import * as path from 'path';
 import * as pify from 'pify';
 import Config from '@common/config';
 import Settings from '@common/settings';
-import Tutorial from '@renderer/containers/main/tutorial';
-import compose from '@renderer/utils/compose';
 import File from '@renderer/utils/file';
 
 /* CWD */
@@ -57,9 +55,8 @@ class CWD extends Container<CWDState, CWDCTX> {
 
       if ( !hadTutorial && !hadNotes ) {
 
-        await this.ctx.tutorial.import ();
-
         Settings.set ( 'tutorial', true );
+        Settings.set ( 'openCheatsheetOnStart', true );
 
       }
 
@@ -128,6 +125,4 @@ class CWD extends Container<CWDState, CWDCTX> {
 
 /* EXPORT */
 
-export default compose ({
-  tutorial: Tutorial
-})( CWD ) as unknown as ICWD;
+export default CWD as unknown as ICWD;

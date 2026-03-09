@@ -19,8 +19,8 @@
     "bundle:main": "webpack --config ./webpack.main.js",
     "bundle:renderer": "webpack --config ./webpack.renderer.js",
     "icon:build": "node ./scripts/build/generate_icons.js",
-    "compile": "npm run icon:build && npm run icon:font && npm run template:seed && npm run template:scss && npm run template:css && npm run tutorial && npm run clean:deps && cross-env NODE_ENV=development npm run bundle:main && cross-env NODE_ENV=development npm run bundle:renderer",
-    "compile:release": "npm run icon:build && npm run icon:font && npm run template:seed && npm run template:scss && npm run template:css && npm run tutorial && npm run clean:deps && cross-env NODE_ENV=production npm run bundle:main && cross-env NODE_ENV=production npm run bundle:renderer",
+    "compile": "npm run icon:build && npm run icon:font && npm run template:seed && npm run template:scss && npm run template:css && npm run clean:deps && cross-env NODE_ENV=development npm run bundle:main && cross-env NODE_ENV=development npm run bundle:renderer",
+    "compile:release": "npm run icon:build && npm run icon:font && npm run template:seed && npm run template:scss && npm run template:css && npm run clean:deps && cross-env NODE_ENV=production npm run bundle:main && cross-env NODE_ENV=production npm run bundle:renderer",
     "build:mac": "npm run compile:release && npm run script:build:patch-peers && electron-builder --mac",
     "build:win": "npm run compile:release && npm run script:build:patch-peers && electron-builder --win --x64 && npm run script:build:fixlatestwin",
     "build:win:arm64": "npm run compile:release && npm run script:build:patch-peers && electron-builder --win --arm64 && npm run script:build:fixlatestwin",
@@ -46,7 +46,6 @@
     "test:plantuml-cache": "npx tsc --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/plantuml_cache.test.ts src/common/plantuml_sqlite_cache.ts && node --test .tmp/tests/scripts/tests/plantuml_cache.test.js",
     "test": "npm run -s test:emoji && npm run -s test:markdown && npm run -s test:global-config && npm run -s test:katex-ranges && npm run -s test:code-fence-suggestions && npm run -s test:natural-sort && npm run -s test:plantuml && npm run -s test:plantuml-cache",
     "comparison": "wkhtmltoimage --quiet --quality 30 --encoding 'UTF-8' --zoom 2 ./resources/comparison/table.html ./resources/comparison/table.png",
-    "tutorial": "cd ./resources/tutorial && zip -FS -r ../../src/renderer/template/dist/tutorial.zip . -x '*.DS_Store'",
     "monaco": "webpack --config ./webpack.monaco.js",
     "dev:main": "cross-env NODE_ENV=development webpack --config ./webpack.main.js --watch",
     "dev:renderer": "cross-env NODE_ENV=development ELECTRON_WEBPACK_WDS_PORT=9080 webpack serve --config ./webpack.renderer.js --host 127.0.0.1 --port 9080 --hot",
@@ -147,9 +146,6 @@
   },
   "engines": {
     "node": ">=22 <23"
-  },
-  "tutorial": {
-    "url": "https://github.com/samhaswon/el-baton/tree/master/resources/tutorial/notes"
   },
   "download": {
     "url": "https://github.com/samhaswon/el-baton/releases"

@@ -75,7 +75,7 @@ type FilePanelProps = {
   tagPrevious: () => any;
   tagNext: () => any;
   setTheme: ( theme: string ) => any;
-  tutorialDialog: () => any;
+  openCheatsheet: () => any;
 };
 
 type TodoPanelProps = {
@@ -85,6 +85,7 @@ type TodoPanelProps = {
 
 type SidepanelProps = {
   panel?: string;
+  setPanel: ( panel: string ) => void;
   isClosing: boolean;
   isOpening: boolean;
   animationsDisabled: boolean;
@@ -155,7 +156,7 @@ const FilePanel = ({
   tagPrevious,
   tagNext,
   setTheme,
-  tutorialDialog
+  openCheatsheet
 }: FilePanelProps ) => (
   <div className={`sidepanel-pane layout column ${paneStateClassName || ''}`}>
     <div className="layout-header toolbar">
@@ -205,7 +206,7 @@ const FilePanel = ({
       <MenuSection title="Help">
         <MenuItem label="Learn More" onClick={() => shell.openExternal ( pkg.homepage )} />
         <MenuItem label="Support" onClick={() => shell.openExternal ( pkg.bugs.url )} />
-        <MenuItem label="Tutorial" onClick={() => tutorialDialog ()} />
+        <MenuItem label="Cheatsheets" onClick={() => openCheatsheet ()} />
         <MenuItem label="Check for Updates..." onClick={() => ipc.send ( 'updater-check' )} />
       </MenuSection>
     </div>
@@ -249,7 +250,7 @@ const TodoPanel = ({ title, paneStateClassName }: TodoPanelProps ) => (
   </div>
 );
 
-const Sidepanel = ({ panel, isClosing, isOpening, animationsDisabled, isFocus, isZen, hasSidebar, ...actions }: SidepanelProps ) => {
+const Sidepanel = ({ panel, setPanel, isClosing, isOpening, animationsDisabled, isFocus, isZen, hasSidebar, ...actions }: SidepanelProps ) => {
 
   if ( isFocus || isZen || !hasSidebar ) return null;
 
@@ -259,7 +260,7 @@ const Sidepanel = ({ panel, isClosing, isOpening, animationsDisabled, isFocus, i
 
   let activePanel: React.ReactNode = null;
 
-  if ( panel === 'file' ) activePanel = <FilePanel {...actions} paneStateClassName="is-active" hasSidebar={hasSidebar} isZen={isZen} />;
+  if ( panel === 'file' ) activePanel = <FilePanel {...actions} paneStateClassName="is-active" hasSidebar={hasSidebar} isZen={isZen} openCheatsheet={() => setPanel ( 'help' )} />;
   if ( panel === 'search' ) activePanel = <SearchPanel paneStateClassName="is-active" />;
   if ( panel === 'graph' ) activePanel = <TodoPanel paneStateClassName="is-active" title="Graph" />;
   if ( panel === 'info' ) activePanel = <InfoPane className="sidepanel-pane-info sidepanel-pane is-active" />;
@@ -327,7 +328,6 @@ export default connect ({
     tagNext: container.tag.next,
     tagPrevious: container.tag.previous,
     trashEmpty: container.trash.empty,
-    tutorialDialog: container.tutorial.dialog,
     toggleAttachmentsEditing: container.attachments.toggleEditing,
     toggleEditing: container.editor.toggleEditing,
     toggleFavorite: container.note.toggleFavorite,

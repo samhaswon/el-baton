@@ -2,8 +2,10 @@
 /* IMPORT */
 
 import * as React from 'react';
+import {ipcRenderer as ipc} from 'electron';
 import {connect} from 'overstated';
 import Config from '@common/config';
+import Settings from '@common/settings';
 import MainContainer from '@renderer/containers/main';
 import Activitybar from './activitybar';
 import Layout from './layout';
@@ -45,6 +47,13 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
 
     await this.props.listen ();
 
+    if ( Settings.get ( 'openCheatsheetOnStart' ) ) {
+      Settings.set ( 'openCheatsheetOnStart', false );
+      this.setPanel ( 'help' );
+    }
+
+    ipc.on ( 'open-cheatsheet', this.__openCheatsheet );
+
   }
 
   componentWillUnmount () {
@@ -60,6 +69,7 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
     }
 
     this.props.stopBatteryMonitoring ();
+    ipc.removeListener ( 'open-cheatsheet', this.__openCheatsheet );
 
   }
 
@@ -111,6 +121,12 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
       this.panelCloseTimeout = undefined;
       this.setState ({ panel: null, isClosingPanel: false, isOpeningPanel: false });
     }, 140 );
+
+  };
+
+  __openCheatsheet = () => {
+
+    this.setPanel ( 'help' );
 
   };
 
@@ -174,7 +190,7 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
         <QuickPanel />
         <Layout className={`main app-wrapper ${isFullscreen ? 'fullscreen' : ''} ${hasSidebar ? 'focus' : ''} ${isZen ? 'zen' : ''}`} direction="horizontal" resizable={true} isFocus={isFocus} isZen={isZen} hasSidebar={hasSidebar} resetCounter={panelResetCounter}>
           {isFocus || isZen || !hasSidebar ? null : <Activitybar panel={panel} setPanel={this.setPanel} />}
-          <Sidepanel panel={isStandaloneMainbarView ? null : panel} isClosing={isClosingPanel} isOpening={isOpeningPanel} animationsDisabled={animationsDisabled} />
+          <Sidepanel panel={isStandaloneMainbarView ? null : panel} setPanel={this.setPanel} isClosing={isClosingPanel} isOpening={isOpeningPanel} animationsDisabled={animationsDisabled} />
           <Mainbar panel={panel} />
         </Layout>
       </>

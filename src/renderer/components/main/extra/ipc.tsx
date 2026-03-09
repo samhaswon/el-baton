@@ -68,7 +68,6 @@ class IPC extends Component<{ containers: [IMain, ICWD]}, {}> {
     ipc.on ( 'tag-previous', this.__tagPrevious );
     ipc.on ( 'theme-set', this.__themeSet );
     ipc.on ( 'trash-empty', this.__trashEmpty );
-    ipc.on ( 'tutorial-dialog', this.__tutorialDialog );
     ipc.on ( 'power-monitor-state', this.__powerMonitorState );
 
   }
@@ -112,7 +111,6 @@ class IPC extends Component<{ containers: [IMain, ICWD]}, {}> {
     ipc.removeListener ( 'tag-previous', this.__tagPrevious );
     ipc.removeListener ( 'theme-set', this.__themeSet );
     ipc.removeListener ( 'trash-empty', this.__trashEmpty );
-    ipc.removeListener ( 'tutorial-dialog', this.__tutorialDialog );
     ipc.removeListener ( 'power-monitor-state', this.__powerMonitorState );
 
   }
@@ -344,12 +342,6 @@ class IPC extends Component<{ containers: [IMain, ICWD]}, {}> {
   __trashEmpty = () => {
 
     this.main.trash.empty ();
-
-  }
-
-  __tutorialDialog = () => {
-
-    this.main.tutorial.dialog ();
 
   }
 

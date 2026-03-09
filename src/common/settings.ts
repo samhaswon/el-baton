@@ -44,7 +44,8 @@ const Settings = new Store ({
       type: 'ascending'
     },
     theme: darkMode.isEnabled ? 'dark' : 'light',
-    tutorial: false, // Did we import the tutorial yet?
+    tutorial: false, // Legacy first-run marker
+    openCheatsheetOnStart: false,
     window: {
       sidebar: true,
       zen: false

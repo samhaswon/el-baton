@@ -158,7 +158,7 @@ Get to know El Baton and how it helps you conduct your knowledge. This section i
 
 El Baton stores notes and attachments as normal files:
 
-\`\`\`text
+\`\`\`dircolors
 /path/to/your/data_directory
 ├─┬ attachments
 │ ├── file.ext
@@ -369,13 +369,32 @@ Place this on its own line to generate a note-local table of contents:
 Some inline HTML is useful inside markdown when you need formatting markdown does not provide directly.
 
 \`\`\`markdown
+<!-- Comments won't render in the preview -->
+
 <sub>subscript</sub>
+
 <sup>superscript</sup>
+
 <u>underlined with u</u>
+
 <ins>underlined with ins</ins>
+
 a<sup>super<sup>duper script</sup></sup>
+
+<mark>highlighting</mark>
+
+<small>Small</small> text
+
+<details open>
+  <summary>Summary...</summary>
+  Details...
+</details>
+
+<kbd>CTRL + ALT + DELETE</kbd>
 \`\`\`
 
+<!-- Comments won't render in the preview -->
+
 <sub>subscript</sub>
 
 <sup>superscript</sup>
@@ -385,6 +404,18 @@ a<sup>super<sup>duper script</sup></sup>
 <ins>underlined with ins</ins>
 
 a<sup>super<sup>duper script</sup></sup>
+
+<mark>highlighting</mark>
+
+<small>Small</small> text
+
+<details open>
+  <summary>Summary...</summary>
+  Details...
+</details>
+
+<kbd>CTRL + ALT + DELETE</kbd>
+
 
 ### Emojis
 

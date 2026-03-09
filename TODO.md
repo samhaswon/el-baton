@@ -132,7 +132,7 @@
     - [X] Add option to disable automatic table formatting.
     - [X] Add option to disable automatic renaming of notes
     - [X] Add option to disable spell check
-- [ ] Build-in the tutorial as pages, rather than files, so it can more easily be referenced.
+- [X] Build-in the tutorial as pages, rather than files, so it can more easily be referenced.
 - [X] Evaluate memory usage in the production build.
     - See if it's good, bad, what. Dev is a bit heavy, but that's dev.
 - [ ] Optimize Markdown string ops to reduce GC pressure.
@@ -152,6 +152,7 @@
         - Default of animations off when on battery.
     - Toggles here do not supersede global options.
         - If a user disables animations globally, they should still be disabled. Similar for other options.
+- [ ] Persist sidebar panel open/closed state.
 - [ ] Cross-platform CI with GHA, because you can't build for Mac on Linux.
 
 ## Mobile App
