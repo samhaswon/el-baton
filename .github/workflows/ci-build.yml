@@ -59,6 +59,12 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      - name: Prepare Windows Python for node-gyp
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          py -3 -m pip install --upgrade pip setuptools
+
       - name: Install dependencies
         run: npm ci
 
