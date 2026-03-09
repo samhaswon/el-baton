@@ -1,3 +1,9 @@
+### Version 0.0.0
+
+<!-- Implemented TODO items, effectively -->
+
+# Notable Changelog
+
 ### Version 1.5.1
 
 ##### Improvements
