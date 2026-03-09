@@ -153,6 +153,7 @@
     - Toggles here do not supersede global options.
         - If a user disables animations globally, they should still be disabled. Similar for other options.
 - [X] Persist sidebar panel open/closed state.
+- [ ] Run tests with GHA.
 - [ ] Cross-platform CI with GHA, because you can't build for Mac on Linux.
 
 ## Mobile App
