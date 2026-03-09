@@ -155,7 +155,7 @@
 - [X] Persist sidebar panel open/closed state.
 - [X] Run tests with GHA.
 - [ ] Fix this build warning: `[DEP0147] DeprecationWarning: In future versions of Node.js, fs.rmdir(path, { recursive: true }) will be removed. Use fs.rm(path, { recursive: true }) instead`
-- [ ] Cross-platform CI with GHA, because you can't build for Mac on Linux.
+- [X] Cross-platform CI with GHA, because you can't build for Mac on Linux.
 
 ## Mobile App
 
