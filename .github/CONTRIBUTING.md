@@ -41,6 +41,12 @@ npm run template:css
 npm run dev # Terminal 1
 ```
 
+You might also need:
+
+- `wine`
+- `Graphviz`
+- An LLM to deal with whatever is currently going on with the CSS since `svelto` is broken and had to be replaced.
+
 ## Onboarding test note
 
 When testing first-run onboarding behavior (for example, opening Cheatsheets on first empty data directory), use an isolated `HOME` so persistent editor/window state does not interfere:

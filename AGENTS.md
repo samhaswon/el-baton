@@ -8,6 +8,8 @@ If a change is purely a UI change, just type check. If it's a logic change, espe
 
 When type checking, do not run `npm exec tsc --noEmit` without `--` because npm may swallow the TypeScript flags and run a plain emit. Use `./node_modules/.bin/tsc --noEmit` or `npm exec -- tsc --noEmit` so generated `.js` files are not written beside the source `.ts` files.
 
+README screenshots are generated with `npm run screenshots:demo -- --compile` for a fresh build or `npm run screenshots:demo` if the app is already built.
+
 ## Common Issue Fixes
 
 - If a view body is unexpectedly collapsed to zero height, check whether it uses the global `layout-content` class. That class sets `height: 0` in `src/renderer/template/src/core/layout/layout.after.scss`.

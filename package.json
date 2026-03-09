@@ -45,6 +45,7 @@
     "test:natural-sort": "npx tsc --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/natural_sort.test.ts src/common/natural_sort.ts && node --test .tmp/tests/scripts/tests/natural_sort.test.js",
     "test:plantuml": "npx tsc --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/plantuml.test.ts src/common/plantuml.ts && node --test .tmp/tests/scripts/tests/plantuml.test.js",
     "test:plantuml-cache": "npx tsc --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/plantuml_cache.test.ts src/common/plantuml_sqlite_cache.ts && node --test .tmp/tests/scripts/tests/plantuml_cache.test.js",
+    "test:ui": "npm run compile:release && node scripts/tests/ui_smoke.test.js",
     "test": "npm run -s test:emoji && npm run -s test:markdown && npm run -s test:global-config && npm run -s test:katex-ranges && npm run -s test:code-fence-suggestions && npm run -s test:natural-sort && npm run -s test:plantuml && npm run -s test:plantuml-cache",
     "comparison": "wkhtmltoimage --quiet --quality 30 --encoding 'UTF-8' --zoom 2 ./resources/comparison/table.html ./resources/comparison/table.png",
     "monaco": "webpack --config ./webpack.monaco.js",
