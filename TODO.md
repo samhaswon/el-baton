@@ -126,7 +126,6 @@
     - [X] Basic PlantUML usage
         - Link to Graphviz in the cheatsheet for local usage: https://www.graphviz.org/download/
 - [X] Ensure that spell checker localization is a thing. It might be automatic, so this is mostly audit and fix if broken.
-- [ ] Implement a presentation mode similar to whatever Pandoc has.
 - [X] Additional settings:
     - [X] Add option to disable sync for the split view. 
     - [X] Add option to disable automatic table formatting.
@@ -135,7 +134,6 @@
 - [X] Build-in the tutorial as pages, rather than files, so it can more easily be referenced.
 - [X] Evaluate memory usage in the production build.
     - See if it's good, bad, what. Dev is a bit heavy, but that's dev.
-- [ ] Optimize Markdown string ops to reduce GC pressure.
 - [X] On-battery mode with toolbar toggle.
     - [X] Look into what features Electron supports for this.
         - See if it can be automated cross-platform
@@ -154,8 +152,62 @@
         - If a user disables animations globally, they should still be disabled. Similar for other options.
 - [X] Persist sidebar panel open/closed state.
 - [X] Run tests with GHA.
-- [ ] Fix this build warning: `[DEP0147] DeprecationWarning: In future versions of Node.js, fs.rmdir(path, { recursive: true }) will be removed. Use fs.rm(path, { recursive: true }) instead`
 - [X] Cross-platform CI with GHA, because you can't build for Mac on Linux.
+
+## Polish
+
+- [ ] Fix this build warning: `[DEP0147] DeprecationWarning: In future versions of Node.js, fs.rmdir(path, { recursive: true }) will be removed. Use fs.rm(path, { recursive: true }) instead`
+- [ ] Optimize Markdown string ops to reduce GC pressure.
+- [ ] PlantUML issue: `[plantuml remote error: The "path" argument must be of type string. Received type number (6292)]`
+    Example diagram:
+    ```plantuml
+    @startuml
+    !include <awslib/AWSCommon>
+    !include <awslib/AWSSimplified.puml>
+    !include <awslib/Compute/all.puml>
+    !include <awslib/general/all.puml>
+    !include <awslib/GroupIcons/all.puml>
+    !include <C4/C4_Context.puml>
+    !include <office/Users/user.puml>
+
+    listsprites
+    @enduml
+    ```
+- [ ] Correct scroll handling for details tags, both open and closed.
+    - Might require some amount of non-linearity in scrolling.
+    - Could be helped by making the last source line (with text) being aligned to the last part of the preview with rendered content. 
+        - Might involve adding more padding to the bottom of the preview pane.
+    - [ ] Related: Scroll sync doesn't quite work correctly in the smaller preview of a large note. It sometimes scrolls to far.
+    - [ ] Diagrams (Mermaid and PlantUML) and likely images sometimes scroll the preview further than they should.
+        - Not particularly bad, this is mostly a slight tuning issue. 
+        - Sometimes jumps around with mermaid rendering in and out.
+- [ ] Retain explorer dropdown state
+- [ ] <kbd>INSERT</kbd> should toggle the edit/preview mode, similar to Vim.
+- [ ] CSS: the note tabs should just be trapezoids with a border color.
+- [ ] Split view: lightly highlight the edit location when typing.
+- [ ] Bug: window randomly scrolls to the top when switching to another app for a while. Cursor remains, but the scroll moves on its own.
+    - Might be related to the user scrolling the preview pane last?
+- [ ] Suggestions for tags based on what exists, excluding what the note is already tagged with.
+- [ ] Use `react-window` on the explorer pane.
+- [ ] Investigate removing the smaller preview for large notes
+    - [ ] Identify how rendering changes could be made more efficient
+        - Potentially, could involve applying some form of delta.
+        - Could keep the smaller rendering window, but leave the rest of the note intact. Basically, hide that we're only rendering a smaller part of the document. Then, after the specified delay, actually re-render the whole document. If we do this well, the delay could be long.
+- [ ] Ensure mermaid is rendered in a worker and is memoized.
+- [ ] Add loading state for large notes' source view.
+    - Opening large notes hangs for a second, which makes the app feel unresponsive. 
+- [ ] KaTeX: Add support for ChatGPT's preferred parenthesis format.
+    - Document in the cheat sheet
+- [ ] KaTeX: Placeholder leaks through:
+    - `Since with every union, a vertex in a smaller set transfers from a set of size $s$ to a set of size $\ge 2s$, the number of times it spends $\$1$ is at most $\log_2 n$.`
+- [ ] Support formatting keyboard shortcuts
+    - Bold: CTRL + b
+    - Italic: CTRL + i
+    - ...
+- [ ] When a user highlights text and types a brace/bracket/parenthesis or formatting that wraps text (`*`, `_`, `~`, ...), autofill on both sides and do not delete the text.
+- [ ] Auto-close brackets, braces, and parenthesis
+    - If a user types `(`, autofill the closing `)`.
+
 
 ## Mobile App
 
@@ -165,6 +217,7 @@
 
 ## Likely Won't Implement
 
+- [ ] Implement a presentation mode similar to whatever Pandoc has.
 - [ ] (V)LLM integration
 - [ ] Replace as much rendering logic as possible and sensible with native code.
 - [ ] Custom CSS/JS
@@ -180,4 +233,5 @@
 
 - [ ] Upgrade to the latest Electron version when Wayland support is fixed.
     - https://github.com/electron/electron/issues/49244
-- [ ] Move to built-in `node:sqlite` when the project can be upgraded to a later node version.
+- [ ] Move to built-in `node:sqlite` when the project can be upgraded to a later ~~node~~ Electron version.
+    - There appears to be a disconnect between the project and Electron node versions.
