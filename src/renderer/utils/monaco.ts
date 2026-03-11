@@ -20,6 +20,47 @@ import Todo from './monaco_todo';
 
 const Monaco = {
 
+  isDebugEnabled (): boolean {
+
+    if ( typeof window === 'undefined' ) return false;
+
+    const globalDebugFlag = !!( window as any ).__EL_BATON_MONACO_DEBUG__,
+          storageDebugFlag = (() => {
+            try {
+              const value = window.localStorage.getItem ( 'el_baton.monaco.debug' );
+
+              return value === '1' || value === 'true' || value === 'on';
+            } catch ( error ) {
+              return false;
+            }
+          })();
+
+    return globalDebugFlag || storageDebugFlag;
+
+  },
+
+  debugLog ( ...args: unknown[] ): void {
+
+    if ( !Monaco.isDebugEnabled () ) return;
+
+    if ( typeof window !== 'undefined' ) {
+      const globalWindow = window as any,
+            events = globalWindow.__EL_BATON_MONACO_DEBUG_EVENTS__ = globalWindow.__EL_BATON_MONACO_DEBUG_EVENTS__ || [];
+
+      events.push ({
+        timestamp: Date.now (),
+        args
+      });
+
+      if ( events.length > 1000 ) {
+        events.splice ( 0, events.length - 1000 );
+      }
+    }
+
+    console.log ( '[monaco-debug]', ...args );
+
+  },
+
   editorOptions: {
     accessibilitySupport: 'off',
     colorDecorators: false,
@@ -28,6 +69,7 @@ const Monaco = {
     disableLayerHinting: true,
     dragAndDrop: true,
     folding: false,
+    fixedOverflowWidgets: true,
     fontSize: 16 * .875,
     hideCursorInOverviewRuler: true,
     highlightActiveIndentGuide: false,
@@ -50,6 +92,7 @@ const Monaco = {
     overviewRulerLanes: 0,
     renderIndentGuides: false,
     roundedSelection: false,
+    overtypeCursorStyle: 'line',
     scrollbar: {
       useShadows: false,
       horizontalScrollbarSize: 12,
@@ -215,6 +258,7 @@ const Monaco = {
     'toggleFindInSelection': false,
     'toggleFindRegex': false,
     'toggleFindWholeWord': false,
+    'toggleOvertypeInsertMode': false,
 
     'editor.action.moveLinesDownAction': cmd => {
       cmd._kbOpts.primary = cmd._kbOpts.linux.primary = monaco.KeyMod.WinCtrl | monaco.KeyMod.Alt | monaco.KeyCode.DownArrow;
@@ -263,14 +307,7 @@ const Monaco = {
 
     if ( mode === 'off' ) return 'off';
 
-    if ( mode === 'relative' ) {
-      return ( lineNumber: number ) => {
-        const currentLine = editor?.getPosition ()?.lineNumber || lineNumber,
-              distance = Math.abs ( currentLine - lineNumber );
-
-        return String ( distance || lineNumber );
-      };
-    }
+    if ( mode === 'relative' ) return 'relative';
 
     return 'on';
 
@@ -282,7 +319,12 @@ const Monaco = {
 
     return _.merge ( {}, Monaco.editorOptions, {
       lineNumbers: Monaco.getLineNumbersOption ( editor ),
-      quickSuggestions: !disableSuggestions,
+      quickSuggestions: disableSuggestions ? false : {
+        other: true,
+        comments: true,
+        strings: true
+      },
+      quickSuggestionsDelay: 10,
       suggestOnTriggerCharacters: !disableSuggestions,
       wordBasedSuggestions: disableSuggestions ? 'off' : 'currentDocument'
     });
@@ -467,12 +509,50 @@ const Monaco = {
 
     monaco.languages.registerCompletionItemProvider ( 'markdown', {
       triggerCharacters: [':', '`', '~' ],
-      provideCompletionItems ( model, position ) {
+      provideCompletionItems ( model, position, context ) {
 
         const line = model.getLineContent ( position.lineNumber ),
-              beforeCursor = line.slice ( 0, position.column - 1 );
+              beforeCursor = line.slice ( 0, position.column - 1 ),
+              triggerCharacter = context?.triggerCharacter;
 
-        if ( Config.monaco.editorOptions.disableSuggestions ) return { suggestions: [] };
+        if ( Config.monaco.editorOptions.disableSuggestions ) {
+          Monaco.debugLog ( 'completion:disabled', {
+            triggerCharacter,
+            lineNumber: position.lineNumber,
+            column: position.column
+          });
+
+          return { suggestions: [] };
+        }
+
+        const emojiMatch = beforeCursor.match ( /(?:^|[\s([{<]):([a-z0-9_+\-]*)$/i );
+
+        if ( triggerCharacter === ':' || emojiMatch ) {
+          if ( !emojiMatch ) return;
+
+          const query = emojiMatch[1],
+                startColumn = position.column - query.length - 1,
+                range = new monaco.Range ( position.lineNumber, startColumn + 1, position.lineNumber, position.column ),
+                suggestions = Emoji.getSuggestions ( query, 30 ).map ( entry => ({
+                  label: entry.emoji ? `${entry.emoji} :${entry.shortcode}:` : `:${entry.shortcode}:`,
+                  kind: monaco.languages.CompletionItemKind.Text,
+                  insertText: `${entry.shortcode}:`,
+                  range,
+                  sortText: entry.shortcode,
+                  filterText: entry.shortcode,
+                  documentation: entry.emoji ? `Insert ${entry.emoji} as :${entry.shortcode}:` : `Insert :${entry.shortcode}:`
+                }));
+
+          Monaco.debugLog ( 'completion:emoji', {
+            triggerCharacter,
+            query,
+            suggestions: suggestions.length
+          });
+
+          if ( !suggestions.length ) return;
+
+          return { suggestions };
+        }
 
         const codeFenceContext = CodeFenceSuggestions.getContext ( beforeCursor );
 
@@ -489,27 +569,24 @@ const Monaco = {
             documentation: `Insert fenced code language \`${language}\``
           }));
 
+          Monaco.debugLog ( 'completion:codefence', {
+            triggerCharacter,
+            query: codeFenceContext.query,
+            suggestions: suggestions.length
+          });
+
+          if ( !suggestions.length ) return;
+
           return { suggestions };
         }
 
-        const match = beforeCursor.match ( /:([a-z0-9_+\-]*)$/i );
+        Monaco.debugLog ( 'completion:none', {
+          triggerCharacter,
+          lineNumber: position.lineNumber,
+          column: position.column
+        });
 
-        if ( !match ) return { suggestions: [] };
-
-        const query = match[1],
-              startColumn = position.column - query.length - 1,
-              range = new monaco.Range ( position.lineNumber, startColumn, position.lineNumber, position.column ),
-              suggestions = Emoji.getSuggestions ( query, 30 ).map ( entry => ({
-                label: entry.emoji ? `${entry.emoji} :${entry.shortcode}:` : `:${entry.shortcode}:`,
-                kind: monaco.languages.CompletionItemKind.Text,
-                insertText: `:${entry.shortcode}:`,
-                range,
-                sortText: entry.shortcode,
-                filterText: entry.shortcode,
-                documentation: `Insert ${entry.emoji} as :${entry.shortcode}:`
-              }));
-
-        return { suggestions };
+        return;
 
       }
     });

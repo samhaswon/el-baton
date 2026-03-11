@@ -329,6 +329,7 @@ const EASTER_EGG_RULES: EmojiEasterEggRule[] = [
 
 let cachedEntries: EmojiEntry[] | undefined;
 let cachedLookup: Record<string, EmojiEntry> | undefined;
+let cachedSuggestions: Map<string, EmojiEntry[]> | undefined;
 
 /* HELPERS */
 
@@ -414,6 +415,7 @@ const getEntries = (): EmojiEntry[] => {
   cachedEntries = Object.keys ( lookup )
     .sort ()
     .map ( shortcode => lookup[shortcode] );
+  cachedSuggestions = new Map ();
 
   return cachedEntries;
 
@@ -451,12 +453,52 @@ const Emoji = {
 
   getSuggestions ( query: string = '', limit: number = 25 ): EmojiEntry[] {
 
-    const normalizedQuery = String ( query || '' ).toLowerCase (),
-          entries = getEntries (),
-          startsWithMatches = entries.filter ( entry => entry.shortcode.startsWith ( normalizedQuery ) ),
-          includesMatches = normalizedQuery ? entries.filter ( entry => !entry.shortcode.startsWith ( normalizedQuery ) && entry.shortcode.includes ( normalizedQuery ) ) : [];
+    const normalizedLimit = Math.max ( 0, limit | 0 ),
+          normalizedQuery = String ( query || '' ).toLowerCase (),
+          cacheKey = `${normalizedQuery}\n${normalizedLimit}`;
 
-    return startsWithMatches.concat ( includesMatches ).slice ( 0, Math.max ( 0, limit ) );
+    if ( !normalizedLimit ) return [];
+
+    if ( !cachedSuggestions ) cachedSuggestions = new Map ();
+
+    const cached = cachedSuggestions.get ( cacheKey );
+    if ( cached ) return cached;
+
+    const entries = getEntries ();
+
+    // Fast path for just typing ":".
+    if ( !normalizedQuery ) {
+      const firstEntries = entries.slice ( 0, normalizedLimit );
+      cachedSuggestions.set ( cacheKey, firstEntries );
+      return firstEntries;
+    }
+
+    const startsWithMatches: EmojiEntry[] = [],
+          includesMatches: EmojiEntry[] = [];
+
+    for ( let index = 0, length = entries.length; index < length; index++ ) {
+      const entry = entries[index],
+            shortcode = entry.shortcode;
+
+      if ( shortcode.startsWith ( normalizedQuery ) ) {
+        startsWithMatches.push ( entry );
+        if ( startsWithMatches.length >= normalizedLimit ) break;
+        continue;
+      }
+
+      if ( shortcode.includes ( normalizedQuery ) ) {
+        includesMatches.push ( entry );
+      }
+    }
+
+    const suggestions = startsWithMatches.concat ( includesMatches ).slice ( 0, normalizedLimit );
+
+    // Tiny bounded cache to avoid unbounded growth while typing.
+    if ( cachedSuggestions.size > 200 ) cachedSuggestions.clear ();
+
+    cachedSuggestions.set ( cacheKey, suggestions );
+
+    return suggestions;
 
   },
 

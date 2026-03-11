@@ -3,7 +3,7 @@
 
 import * as _ from 'lodash';
 import {decode} from 'html-entities';
-import * as isAbsoluteUrl from 'is-absolute-url';
+import isAbsoluteUrl from 'is-absolute-url';
 import * as path from 'path';
 import Emoji from '@common/emoji';
 import MarkdownPath from '@common/markdown_path';
@@ -967,7 +967,7 @@ const Markdown = {
         type: 'output',
         regex: /<a(.*?)href="(.*?)>/g,
         replace ( match, $1, $2 ) {
-          if ( $2.startsWith ( '#' ) || isAbsoluteUrl ( $2 ) ) { // URL fragment or absolute URL
+          if ( $2.startsWith ( '#' ) || isAbsoluteUrl ( $2, { httpOnly: false } ) ) { // URL fragment or absolute URL
             return match;
           } else {
             return `<a${$1}href="https://${$2}>`;

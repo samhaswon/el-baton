@@ -86,6 +86,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
   _spellcheckEnabledRuntime = true;
   _isApplyingEmojiEasterEgg: boolean = false;
   _languageLoadSeq: number = 0;
+  _debugInspectSuggestWidgetDebounced = _.debounce (( reason: string ) => this.debugInspectSuggestWidget ( reason ), 80 );
 
   /* LIFECYCLE */
 
@@ -130,14 +131,13 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     $.$window.off ( 'monaco:update', this.editorUpdateDebounced );
 
     this.clearTableFormatTimeout ();
+    this._debugInspectSuggestWidgetDebounced.cancel ();
     this.cleanupSpellcheck ();
     this.destroyMonaco ();
 
   }
 
   shouldComponentUpdate ( nextProps ) { //TODO: Most of these update* functions should run in `componentDidMount`, but ensuring that the "value" doesn't get reset unnecessarily
-
-    this.editorUpdate ();
 
     if ( nextProps.filePath !== this.props.filePath ) this.editorWillChange ();
 
@@ -150,6 +150,40 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     if ( nextProps.modelOptions && !_.isEqual ( this.props.modelOptions, nextProps.modelOptions ) ) this.updateModelOptions ( nextProps.modelOptions );
 
     return nextProps.value !== this.props.value && nextProps.value !== this._currentValue; //FIXME: This check might not be perfect
+
+  }
+
+  /* DEBUG */
+
+  debugLog ( ...args: unknown[] ) {
+
+    UMonaco.debugLog ( ...args );
+
+  }
+
+  debugInspectSuggestWidget ( reason: string ) {
+
+    if ( !UMonaco.isDebugEnabled () ) return;
+
+    const editor = this.editor,
+          domNode = editor?.getDomNode (),
+          model = editor?.getModel (),
+          suggestWidget = document.querySelector ( '.suggest-widget' ) as HTMLElement | null,
+          suggestRows = suggestWidget ? suggestWidget.querySelectorAll ( '.monaco-list-row' ).length : 0,
+          cursorNode = domNode?.querySelector ( '.cursor' ) as HTMLElement | null,
+          widgetRect = suggestWidget?.getBoundingClientRect (),
+          widgetVisible = !!suggestWidget && !!widgetRect && widgetRect.width > 0 && widgetRect.height > 0 && getComputedStyle ( suggestWidget ).display !== 'none';
+
+    this.debugLog ( 'editor:suggest-state', {
+      reason,
+      language: model?.getLanguageId (),
+      hasSuggestWidget: !!suggestWidget,
+      widgetVisible,
+      suggestRows,
+      cursorClass: cursorNode?.className || null,
+      lineNumber: editor?.getPosition ()?.lineNumber,
+      column: editor?.getPosition ()?.column
+    });
 
   }
 
@@ -181,7 +215,12 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       this._tableFormatTouchedLines.clear ();
       this.resetSpellcheckCoverage ();
       this._spellcheckDebounced ();
+      this.debugInspectSuggestWidget ( 'model-change' );
 
+    });
+
+    editor.onDidChangeConfiguration ( () => {
+      this.debugInspectSuggestWidget ( 'config-change' );
     });
 
     if ( editorDidMount ) {
@@ -245,6 +284,36 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       this.resetSpellcheckCoverage ();
       this._spellcheckDebounced ();
 
+      const lastChangeText = event.changes[event.changes.length - 1]?.text || '';
+
+      if ( lastChangeText === ':' || lastChangeText === '`' || lastChangeText === '~' ) {
+        this.debugInspectSuggestWidget ( `typed-${lastChangeText}` );
+      } else {
+        this._debugInspectSuggestWidgetDebounced ( 'content-change' );
+      }
+
+    });
+
+    editor.onDidChangeCursorPosition ( event => {
+      this.debugLog ( 'editor:cursor', {
+        reason: event.reason,
+        source: event.source,
+        lineNumber: event.position.lineNumber,
+        column: event.position.column
+      });
+      this._debugInspectSuggestWidgetDebounced ( 'cursor-change' );
+    });
+
+    editor.onKeyDown ( event => {
+      if ( event.keyCode === monaco.KeyCode.Insert ) {
+        this.debugLog ( 'editor:key', { key: 'Insert' } );
+        this.debugInspectSuggestWidget ( 'insert-key' );
+      }
+
+      if ( event.keyCode === monaco.KeyCode.Space && ( event.ctrlKey || event.metaKey ) ) {
+        this.debugLog ( 'editor:key', { key: 'Ctrl+Space' } );
+        this.debugInspectSuggestWidget ( 'ctrl-space' );
+      }
     });
 
     editor.onContextMenu ( event => {
@@ -253,16 +322,15 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       ( editor as any ).spellcheckContextMenuPosition = position;
     });
 
-    editor.onDidChangeCursorPosition ( () => {
-      if ( UMonaco.getConfiguredLineNumbersMode () !== 'relative' ) return;
-      editor.updateOptions ({
-        lineNumbers: UMonaco.getLineNumbersOption ( editor )
-      });
-    });
-
     ( editor as any ).spellcheckAddToDictionary = this.spellcheckAddToDictionary;
     ( editor as any ).spellcheckRescan = this.spellcheckCurrentModel;
     ( editor as any ).spellcheckGetSuggestions = this.spellcheckGetSuggestions;
+
+    this.debugLog ( 'editor:mounted', {
+      language: editor.getModel ()?.getLanguageId (),
+      options: editor.getRawOptions ()
+    });
+    this.debugInspectSuggestWidget ( 'mounted' );
 
   }
 

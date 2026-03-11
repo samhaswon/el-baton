@@ -109,7 +109,12 @@ class Editor extends React.Component<{ onChange: Function, onUpdate: Function, o
         theme={theme}
         value={content}
         editorOptions={{
-          quickSuggestions: !disableSuggestions,
+          quickSuggestions: disableSuggestions ? false : {
+            other: true,
+            comments: true,
+            strings: true
+          },
+          quickSuggestionsDelay: 10,
           suggestOnTriggerCharacters: !disableSuggestions,
           wordBasedSuggestions: disableSuggestions ? 'off' : 'currentDocument'
         }}
