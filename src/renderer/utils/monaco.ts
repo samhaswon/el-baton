@@ -20,47 +20,6 @@ import Todo from './monaco_todo';
 
 const Monaco = {
 
-  isDebugEnabled (): boolean {
-
-    if ( typeof window === 'undefined' ) return false;
-
-    const globalDebugFlag = !!( window as any ).__EL_BATON_MONACO_DEBUG__,
-          storageDebugFlag = (() => {
-            try {
-              const value = window.localStorage.getItem ( 'el_baton.monaco.debug' );
-
-              return value === '1' || value === 'true' || value === 'on';
-            } catch ( error ) {
-              return false;
-            }
-          })();
-
-    return globalDebugFlag || storageDebugFlag;
-
-  },
-
-  debugLog ( ...args: unknown[] ): void {
-
-    if ( !Monaco.isDebugEnabled () ) return;
-
-    if ( typeof window !== 'undefined' ) {
-      const globalWindow = window as any,
-            events = globalWindow.__EL_BATON_MONACO_DEBUG_EVENTS__ = globalWindow.__EL_BATON_MONACO_DEBUG_EVENTS__ || [];
-
-      events.push ({
-        timestamp: Date.now (),
-        args
-      });
-
-      if ( events.length > 1000 ) {
-        events.splice ( 0, events.length - 1000 );
-      }
-    }
-
-    console.log ( '[monaco-debug]', ...args );
-
-  },
-
   editorOptions: {
     accessibilitySupport: 'off',
     colorDecorators: false,
@@ -516,12 +475,6 @@ const Monaco = {
               triggerCharacter = context?.triggerCharacter;
 
         if ( Config.monaco.editorOptions.disableSuggestions ) {
-          Monaco.debugLog ( 'completion:disabled', {
-            triggerCharacter,
-            lineNumber: position.lineNumber,
-            column: position.column
-          });
-
           return { suggestions: [] };
         }
 
@@ -543,12 +496,6 @@ const Monaco = {
                   documentation: entry.emoji ? `Insert ${entry.emoji} as :${entry.shortcode}:` : `Insert :${entry.shortcode}:`
                 }));
 
-          Monaco.debugLog ( 'completion:emoji', {
-            triggerCharacter,
-            query,
-            suggestions: suggestions.length
-          });
-
           if ( !suggestions.length ) return;
 
           return { suggestions };
@@ -569,22 +516,10 @@ const Monaco = {
             documentation: `Insert fenced code language \`${language}\``
           }));
 
-          Monaco.debugLog ( 'completion:codefence', {
-            triggerCharacter,
-            query: codeFenceContext.query,
-            suggestions: suggestions.length
-          });
-
           if ( !suggestions.length ) return;
 
           return { suggestions };
         }
-
-        Monaco.debugLog ( 'completion:none', {
-          triggerCharacter,
-          lineNumber: position.lineNumber,
-          column: position.column
-        });
 
         return;
 
