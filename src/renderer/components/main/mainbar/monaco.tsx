@@ -12,65 +12,13 @@ import {connect} from 'overstated';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js';
 import Main from '@renderer/containers/main';
 import UMonaco from '@renderer/utils/monaco';
-import 'monaco-editor/esm/vs/editor/contrib/find/findController.js';
-import 'monaco-editor/esm/vs/editor/contrib/dnd/dnd.js';
-import 'monaco-editor/esm/vs/editor/contrib/linesOperations/linesOperations.js';
-import 'monaco-editor/esm/vs/editor/contrib/multicursor/multicursor.js';
-import 'monaco-editor/esm/vs/editor/contrib/suggest/suggestController.js';
-import 'monaco-editor/esm/vs/editor/contrib/wordOperations/wordOperations.js';
-import 'monaco-editor/esm/vs/basic-languages/apex/apex.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/azcli/azcli.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/bat/bat.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/clojure/clojure.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/coffee/coffee.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/cpp/cpp.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/csharp/csharp.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/csp/csp.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/css/css.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/dockerfile/dockerfile.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/fsharp/fsharp.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/go/go.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/graphql/graphql.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/handlebars/handlebars.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/html/html.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/ini/ini.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/java/java.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/kotlin/kotlin.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/less/less.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/lua/lua.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/markdown/markdown.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/msdax/msdax.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/mysql/mysql.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/objective-c/objective-c.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/pascal/pascal.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/perl/perl.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/pgsql/pgsql.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/php/php.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/postiats/postiats.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/powerquery/powerquery.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/powershell/powershell.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/pug/pug.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/python/python.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/r/r.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/razor/razor.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/redis/redis.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/redshift/redshift.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/ruby/ruby.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/rust/rust.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/sb/sb.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/scheme/scheme.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/scss/scss.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/shell/shell.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/solidity/solidity.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/sql/sql.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/st/st.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/swift/swift.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/tcl/tcl.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/vb/vb.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/xml/xml.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/yaml/yaml.contribution.js';
+import MonacoLanguages from '@renderer/utils/monaco_languages';
+import 'monaco-editor/esm/vs/editor/contrib/find/browser/findController.js';
+import 'monaco-editor/esm/vs/editor/contrib/dnd/browser/dnd.js';
+import 'monaco-editor/esm/vs/editor/contrib/linesOperations/browser/linesOperations.js';
+import 'monaco-editor/esm/vs/editor/contrib/multicursor/browser/multicursor.js';
+import 'monaco-editor/esm/vs/editor/contrib/suggest/browser/suggestController.js';
+import 'monaco-editor/esm/vs/editor/contrib/wordOperations/browser/wordOperations.js';
 
 /* HELPERS */
 
@@ -120,7 +68,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
   _onChangeDebounced?: Function;
   _tableFormatTouchedLines = new Set<number> ();
   _tableFormatTimeout?: number;
-  _zoneTopId?: number;
+  _zoneTopId?: string;
   _spellcheckWorker?: Worker;
   _spellcheckWorkerInitAttempted: boolean = false;
   _spellcheckWorkerUnavailable: boolean = false;
@@ -137,6 +85,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
   _spellcheckCoverage?: { versionId: number, startLineNumber: number, endLineNumber: number };
   _spellcheckEnabledRuntime = true;
   _isApplyingEmojiEasterEgg: boolean = false;
+  _languageLoadSeq: number = 0;
 
   /* LIFECYCLE */
 
@@ -220,7 +169,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
     const {editorDidMount, editorDidUnmount, onBlur, onFocus, onScroll} = this.props;
 
-    ( editor as any ).addCommand ( monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_F, () => {
+    ( editor as any ).addCommand ( monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {
       this.props.container.search.focus ();
     });
 
@@ -372,7 +321,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       if ( !this._zoneTopId ) return;
 
       this.editor.changeViewZones ( accessor => {
-        accessor.removeZone ( this._zoneTopId as number ); //TSC
+        accessor.removeZone ( this._zoneTopId as string ); //TSC
         delete this._zoneTopId;
       });
 
@@ -748,6 +697,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     }
 
     this.editor.setModel ( model );
+    this.loadAndApplyLanguage ( model, language );
 
     this.editorUpdateZones ();
 
@@ -799,10 +749,26 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
     if ( model ) {
 
+      this.loadAndApplyLanguage ( model, language );
+
+    }
+
+  }
+
+  loadAndApplyLanguage ( model: monaco.editor.ITextModel, language: string ) {
+
+    const loadSeq = ++this._languageLoadSeq;
+
+    MonacoLanguages.ensure ( language ).finally ( () => {
+
+      if ( loadSeq !== this._languageLoadSeq ) return;
+      if ( !this.editor ) return;
+      if ( this.editor.getModel () !== model ) return;
+
       monaco.editor.setModelLanguage ( model, language );
       this._spellcheckDebounced ();
 
-    }
+    });
 
   }
 

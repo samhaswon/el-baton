@@ -158,7 +158,7 @@ Get to know El Baton and how it helps you conduct your knowledge. This section i
 
 El Baton stores notes and attachments as normal files:
 
-\`\`\`dircolors
+\`\`\`treeview
 /path/to/your/data_directory
 ├─┬ attachments
 │ ├── file.ext

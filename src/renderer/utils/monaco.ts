@@ -11,6 +11,7 @@ import Config from '@common/config';
 import CodeFenceSuggestions from '@common/code_fence_suggestions';
 import Emoji from '@common/emoji';
 import Settings from '@common/settings';
+import MonacoLanguages from './monaco_languages';
 import ThemeLight from './monaco_light';
 import ThemeDark from './monaco_dark';
 import Todo from './monaco_todo';
@@ -35,7 +36,7 @@ const Monaco = {
     },
     iconsInSuggestions: false,
     lightbulb: {
-      enabled: false
+      enabled: 'off'
     },
     lineDecorationsWidth: 3,
     lineHeight: 16 * .875 * 1.5,
@@ -44,7 +45,7 @@ const Monaco = {
       enabled: Settings.get ( 'monaco.editorOptions.minimap.enabled' )
     },
     model: null,
-    occurrencesHighlight: false,
+    occurrencesHighlight: 'off',
     overviewRulerBorder: false,
     overviewRulerLanes: 0,
     renderIndentGuides: false,
@@ -104,7 +105,7 @@ const Monaco = {
       options: {
         kbOpts: {
           kbExpr: EditorContextKeys.editorTextFocus,
-          primary: monaco.KeyMod.Alt | monaco.KeyCode.KEY_M,
+          primary: monaco.KeyMod.Alt | monaco.KeyCode.KeyM,
           weight: 100
         }
       },
@@ -126,7 +127,7 @@ const Monaco = {
         precondition: EditorContextKeys.writable,
         kbOpts: {
           kbExpr: EditorContextKeys.editorTextFocus,
-          primary: monaco.KeyMod.Alt | monaco.KeyCode.KEY_Z,
+          primary: monaco.KeyMod.Alt | monaco.KeyCode.KeyZ,
           weight: 100
         }
       },
@@ -160,7 +161,7 @@ const Monaco = {
         precondition: EditorContextKeys.writable,
         kbOpts: {
           kbExpr: EditorContextKeys.editorTextFocus,
-          primary: monaco.KeyMod.Alt | monaco.KeyCode.KEY_D,
+          primary: monaco.KeyMod.Alt | monaco.KeyCode.KeyD,
           weight: 100
         }
       },
@@ -477,7 +478,7 @@ const Monaco = {
 
         if ( codeFenceContext ) {
           const monacoLanguageIds = monaco.languages.getLanguages ().map ( language => language.id );
-          const candidates = [...CodeFenceSuggestions.baseLanguages, ...monacoLanguageIds];
+          const candidates = [...CodeFenceSuggestions.baseLanguages, ...MonacoLanguages.ids, ...monacoLanguageIds];
           const suggestions = CodeFenceSuggestions.getSuggestions ( codeFenceContext.query, candidates, 30 ).map ( ( language, index ) => ({
             label: language,
             kind: monaco.languages.CompletionItemKind.Module,

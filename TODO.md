@@ -161,7 +161,7 @@
 - [ ] Fix this build warning: `[DEP0147] DeprecationWarning: In future versions of Node.js, fs.rmdir(path, { recursive: true }) will be removed. Use fs.rm(path, { recursive: true }) instead`
 - [ ] Optimize Markdown string ops to reduce GC pressure.
     - Measure first, then optimize what ranks highest.
-- [ ] PlantUML issue: `[plantuml remote error: The "path" argument must be of type string. Received type number (6292)]`
+- [X] PlantUML issue: `[plantuml remote error: The "path" argument must be of type string. Received type number (6292)]`
     Example diagram:
     ```plantuml
     @startuml
