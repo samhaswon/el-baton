@@ -12,31 +12,32 @@ type CacheOptions = {
 };
 
 type SQLiteRow = {
-  payload: Buffer,
-  updated_at: number,
-  last_accessed_at: number,
-  size_bytes: number
+  payload: unknown
 };
 
 type SQLiteStatsRow = {
-  count: number,
-  total: number
+  count: number | bigint,
+  total: number | bigint
+};
+
+type SQLiteStatement = {
+  run: ( ...params: any[] ) => unknown,
+  get: ( ...params: any[] ) => any
 };
 
 type SQLiteDatabase = {
-  exec: ( sql: string, callback: ( error: Error | null ) => void ) => void,
-  run: ( sql: string, params: any[], callback: ( error: Error | null ) => void ) => void,
-  get: ( sql: string, params: any[], callback: ( error: Error | null, row?: any ) => void ) => void,
-  close: ( callback: ( error: Error | null ) => void ) => void
+  exec: ( sql: string ) => unknown,
+  prepare: ( sql: string ) => SQLiteStatement,
+  close: () => void
 };
 
 type SQLiteModule = {
-  Database: new ( filePath: string, callback: ( error: Error | null ) => void ) => SQLiteDatabase
+  DatabaseSync: new ( location: string, options?: { timeout?: number } ) => SQLiteDatabase
 };
 
 /* SQLITE CACHE */
 
-const sqlite3 = require ( 'sqlite3' ) as SQLiteModule;
+const {DatabaseSync} = require ( 'node:sqlite' ) as SQLiteModule;
 
 class PlantUMLSQLiteCache {
 
@@ -92,83 +93,49 @@ class PlantUMLSQLiteCache {
     if ( !db ) return;
 
     try {
-      db.close ( () => undefined );
+      db.close ();
     } catch ( error ) {
       // NOOP
     }
 
   }
 
-  _openDatabase ( dbPath: string ): Promise<SQLiteDatabase> {
+  _openDatabase ( dbPath: string ): SQLiteDatabase {
 
-    return new Promise<SQLiteDatabase> ( ( resolve, reject ) => {
-
-      const db = new sqlite3.Database ( dbPath, ( error: Error | null ) => {
-
-        if ( error ) {
-          reject ( error );
-          return;
-        }
-
-        resolve ( db );
-
-      } );
-
-    } );
+    return new DatabaseSync ( dbPath, { timeout: 5000 } );
 
   }
 
-  _exec ( sql: string ): Promise<void> {
+  _exec ( sql: string ): void {
 
-    return new Promise<void> ( ( resolve, reject ) => {
+    if ( !this.db ) return;
 
-      if ( !this.db ) {
-        resolve ();
-        return;
-      }
-
-      this.db.exec ( sql, ( error: Error | null ) => {
-        if ( error ) reject ( error );
-        else resolve ();
-      } );
-
-    } );
+    this.db.exec ( sql );
 
   }
 
-  _run ( sql: string, params: any[] = [] ): Promise<void> {
+  _run ( sql: string, params: any[] = [] ): void {
 
-    return new Promise<void> ( ( resolve, reject ) => {
+    if ( !this.db ) return;
 
-      if ( !this.db ) {
-        resolve ();
-        return;
-      }
-
-      this.db.run ( sql, params, ( error: Error | null ) => {
-        if ( error ) reject ( error );
-        else resolve ();
-      } );
-
-    } );
+    this.db.prepare ( sql ).run ( ...params );
 
   }
 
-  _get<T> ( sql: string, params: any[] = [] ): Promise<T | undefined> {
+  _get<T> ( sql: string, params: any[] = [] ): T | undefined {
 
-    return new Promise<T | undefined> ( ( resolve, reject ) => {
+    if ( !this.db ) return;
 
-      if ( !this.db ) {
-        resolve ( undefined );
-        return;
-      }
+    return this.db.prepare ( sql ).get ( ...params ) as T | undefined;
 
-      this.db.get ( sql, params, ( error: Error | null, row?: T ) => {
-        if ( error ) reject ( error );
-        else resolve ( row );
-      } );
+  }
 
-    } );
+  _normalizeInteger ( value: number | bigint | undefined ): number {
+
+    if ( typeof value === 'bigint' ) return Number ( value );
+    if ( typeof value === 'number' ) return value;
+
+    return 0;
 
   }
 
@@ -184,7 +151,7 @@ class PlantUMLSQLiteCache {
 
     if ( this.db ) return;
 
-    this.db = await this._openDatabase ( dbPath );
+    this.db = this._openDatabase ( dbPath );
 
     await this._exec ( 'PRAGMA journal_mode = WAL;' );
     await this._exec ( 'PRAGMA synchronous = NORMAL;' );
@@ -231,8 +198,8 @@ class PlantUMLSQLiteCache {
     while ( true ) {
 
       const stats = await this._get<SQLiteStatsRow> ( 'SELECT COUNT(*) AS count, COALESCE(SUM(size_bytes), 0) AS total FROM plantuml_cache' ),
-            count = stats?.count || 0,
-            total = stats?.total || 0;
+            count = this._normalizeInteger ( stats?.count ),
+            total = this._normalizeInteger ( stats?.total );
 
       if ( count <= this.options.maxEntries && total <= this.options.maxBytes ) break;
 
@@ -278,7 +245,9 @@ class PlantUMLSQLiteCache {
       await this._run ( 'UPDATE plantuml_cache SET last_accessed_at = ? WHERE cache_key = ?', [now, key] );
 
       try {
-        const payload = Buffer.isBuffer ( row.payload ) ? row.payload : Buffer.from ( row.payload );
+        const payload = Buffer.isBuffer ( row.payload )
+          ? row.payload
+          : ( row.payload instanceof Uint8Array ? Buffer.from ( row.payload ) : Buffer.from ( row.payload as any ) );
         return this._decode<T> ( payload );
       } catch ( error ) {
         // Corrupted rows should not block rendering.
