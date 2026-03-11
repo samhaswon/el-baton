@@ -2,7 +2,7 @@
   "name": "el-baton",
   "productName": "El Baton",
   "description": "Conduct your knowledge.",
-  "version": "0.0.0-nightly4",
+  "version": "0.0.0-nightly5",
   "scripts": {
     "clean:env": "rm -rf node_modules package-lock.json",
     "clean:deps": "npx del-cli \"node_modules/**/{README,LICENSE,license,.travis.yml,tsconfig.json,*.{md,MD,map,png,ts}}\" \"node_modules/monaco-editor/{dev,min}\" \"!node_modules/**/*.d.ts\"",
