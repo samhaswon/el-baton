@@ -156,8 +156,11 @@
 
 ## Polish
 
+- [ ] First, address the Dependabot PRs for deps. This likely includes breaking changes.
+
 - [ ] Fix this build warning: `[DEP0147] DeprecationWarning: In future versions of Node.js, fs.rmdir(path, { recursive: true }) will be removed. Use fs.rm(path, { recursive: true }) instead`
 - [ ] Optimize Markdown string ops to reduce GC pressure.
+    - Measure first, then optimize what ranks highest.
 - [ ] PlantUML issue: `[plantuml remote error: The "path" argument must be of type string. Received type number (6292)]`
     Example diagram:
     ```plantuml
@@ -187,6 +190,8 @@
 - [ ] Split view: lightly highlight the edit location when typing.
 - [ ] Bug: window randomly scrolls to the top when switching to another app for a while. Cursor remains, but the scroll moves on its own.
     - Might be related to the user scrolling the preview pane last?
+    - Might be related to the app going into the background and attempting to trigger the on-battery state? Kind of hard to tell.
+    - Preview "rendering" state button in the toolbar gets stuck in its rendering indication. Might be related?
 - [ ] Suggestions for tags based on what exists, excluding what the note is already tagged with.
 - [ ] Use `react-window` on the explorer pane.
 - [ ] Investigate removing the smaller preview for large notes
@@ -198,8 +203,10 @@
     - Opening large notes hangs for a second, which makes the app feel unresponsive. 
 - [ ] KaTeX: Add support for ChatGPT's preferred parenthesis format.
     - Document in the cheat sheet
+    - Discourage its use for GFM compatibility. 
 - [ ] KaTeX: Placeholder leaks through:
     - `Since with every union, a vertex in a smaller set transfers from a set of size $s$ to a set of size $\ge 2s$, the number of times it spends $\$1$ is at most $\log_2 n$.`
+    - This issue comes from escaped dollar signs within a math block, which breaks placeholders.
 - [ ] Support formatting keyboard shortcuts
     - Bold: CTRL + b
     - Italic: CTRL + i
@@ -207,7 +214,12 @@
 - [ ] When a user highlights text and types a brace/bracket/parenthesis or formatting that wraps text (`*`, `_`, `~`, ...), autofill on both sides and do not delete the text.
 - [ ] Auto-close brackets, braces, and parenthesis
     - If a user types `(`, autofill the closing `)`.
-
+    - [ ] Add UI test for this after it is known to work to catch regressions.
+- [ ] Syntax highlighting breaks within quote blocks (`> `).
+    - Source view
+    - Quote blocks themselves are still not differentiated in the source view.
+- [ ] Window does not re-open to previous size. 
+- [ ] The scrollbar for the preview should have the same styling as the source view.
 
 ## Mobile App
 
@@ -218,6 +230,7 @@
 ## Likely Won't Implement
 
 - [ ] Implement a presentation mode similar to whatever Pandoc has.
+    - https://pandoc.org/MANUAL.html#slide-shows
 - [ ] (V)LLM integration
 - [ ] Replace as much rendering logic as possible and sensible with native code.
 - [ ] Custom CSS/JS
