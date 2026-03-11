@@ -556,6 +556,107 @@ test ( 'ui: activitybar panels render expected sidepanel and mainbar views', { t
   assert.equal ( settingsTitle.trim (), 'Global Configuration' );
 } );
 
+test ( 'ui: note view walkthrough covers tabs, panels, and editor modes', { timeout: 120000 }, async t => {
+  if ( shouldSkipForMissingDisplay ) {
+    t.skip ( 'UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.' );
+  }
+
+  ensurePrerequisites ();
+  assertReleaseBundle ();
+
+  const launched = await launchAppOrSkip ( t, { runtimeId: 'note-view-walkthrough', theme: 'dark' } );
+
+  if ( !launched ) return;
+
+  const {electronApp, page, runtimePaths} = launched;
+
+  t.after ( async () => {
+    await electronApp.close ();
+    rmrf ( runtimePaths.runtimeBasePath );
+  } );
+
+  await ensureActivitybarPanelOpen ( page, 'Explorer', '.sidepanel-pane.explorer.is-active' );
+  await openExplorerAndFirstNote ( page );
+
+  await page.waitForSelector ( '.note-tabs .note-tab', { timeout: 20000 } );
+
+  const noteTabs = page.locator ( '.note-tabs .note-tab' );
+  const noteTabCount = await noteTabs.count ();
+
+  assert.ok ( noteTabCount >= 2, `Expected at least two open note tabs, received ${noteTabCount}` );
+
+  const readActiveTabTitle = async () => ( await page.locator ( '.note-tabs .note-tab.active .note-tab-title' ).first ().innerText () ).trim ();
+  const readActiveTabIndex = async () => await page.evaluate (() => {
+    const tabs = Array.from ( document.querySelectorAll ( '.note-tabs .note-tab' ) );
+    return tabs.findIndex ( tab => tab.classList.contains ( 'active' ) );
+  } );
+  const waitForActiveTabIndex = async ( expectedIndex, timeout = 8000 ) => {
+    await page.waitForFunction ( index => {
+      const tabs = Array.from ( document.querySelectorAll ( '.note-tabs .note-tab' ) );
+      return tabs.findIndex ( tab => tab.classList.contains ( 'active' ) ) === index;
+    }, expectedIndex, { timeout } );
+  };
+
+  const firstActiveTitle = await readActiveTabTitle ();
+  const firstActiveIndex = await readActiveTabIndex ();
+  assert.ok ( firstActiveIndex >= 0, 'Expected an active note tab' );
+  const noteTabTitles = await noteTabs.locator ( '.note-tab-title' ).allInnerTexts ();
+  const switchTargetIndex = noteTabTitles.findIndex ( ( title, index ) => index !== firstActiveIndex && title.trim () !== firstActiveTitle );
+
+  assert.ok ( switchTargetIndex >= 0, `Expected at least one open tab with a title different from "${firstActiveTitle}"` );
+
+  await noteTabs.nth ( switchTargetIndex ).locator ( '.note-tab-title' ).click ();
+  await waitForActiveTabIndex ( switchTargetIndex );
+
+  const secondActiveIndex = await readActiveTabIndex ();
+  const secondActiveTitle = await readActiveTabTitle ();
+  assert.equal ( secondActiveIndex, switchTargetIndex );
+  assert.equal ( secondActiveTitle, noteTabTitles[switchTargetIndex].trim () );
+
+  await noteTabs.nth ( firstActiveIndex ).locator ( '.note-tab-title' ).click ();
+  await waitForActiveTabIndex ( firstActiveIndex );
+
+  const roundTripTitle = await readActiveTabTitle ();
+  assert.equal ( roundTripTitle, firstActiveTitle );
+
+  await ensureActivitybarPanelOpen ( page, 'Global Search', '.sidepanel-pane.search.is-active' );
+  await page.waitForSelector ( '.sidepanel-pane.search input[placeholder="Search..."]', { timeout: 20000 } );
+
+  await ensureActivitybarPanelOpen ( page, 'Graph', '.sidepanel-pane.is-active .toolbar .small' );
+  await ensureActivitybarTabActive ( page, 'Graph' );
+
+  await ensureActivitybarTabActive ( page, 'Info' );
+  await page.waitForSelector ( '.sidepanel-pane-info, .mainbar-pane-info', { timeout: 20000 } );
+
+  await clickActivitybar ( page, 'Cheatsheets' );
+  await page.waitForSelector ( '.cheatsheet-view', { timeout: 20000 } );
+
+  await clickActivitybar ( page, 'Settings' );
+  await page.waitForSelector ( '.settings-view', { timeout: 20000 } );
+
+  await openExplorerAndFirstNote ( page );
+  await page.waitForSelector ( '.mainbar-pane-main > .preview', { timeout: 20000 } );
+  assert.equal ( await page.locator ( '.mainbar-pane-main > .split-editor' ).count (), 0 );
+
+  await emitIPC ( page, 'note-edit-toggle' );
+  await page.waitForSelector ( '.mainbar-pane-main > .editor', { timeout: 20000 } );
+  assert.equal ( await page.locator ( '.mainbar-pane-main > .preview' ).count (), 0 );
+
+  await emitIPC ( page, 'editor-split-toggle' );
+  await page.waitForSelector ( '.mainbar-pane-main > .split-editor', { timeout: 20000 } );
+  assert.equal ( await page.locator ( '.mainbar-pane-main > .editor' ).count (), 0 );
+  assert.equal ( await page.locator ( '.mainbar-pane-main > .preview' ).count (), 0 );
+
+  await emitIPC ( page, 'editor-split-toggle' );
+  await page.waitForSelector ( '.mainbar-pane-main > .editor', { timeout: 20000 } );
+  assert.equal ( await page.locator ( '.mainbar-pane-main > .split-editor' ).count (), 0 );
+
+  await emitIPC ( page, 'note-edit-toggle' );
+  await page.waitForSelector ( '.mainbar-pane-main > .preview', { timeout: 20000 } );
+  assert.equal ( await page.locator ( '.mainbar-pane-main > .editor' ).count (), 0 );
+  assert.equal ( await page.locator ( '.mainbar-pane-main > .split-editor' ).count (), 0 );
+} );
+
 test ( 'ui: note interactions support local search, split view, and quick open', { timeout: 120000 }, async t => {
   if ( shouldSkipForMissingDisplay ) {
     t.skip ( 'UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.' );
