@@ -13,7 +13,7 @@ const remoteMain = require ( '@electron/remote/main' );
 remoteMain.initialize ();
 
 if ( process.env.NODE_ENV === 'development' ) {
-  ( global as any ).__static = path.join ( process.cwd (), 'src', 'renderer', 'template', 'dist' );
+  ( global as any ).__static = path.join ( process.cwd (), 'src', 'renderer', 'template', 'runtime' );
 } else {
   ( global as any ).__static = path.join ( __dirname, '..', 'renderer' );
 }

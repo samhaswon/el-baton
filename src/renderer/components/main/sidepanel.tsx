@@ -10,6 +10,7 @@ import Search from '@renderer/components/main/middlebar/toolbar_search';
 import SidebarContent from '@renderer/components/main/sidebar/content';
 import {TagSpecials} from '@renderer/utils/tags';
 import pkg from '@root/package.json';
+import styles from './sidepanel.module.css';
 
 const {TEMPLATES} = TagSpecials;
 
@@ -94,17 +95,19 @@ type SidepanelProps = {
   hasSidebar: boolean;
 } & Omit<FilePanelProps, 'hasSidebar' | 'isZen'>;
 
+const cx = ( ...values: Array<string | false | null | undefined> ) => values.filter ( Boolean ).join ( ' ' );
+
 const MenuItem = ({ label, shortcut, enabled = true, onClick }: MenuItemProps ) => (
-  <button className={`menu-item button ${enabled ? '' : 'disabled'}`} onClick={enabled ? onClick : undefined}>
+  <button className={cx ( 'menu-item', styles.menuItem, 'button', !enabled && 'disabled' )} onClick={enabled ? onClick : undefined}>
     <span className="label xsmall">{label}</span>
-    {shortcut ? <span className="shortcut xxsmall">{shortcut}</span> : null}
+    {shortcut ? <span className={cx ( styles.shortcut, 'xxsmall' )}>{shortcut}</span> : null}
   </button>
 );
 
 const MenuSection = ({ title, children }: MenuSectionProps ) => (
-  <div className="menu-section">
-    <div className="menu-section-title xxsmall">{title}</div>
-    <div className="menu-section-items">{children}</div>
+  <div className={cx ( 'menu-section', styles.menuSection )}>
+    <div className={cx ( 'menu-section-title', styles.menuSectionTitle, 'xxsmall' )}>{title}</div>
+    <div className={cx ( 'menu-section-items', styles.menuSectionItems )}>{children}</div>
   </div>
 );
 
@@ -158,11 +161,11 @@ const FilePanel = ({
   setTheme,
   openCheatsheet
 }: FilePanelProps ) => (
-  <div className={`sidepanel-pane layout column ${paneStateClassName || ''}`}>
+  <div className={cx ( 'sidepanel-pane', styles.sidepanelPane, 'layout column', paneStateClassName )}>
     <div className="layout-header toolbar">
       <span className="small">File</span>
     </div>
-    <div className="layout-content info-pane file-flyout file-flyout-menu">
+    <div className={cx ( 'layout-content info-pane file-flyout file-flyout-menu', styles.fileFlyout, styles.fileFlyoutMenu )}>
       <MenuSection title="File">
         <MenuItem label="Import..." onClick={() => importSelect ()} />
         <MenuItem label="Export HTML" enabled={hasNote || isMultiEditing} onClick={() => exportHTML ()} />
@@ -218,7 +221,7 @@ type ExplorerPanelProps = {
 };
 
 const ExplorerPanel = ({ paneStateClassName }: ExplorerPanelProps ) => (
-  <div className={`sidepanel-pane explorer layout column ${paneStateClassName || ''}`}>
+  <div className={cx ( 'sidepanel-pane explorer', styles.sidepanelPane, styles.explorerPane, 'layout column', paneStateClassName )}>
     <div className="layout-header toolbar">
       <span className="small">Explorer</span>
     </div>
@@ -231,7 +234,7 @@ type SearchPanelProps = {
 };
 
 const SearchPanel = ({ paneStateClassName }: SearchPanelProps ) => (
-  <div className={`sidepanel-pane search layout column ${paneStateClassName || ''}`}>
+  <div className={cx ( 'sidepanel-pane search', styles.sidepanelPane, styles.searchPane, 'layout column', paneStateClassName )}>
     <div className="layout-header toolbar">
       <Search />
     </div>
@@ -240,7 +243,7 @@ const SearchPanel = ({ paneStateClassName }: SearchPanelProps ) => (
 );
 
 const TodoPanel = ({ title, paneStateClassName }: TodoPanelProps ) => (
-  <div className={`sidepanel-pane layout column ${paneStateClassName || ''}`}>
+  <div className={cx ( 'sidepanel-pane', styles.sidepanelPane, 'layout column', paneStateClassName )}>
     <div className="layout-header toolbar">
       <span className="small">{title}</span>
     </div>
@@ -255,22 +258,22 @@ const Sidepanel = ({ panel, setPanel, isClosing, isOpening, animationsDisabled, 
   if ( isFocus || isZen || !hasSidebar ) return null;
 
   const isExplorerPanel = panel === 'explorer',
-        explorerStateClassName = isExplorerPanel ? 'is-active' : 'is-inactive',
+        explorerStateClassName = isExplorerPanel ? cx ( 'is-active', styles.isActive ) : cx ( 'is-inactive', styles.isInactive ),
         shouldRenderStage = !!panel || isClosing;
 
   let activePanel: React.ReactNode = null;
 
-  if ( panel === 'file' ) activePanel = <FilePanel {...actions} paneStateClassName="is-active" hasSidebar={hasSidebar} isZen={isZen} openCheatsheet={() => setPanel ( 'help' )} />;
-  if ( panel === 'search' ) activePanel = <SearchPanel paneStateClassName="is-active" />;
-  if ( panel === 'graph' ) activePanel = <TodoPanel paneStateClassName="is-active" title="Graph" />;
-  if ( panel === 'info' ) activePanel = <InfoPane className="sidepanel-pane-info sidepanel-pane is-active" />;
-  if ( panel === 'help' ) activePanel = <TodoPanel paneStateClassName="is-active" title="Help" />;
-  if ( panel === 'settings' ) activePanel = <TodoPanel paneStateClassName="is-active" title="Settings" />;
+  if ( panel === 'file' ) activePanel = <FilePanel {...actions} paneStateClassName={cx ( 'is-active', styles.isActive )} hasSidebar={hasSidebar} isZen={isZen} openCheatsheet={() => setPanel ( 'help' )} />;
+  if ( panel === 'search' ) activePanel = <SearchPanel paneStateClassName={cx ( 'is-active', styles.isActive )} />;
+  if ( panel === 'graph' ) activePanel = <TodoPanel paneStateClassName={cx ( 'is-active', styles.isActive )} title="Graph" />;
+  if ( panel === 'info' ) activePanel = <InfoPane className={cx ( 'sidepanel-pane-info sidepanel-pane is-active', styles.sidepanelInfoPane, styles.sidepanelPane, styles.isActive )} contentClassName={cx ( 'info-pane toc-pane sidepanel-pane-info-content', styles.sidepanelInfoContent )} />;
+  if ( panel === 'help' ) activePanel = <TodoPanel paneStateClassName={cx ( 'is-active', styles.isActive )} title="Help" />;
+  if ( panel === 'settings' ) activePanel = <TodoPanel paneStateClassName={cx ( 'is-active', styles.isActive )} title="Settings" />;
 
   return (
-    <div className={`sidepanel layout column ${panel ? '' : 'closed'} ${isClosing ? 'closing' : ''} ${isOpening ? 'opening' : ''} ${animationsDisabled ? 'animations-disabled' : ''}`}>
+    <div className={cx ( 'sidepanel', 'layout column', styles.sidepanel, !panel && 'closed', !panel && styles.closed, isClosing && 'closing', isClosing && styles.closing, isOpening && 'opening', isOpening && styles.opening, animationsDisabled && 'animations-disabled', animationsDisabled && styles.animationsDisabled )}>
       {!shouldRenderStage ? null : (
-        <div className="sidepanel-stage">
+        <div className={cx ( 'sidepanel-stage', styles.sidepanelStage )}>
           <ExplorerPanel paneStateClassName={explorerStateClassName} />
           {isExplorerPanel ? null : activePanel}
         </div>

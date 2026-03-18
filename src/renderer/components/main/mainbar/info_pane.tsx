@@ -75,14 +75,31 @@ const getHeadings = ( content: string ) => {
 
 /* TOC PANE */
 
-const InfoPane = ({ className = 'mainbar-pane-info', hasNote, isMultiEditing, content, title, filePath, tags, attachments, created, modified, checksum, toggleTagsEditing, toggleAttachmentsEditing }) => {
+type InfoPaneOwnProps = {
+  className?: string;
+  contentClassName?: string;
+};
+
+type InfoPaneProps = InfoPaneOwnProps & {
+  attachments: string[];
+  checksum: number;
+  content: string;
+  created: Date;
+  filePath: string;
+  hasNote: boolean;
+  isMultiEditing: boolean;
+  modified: Date;
+  tags: string[];
+  title: string;
+  toggleAttachmentsEditing: ( force?: boolean ) => void;
+  toggleTagsEditing: ( force?: boolean ) => void;
+};
+
+const InfoPane = ({ className = 'mainbar-pane-info', contentClassName = 'info-pane toc-pane mainbar-pane-info-content', hasNote, isMultiEditing, content, title, filePath, tags, attachments, created, modified, checksum, toggleTagsEditing, toggleAttachmentsEditing }: InfoPaneProps ) => {
 
   const headings = React.useMemo ( () => getHeadings ( content ), [content] );
   const words = React.useMemo ( () => ( content.match ( /\S+/g ) || [] ).length, [content] );
   const characters = content.length;
-  const isSidepanel = className.split ( /\s+/ ).includes ( 'sidepanel-pane-info' );
-  const contentClassName = isSidepanel ? 'info-pane toc-pane sidepanel-pane-info-content' : 'info-pane toc-pane mainbar-pane-info-content';
-
   const scrollToHeading = ( index: number ) => {
 
     const $headings = $('.preview h1, .preview h2, .preview h3, .preview h4, .preview h5, .preview h6');
@@ -220,12 +237,13 @@ const InfoPane = ({ className = 'mainbar-pane-info', hasNote, isMultiEditing, co
 
 export default connect ({
   container: Main,
-  selector: ({ container, className }) => {
+  selector: ({ container, className, contentClassName }: { container: any; className?: string; contentClassName?: string }) => {
     const note = container.note.get (),
           hasNote = !!note;
 
     return {
       className,
+      contentClassName,
       attachments: hasNote ? container.note.getAttachments ( note ) : [],
       checksum: hasNote ? container.note.getChecksum ( note ) : NaN,
       created: hasNote ? container.note.getCreated ( note ) : new Date (),

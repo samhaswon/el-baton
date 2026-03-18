@@ -32,7 +32,24 @@ const config = {
     rules: [
       ...shared.module.rules,
       {
+        test: /\.module\.css$/,
+        use: [
+          'style-loader',
+          {
+            loader: 'css-loader',
+            options: {
+              modules: {
+                exportLocalsConvention: 'as-is',
+                localIdentName: isDevelopment ? '[path][name]__[local]' : '[hash:base64:8]',
+                namedExport: false
+              }
+            }
+          }
+        ]
+      },
+      {
         test: /\.css$/,
+        exclude: /\.module\.css$/,
         use: [ 'style-loader', 'css-loader' ]
       },
       {
@@ -50,9 +67,9 @@ const config = {
     new CopyWebpackPlugin ({
       patterns: [
         {
-          from: path.resolve ( __dirname, 'src/renderer/template/dist' ),
+          from: path.resolve ( __dirname, 'src/renderer/template/runtime' ),
           to: path.resolve ( __dirname, 'dist/renderer' )
-        }
+        },
       ]
     })
   ],

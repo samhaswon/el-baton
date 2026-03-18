@@ -36,7 +36,7 @@ const shared = {
   mode: isDevelopment ? 'development' : 'production',
   resolve: {
     alias: {
-      '@static': path.resolve ( __dirname, 'src/renderer/template/dist' ),
+      '@static': path.resolve ( __dirname, 'src/renderer/template/runtime' ),
       'create-react-context': path.resolve ( __dirname, 'src/common/create_react_context_shim.ts' ),
       'electron-util': path.resolve ( __dirname, 'src/common/electron_util_shim.ts' )
     },

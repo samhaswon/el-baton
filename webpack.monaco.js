@@ -12,7 +12,7 @@ const config = {
 	},
 	output: {
 		globalObject: 'self',
-		path: path.join ( __dirname, 'src', 'renderer', 'template', 'dist', 'javascript' )
+		path: path.join ( __dirname, 'src', 'renderer', 'template', 'generated', 'javascript' )
 	}
 };
 

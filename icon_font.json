@@ -38,7 +38,7 @@
   ],
   "output": {
     "icons": "./resources/font_icons",
-    "fonts": "./src/renderer/template/dist/fonts",
+    "fonts": "./src/renderer/template/generated/fonts",
     "fontName": "IconFont",
     "formats": [
       "woff2"

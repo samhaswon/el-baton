@@ -9,13 +9,13 @@ try {
 } catch ( error ) {}
 
 try {
-  const path = require ( 'path' );
-  if ( !( globalThis as any ).__static ) {
-    if ( process.env.NODE_ENV === 'development' ) {
-      ( globalThis as any ).__static = path.join ( process.cwd (), 'src', 'renderer', 'template', 'dist' );
-    } else {
-      ( globalThis as any ).__static = __dirname;
-    }
+    const path = require ( 'path' );
+    if ( !( globalThis as any ).__static ) {
+      if ( process.env.NODE_ENV === 'development' ) {
+        ( globalThis as any ).__static = path.join ( process.cwd (), 'src', 'renderer', 'template', 'runtime' );
+      } else {
+        ( globalThis as any ).__static = __dirname;
+      }
   }
 } catch ( error ) {}
 

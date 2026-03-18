@@ -1,0 +1,332 @@
+.sidepanel {
+  flex-grow: 1;
+  flex-shrink: 1;
+  flex-basis: 330px;
+  min-width: 165px;
+  max-width: 520px;
+  border-right-width: 1px;
+  border-right-style: solid;
+  position: relative;
+  overflow: hidden;
+}
+
+.closed {
+  flex-grow: 0;
+  flex-shrink: 0;
+  flex-basis: 0;
+  min-width: 0;
+  max-width: 0;
+  overflow: hidden;
+  border-right-width: 0;
+}
+
+.sidepanelStage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.sidepanelPane {
+  width: 100%;
+  height: 100%;
+}
+
+.sidepanelStage > .sidepanelPane {
+  position: absolute;
+  inset: 0;
+  transition: opacity 0.15s, transform 0.15s;
+  will-change: opacity, transform;
+}
+
+.animationsDisabled .sidepanelStage > .sidepanelPane {
+  transition: none;
+  will-change: auto;
+}
+
+.sidepanelPane.isActive {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.sidepanelPane.isInactive {
+  opacity: 0;
+  transform: translateX(-10px);
+  pointer-events: none;
+}
+
+.opening .sidepanelStage > .sidepanelPane.isActive,
+.closing .sidepanelStage > .sidepanelPane.isActive {
+  opacity: 0;
+  transform: translateX(-10px);
+  pointer-events: none;
+}
+
+.searchPane :global(.list.layout-content) {
+  height: 100% !important;
+}
+
+.sidepanelInfoPane {
+  height: 100%;
+  min-height: 0;
+}
+
+.sidepanelInfoContent {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.sidepanelInfoPane :global(.toc-pane) {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.sidepanelInfoPane :global(.toc-pane-headings) {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+  padding-right: 0;
+  padding-bottom: 6px;
+}
+
+.sidepanelInfoPane :global(.toc-pane-meta) {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.sidepanelInfoPane :global(.info-pane.toc-pane) {
+  padding: 12px 12px 18px;
+}
+
+.sidepanelInfoPane :global(.info-section) {
+  margin-bottom: 18px;
+}
+
+.sidepanelInfoPane :global(.info-section:last-child) {
+  margin-bottom: 0;
+}
+
+.sidepanelInfoPane :global(.info-section-primary) {
+  margin-bottom: 14px;
+}
+
+.sidepanelInfoPane :global(.info-divider) {
+  height: 1px;
+  margin: 4px 0 14px;
+}
+
+.sidepanelInfoPane :global(.info-section.inline) {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.sidepanelInfoPane :global(.info-heading) {
+  font-weight: 700;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+
+.sidepanelInfoPane :global(.info-body) {
+  padding-left: 0;
+}
+
+.sidepanelInfoPane :global(.info-section .value) {
+  word-break: break-word;
+  line-height: 1.55;
+}
+
+.sidepanelInfoPane :global(.info-section .mono) {
+  font-family: monospace;
+  font-size: 0.875em;
+  line-height: 1.5;
+}
+
+.sidepanelInfoPane :global(.info-empty) {
+  opacity: 0.72;
+  line-height: 1.5;
+}
+
+.sidepanelInfoPane :global(.info-list) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sidepanelInfoPane :global(.chip) {
+  width: 100%;
+  min-height: 28px;
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.sidepanelInfoPane :global(.action) {
+  margin-top: 8px;
+  cursor: pointer;
+  opacity: 0.75;
+  line-height: 1.5;
+}
+
+.sidepanelInfoPane :global(.toc-item) {
+  cursor: pointer;
+  display: block;
+  line-height: 1.5;
+  margin-bottom: 2px;
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.explorerPane {
+  min-height: 0;
+}
+
+.explorerPane :global(.list-tags.layout-content) {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100% !important;
+  overflow: auto;
+}
+
+.explorerPane :global(.list-tags .multiple.vertical.joined),
+.explorerPane :global(.list-tags .multiple.joined.card:not(.vertical):not(.horizontal)) {
+  display: block;
+}
+
+.explorerPane :global(.list-tags .multiple.vertical.joined > :not(.multiple)),
+.explorerPane :global(.list-tags .multiple.joined.card:not(.vertical):not(.horizontal) > :not(.multiple)) {
+  margin-bottom: 0;
+}
+
+.sidepanelSubpanel {
+  min-height: 0;
+  flex: 1 1 50%;
+}
+
+.sidepanelSubpanel + .sidepanelSubpanel {
+  border-top-width: 1px;
+  border-top-style: solid;
+}
+
+.fileFlyout {
+  padding: 10px;
+}
+
+.fileFlyoutMenu {
+  overflow: auto;
+  padding: 8px;
+}
+
+.menuSection {
+  margin-bottom: 12px;
+}
+
+.menuSectionTitle {
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 0 0 4px 6px;
+}
+
+.menuSectionItems {
+  display: flex;
+  flex-direction: column;
+}
+
+.menuItem {
+  width: 100%;
+  min-height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  padding: 0 8px;
+  text-align: left;
+}
+
+.menuItem :global(.label),
+.menuItem :global(.button) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shortcut {
+  opacity: 0.65;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+:global(.theme-dark) .sidepanel {
+  background-color: #0f0f0f;
+  color: #f6f6f6;
+  border-right-color: hsla(0, 0%, 100%, 0.12);
+}
+
+:global(.theme-dark) .menuItem {
+  color: inherit;
+}
+
+:global(.theme-dark) .menuItem:hover {
+  background-color: hsla(0, 0%, 100%, 0.04);
+}
+
+:global(.theme-dark) .sidepanelInfoPane :global(.chip) {
+  border-color: hsla(0, 0%, 100%, 0.12);
+  background-color: transparent;
+}
+
+:global(.theme-dark) .sidepanelInfoPane :global(.info-divider) {
+  background-color: hsla(0, 0%, 100%, 0.12);
+}
+
+:global(.theme-dark) .sidepanelInfoPane :global(.action:hover),
+:global(.theme-dark) .sidepanelInfoPane :global(.toc-item:hover) {
+  background-color: hsla(0, 0%, 100%, 0.04);
+}
+
+:global(.theme-light) .sidepanel {
+  background-color: #20272c;
+  color: #fff;
+  border-right-color: rgba(0, 0, 0, 0.6);
+}
+
+:global(.theme-light) .menuItem {
+  color: inherit;
+}
+
+:global(.theme-light) .menuItem:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+:global(.theme-light) .sidepanelInfoPane :global(.chip) {
+  border-color: rgba(0, 0, 0, 0.6);
+  background-color: transparent;
+}
+
+:global(.theme-light) .sidepanelInfoPane :global(.info-divider) {
+  background-color: rgba(0, 0, 0, 0.6);
+}
+
+:global(.theme-light) .sidepanelInfoPane :global(.action:hover),
+:global(.theme-light) .sidepanelInfoPane :global(.toc-item:hover) {
+  background-color: rgba(0, 0, 0, 0.2);
+}

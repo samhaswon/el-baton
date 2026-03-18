@@ -7,21 +7,13 @@ const IconFontBuildr = require ( 'icon-font-buildr' ).default;
 
 const rootPath = path.join ( __dirname, '..', '..' );
 const configPath = path.join ( rootPath, 'icon_font.json' );
-const templateBaseFontsPath = path.join ( rootPath, 'src', 'renderer', 'template', 'base', 'fonts' );
-const templateDistFontsPath = path.join ( rootPath, 'src', 'renderer', 'template', 'dist', 'fonts' );
+const templateGeneratedFontsPath = path.join ( rootPath, 'src', 'renderer', 'template', 'generated', 'fonts' );
 
 const readConfig = () => {
 
   const content = fs.readFileSync ( configPath, 'utf8' );
 
   return JSON.parse ( content );
-
-};
-
-const copyFont = ( sourcePath, destinationPath ) => {
-
-  fs.mkdirSync ( path.dirname ( destinationPath ), { recursive: true } );
-  fs.copyFileSync ( sourcePath, destinationPath );
 
 };
 
@@ -36,23 +28,18 @@ const build = async () => {
   const config = readConfig (),
         fontName = config?.output?.fontName || 'IconFont',
         fontFileName = `${fontName}.woff2`,
-        generatedFontPath = path.join ( templateBaseFontsPath, fontFileName ),
-        mirroredFontPath = path.join ( templateDistFontsPath, fontFileName ),
+        generatedFontPath = path.join ( templateGeneratedFontsPath, fontFileName ),
         builder = new IconFontBuildr ({
           ...config,
           output: {
             ...( config.output || {} ),
-            fonts: templateBaseFontsPath,
+            fonts: templateGeneratedFontsPath,
             formats: ['woff2']
           }
         });
 
   if ( process.env.EL_BATON_SKIP_ICON_FONT_BUILD === '1' ) {
-    const existingFontPath = fs.existsSync ( generatedFontPath ) ? generatedFontPath : mirroredFontPath;
-
-    ensureFile ( existingFontPath );
-    copyFont ( existingFontPath, generatedFontPath );
-    copyFont ( existingFontPath, mirroredFontPath );
+    ensureFile ( generatedFontPath );
 
     console.log ( '[icon:font] Skipped icon font regeneration (EL_BATON_SKIP_ICON_FONT_BUILD=1), reused existing font asset' );
     return;
@@ -64,10 +51,7 @@ const build = async () => {
     throw new Error ( `Generated icon font not found: ${path.relative ( rootPath, generatedFontPath )}` );
   }
 
-  copyFont ( generatedFontPath, mirroredFontPath );
-
   console.log ( `[icon:font] Built ${path.relative ( rootPath, generatedFontPath )}` );
-  console.log ( `[icon:font] Mirrored ${path.relative ( rootPath, mirroredFontPath )}` );
 
 };
 

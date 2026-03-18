@@ -1,6 +1,7 @@
 /* IMPORT */
 
 import * as React from 'react';
+import styles from './activitybar.module.css';
 
 /* ACTIVITYBAR */
 
@@ -16,20 +17,22 @@ const tabsBottom = [
   { id: 'settings', icon: '⚙', title: 'Settings' }
 ];
 
+const cx = ( ...values: Array<string | false | null | undefined> ) => values.filter ( Boolean ).join ( ' ' );
+
 const Activitybar = ({ panel, setPanel }) => (
-  <div className="activitybar layout column">
-    <div className="activitybar-top">
+  <div className={cx ( 'activitybar', styles.activitybar, 'layout column' )}>
+    <div className={cx ( 'activitybar-top', styles.activitybarTop )}>
       {tabsTop.map ( tab => (
-        <div key={tab.id} className={`activitybar-item button ${panel === tab.id ? 'active' : ''}`} title={tab.title} onClick={() => setPanel ( tab.id )}>
+        <div key={tab.id} className={cx ( 'activitybar-item', 'button', panel === tab.id && 'active', styles.activitybarItem, panel === tab.id && styles.active )} title={tab.title} onClick={() => setPanel ( tab.id )}>
           <i className="icon small">{tab.icon}</i>
         </div>
       ))}
     </div>
     <div className="spacer"></div>
-    <div className="activitybar-bottom">
+    <div className={cx ( 'activitybar-bottom', styles.activitybarBottom )}>
       {tabsBottom.map ( tab => (
-        <div key={tab.id} className={`activitybar-item button ${panel === tab.id ? 'active' : ''}`} title={tab.title} onClick={() => setPanel ( tab.id )}>
-          {tab.id === 'settings' ? <span className="activitybar-gear small">{tab.icon}</span> : <i className="icon small">{tab.icon}</i>}
+        <div key={tab.id} className={cx ( 'activitybar-item', 'button', panel === tab.id && 'active', styles.activitybarItem, panel === tab.id && styles.active )} title={tab.title} onClick={() => setPanel ( tab.id )}>
+          {tab.id === 'settings' ? <span className={cx ( 'activitybar-gear', styles.activitybarGear, 'small' )}>{tab.icon}</span> : <i className="icon small">{tab.icon}</i>}
         </div>
       ))}
     </div>

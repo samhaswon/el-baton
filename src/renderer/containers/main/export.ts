@@ -96,7 +96,7 @@ class Export extends Container<ExportState, MainCTX> {
 
       let css = await this._getResources ([
         __non_webpack_require__.resolve ( 'katex/dist/katex.min.css' ), // Simply using `require` won't work with WebPack
-        `${__static}/css/notable.min.css`
+        `${__static}/css/notable.css`
       ]);
 
       let content = Markdown.render ( note.plainContent, Infinity, notePath ),

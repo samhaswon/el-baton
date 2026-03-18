@@ -31,7 +31,7 @@
       "@main/*": ["main/*"],
       "@renderer/*": ["renderer/*"],
       "@root/*": ["../*"],
-      "@static/*": ["renderer/template/dist/*"],
+      "@static/*": ["renderer/template/runtime/*"],
       "electron-util": ["common/electron_util_shim"]
     }
   },

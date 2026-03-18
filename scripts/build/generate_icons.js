@@ -13,11 +13,6 @@ const faviconPath = path.join ( iconDirPath, 'favicon.png' );
 const iconIcoPath = path.join ( iconDirPath, 'icon.ico' );
 const iconSmallPath = path.join ( iconDirPath, 'icon_small.png' );
 
-const templateBaseIconPngPath = path.join ( rootPath, 'src', 'renderer', 'template', 'base', 'images', 'icon.png' );
-const templateBaseIconIcoPath = path.join ( rootPath, 'src', 'renderer', 'template', 'base', 'images', 'icon.ico' );
-const templateStaticIconPngPath = path.join ( rootPath, 'src', 'renderer', 'template', 'src', 'static', 'icon.png' );
-const templateStaticIconIcoPath = path.join ( rootPath, 'src', 'renderer', 'template', 'src', 'static', 'icon.ico' );
-
 const themingIconSmallPath = path.join ( rootPath, 'resources', 'theming', 'attachments', 'icon_small.png' );
 
 const oldLogoSources = [
@@ -118,10 +113,6 @@ const main = () => {
       ensureFile ( path.join ( iconDirPath, `${size}x${size}.png` ) );
     }
 
-    copyFile ( iconPngPath, templateBaseIconPngPath );
-    copyFile ( iconIcoPath, templateBaseIconIcoPath );
-    copyFile ( iconPngPath, templateStaticIconPngPath );
-    copyFile ( iconIcoPath, templateStaticIconIcoPath );
     copyFile ( iconSmallPath, themingIconSmallPath );
 
     console.log ( '[icon] Skipped icon regeneration (EL_BATON_SKIP_ICON_REGEN=1), reused existing icon assets' );
@@ -157,11 +148,6 @@ const main = () => {
     [iconPngPath, '-define', 'icon:auto-resize=256,128,64,48,32,24,16', iconIcoPath],
     { stdio: 'inherit' }
   );
-
-  copyFile ( iconPngPath, templateBaseIconPngPath );
-  copyFile ( iconIcoPath, templateBaseIconIcoPath );
-  copyFile ( iconPngPath, templateStaticIconPngPath );
-  copyFile ( iconIcoPath, templateStaticIconIcoPath );
 
   copyFile ( iconSmallPath, themingIconSmallPath );
 

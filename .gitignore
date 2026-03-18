@@ -39,3 +39,5 @@ dist
 releases
 extracted/
 .tmp/
+src/renderer/template/generated/
+src/renderer/template/runtime/

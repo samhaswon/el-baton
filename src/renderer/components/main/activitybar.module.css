@@ -1,0 +1,81 @@
+.activitybar {
+  flex: 0 0 68px;
+  min-width: 68px;
+  max-width: 68px;
+  border-right-width: 1px;
+  border-right-style: solid;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.activitybarTop,
+.activitybarBottom {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  align-items: center;
+}
+
+.activitybarItem {
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  opacity: 0.75;
+  padding: 0;
+}
+
+.activitybarGear {
+  font-size: 25px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.active {
+  opacity: 1;
+}
+
+:global(.theme-dark) .activitybar {
+  background-color: #0f0f0f;
+  color: #f6f6f6;
+  border-right-color: hsla(0, 0%, 100%, 0.12);
+}
+
+:global(.theme-dark) .activitybarItem {
+  border-color: hsla(0, 0%, 100%, 0.12);
+}
+
+:global(.theme-dark) .activitybarItem:hover {
+  background-color: hsla(0, 0%, 100%, 0.04);
+  opacity: 1;
+}
+
+:global(.theme-dark) .activitybarItem.active {
+  background-color: hsla(0, 0%, 100%, 0.08);
+  opacity: 1;
+}
+
+:global(.theme-light) .activitybar {
+  background-color: #20272c;
+  color: #fff;
+  border-right-color: rgba(0, 0, 0, 0.6);
+}
+
+:global(.theme-light) .activitybarItem {
+  border-color: rgba(0, 0, 0, 0.6);
+}
+
+:global(.theme-light) .activitybarItem:hover {
+  background-color: hsla(0, 0%, 100%, 0.12);
+  opacity: 1;
+}
+
+:global(.theme-light) .activitybarItem.active {
+  background-color: hsla(0, 0%, 100%, 0.2);
+  opacity: 1;
+}
