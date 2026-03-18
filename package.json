@@ -8,7 +8,7 @@
     "clean:deps": "npx del-cli \"node_modules/**/{README,LICENSE,license,.travis.yml,tsconfig.json,*.{md,MD,map,png,ts}}\" \"node_modules/monaco-editor/{dev,min}\" \"!node_modules/**/*.d.ts\"",
     "clean:dist": "npx del-cli dist",
     "clean:releases": "npx del-cli releases",
-    "clean:template": "npx del-cli src/renderer/template/generated src/renderer/template/runtime",
+    "clean:template": "npx del-cli \"src/renderer/template/generated/**\" \"!src/renderer/template/generated\" \"!src/renderer/template/generated/fonts\" \"!src/renderer/template/generated/fonts/IconFont.woff2\" src/renderer/template/runtime",
     "clean": "npm run clean:dist && npm run clean:releases",
     "template:assets": "node ./scripts/build/build_template_assets.js",
     "template:assets:watch": "node ./scripts/build/build_template_assets.js --watch",

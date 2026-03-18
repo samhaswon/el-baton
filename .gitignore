@@ -39,5 +39,8 @@ dist
 releases
 extracted/
 .tmp/
-src/renderer/template/generated/
+src/renderer/template/generated/*
+!src/renderer/template/generated/fonts/
+src/renderer/template/generated/fonts/*
+!src/renderer/template/generated/fonts/IconFont.woff2
 src/renderer/template/runtime/
