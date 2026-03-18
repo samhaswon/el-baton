@@ -15,6 +15,9 @@ concurrency:
   group: ci-build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build:
     name: Build ${{ matrix.os }} / ${{ matrix.arch }}
@@ -62,7 +65,7 @@ jobs:
 
       - name: Setup Python
         if: matrix.os == 'windows'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           architecture: ${{ matrix.arch == 'arm64' && 'arm64' || 'x64' }}
@@ -119,7 +122,7 @@ jobs:
 
       - name: Upload build artifacts
         if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: build-${{ matrix.os }}-${{ matrix.arch }}
           path: releases/**

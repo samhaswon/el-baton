@@ -39,10 +39,12 @@ const build = async () => {
         });
 
   if ( process.env.EL_BATON_SKIP_ICON_FONT_BUILD === '1' ) {
-    ensureFile ( generatedFontPath );
+    if ( fs.existsSync ( generatedFontPath ) ) {
+      console.log ( '[icon:font] Skipped icon font regeneration (EL_BATON_SKIP_ICON_FONT_BUILD=1), reused existing font asset' );
+      return;
+    }
 
-    console.log ( '[icon:font] Skipped icon font regeneration (EL_BATON_SKIP_ICON_FONT_BUILD=1), reused existing font asset' );
-    return;
+    console.warn ( '[icon:font] Skip requested, but no generated font asset was found. Falling back to a fresh build.' );
   }
 
   await builder.build ();
