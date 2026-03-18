@@ -1,0 +1,35 @@
+.sidebar {
+  flex:1 1 165px;
+  min-width:165px;
+  max-width:350px
+}
+
+.sidebar .toolbar:not(.sidebar-search),.sidebar .titlebar:not(.sidebar-search) {
+  opacity:0
+}
+
+.sidebar .sidebar-search {
+  opacity:1;
+  padding:6px
+}
+
+.sidebar .sidebar-search .search {
+  width:100%
+}
+
+.sidebar .list-item i.icon.collapser {
+  transition:transform .15s
+}
+
+.sidebar .explorer-section {
+  cursor:pointer;
+  pointer-events:auto;
+  min-height:26px;
+  height:26px;
+  padding:6px 10px 2px;
+  font-weight:600
+}
+
+.sidebar .explorer-section:hover,.sidebar .explorer-section.active {
+  background:rgba(0,0,0,0) !important
+}

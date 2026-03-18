@@ -5,10 +5,10 @@ const path = require ( 'path' );
 const chokidar = require ( 'chokidar' );
 
 const rootPath = path.join ( __dirname, '..', '..' );
+const stylesPath = path.join ( rootPath, 'src', 'styles' );
 const templateBasePath = path.join ( rootPath, 'src', 'renderer', 'template', 'base' );
 const templateGeneratedPath = path.join ( rootPath, 'src', 'renderer', 'template', 'generated' );
 const templateRuntimePath = path.join ( rootPath, 'src', 'renderer', 'template', 'runtime' );
-const templateBaseGlobalCSSPath = path.join ( templateBasePath, 'css', 'global' );
 const templateRuntimeCSSPath = path.join ( templateRuntimePath, 'css' );
 const resourcesIconPath = path.join ( rootPath, 'resources', 'icon' );
 
@@ -53,10 +53,10 @@ const listFilesRecursive = sourcePath => {
 
 const buildGlobalCSS = () => {
 
-  const sourcePaths = listFilesRecursive ( templateBaseGlobalCSSPath ).filter ( sourcePath => sourcePath.endsWith ( '.css' ) );
+  const sourcePaths = listFilesRecursive ( stylesPath ).filter ( sourcePath => sourcePath.endsWith ( '.css' ) );
 
   if ( !sourcePaths.length ) {
-    throw new Error ( `No global CSS sources found in ${toPosixPath ( templateBaseGlobalCSSPath )}` );
+    throw new Error ( `No global CSS sources found in ${toPosixPath ( stylesPath )}` );
   }
 
   const content = sourcePaths.map ( sourcePath => fs.readFileSync ( sourcePath, 'utf8' ).trimEnd () ).join ( '\n\n' ) + '\n';
@@ -80,7 +80,7 @@ const build = () => {
 
   try {
 
-    fs.rmSync ( templateRuntimePath, { recursive: true, force: true } );
+    fs.mkdirSync ( templateRuntimePath, { recursive: true } );
 
     copyDirectoryIfExists ( path.join ( templateBasePath, 'images' ), path.join ( templateRuntimePath, 'images' ) );
     copyDirectoryIfExists ( path.join ( templateBasePath, 'javascript' ), path.join ( templateRuntimePath, 'javascript' ) );
@@ -112,12 +112,13 @@ const watch = () => {
 
   build ();
 
+  console.log ( `[template:assets] Watching ${toPosixPath ( stylesPath )}` );
   console.log ( `[template:assets] Watching ${toPosixPath ( templateBasePath )}` );
   console.log ( `[template:assets] Watching ${toPosixPath ( templateGeneratedPath )}` );
   console.log ( `[template:assets] Watching ${toPosixPath ( resourcesIconPath )}` );
 
   chokidar.watch ([
-    path.join ( templateBaseGlobalCSSPath, '**', '*.css' ),
+    path.join ( stylesPath, '**', '*.css' ),
     path.join ( templateBasePath, 'images', '**', '*' ),
     path.join ( templateBasePath, 'javascript', '**', '*' ),
     path.join ( templateGeneratedPath, '**', '*' ),

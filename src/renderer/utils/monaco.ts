@@ -305,6 +305,10 @@ const Monaco = {
 
     self['MonacoEnvironment'] = {
       getWorkerUrl () {
+        if ( globalThis.location?.protocol.startsWith ( 'http' ) ) {
+          return new URL ( 'javascript/monaco.worker.js', globalThis.location.href ).toString ();
+        }
+
         return `file://${path.join ( __static, 'javascript', 'monaco.worker.js' )}`;
       }
     };

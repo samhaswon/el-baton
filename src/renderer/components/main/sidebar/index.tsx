@@ -6,6 +6,7 @@ import {connect} from 'overstated';
 import Main from '@renderer/containers/main';
 import Content from './content';
 import Toolbar from './toolbar';
+import './sidebar.css';
 
 /* SIDEBAR */
 

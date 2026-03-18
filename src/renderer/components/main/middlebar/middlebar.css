@@ -1,0 +1,23 @@
+/* Shared window layout outside component-local CSS modules. */
+
+.middlebar {
+  flex:2 2 193px;
+  min-width:193px;
+  max-width:450px
+}
+
+.middlebar .search input {
+  width:0
+}
+
+.middlebar .list-header .sort-by,.middlebar .list-header .sort-type {
+  cursor:pointer
+}
+
+.middlebar .list-header .sort-by {
+  text-align:left
+}
+
+.middlebar .list-header .sort-type i.icon {
+  transition:transform .15s
+}

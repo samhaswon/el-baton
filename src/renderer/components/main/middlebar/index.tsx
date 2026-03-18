@@ -7,6 +7,7 @@ import Main from '@renderer/containers/main';
 import Content from './content';
 import Header from './header';
 import Toolbar from './toolbar';
+import './middlebar.css';
 
 /* MIDDLEBAR */
 
