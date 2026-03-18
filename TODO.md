@@ -156,8 +156,7 @@
 
 ## Polish
 
-- [ ] First, address the Dependabot PRs for deps. This likely includes breaking changes.
-
+- [X] First, address the Dependabot PRs for deps. This likely includes breaking changes.
 - [ ] Fix this build warning: `[DEP0147] DeprecationWarning: In future versions of Node.js, fs.rmdir(path, { recursive: true }) will be removed. Use fs.rm(path, { recursive: true }) instead`
 - [ ] Optimize Markdown string ops to reduce GC pressure.
     - Measure first, then optimize what ranks highest.
@@ -178,12 +177,14 @@
     ```
 - [ ] Correct scroll handling for details tags, both open and closed.
     - Might require some amount of non-linearity in scrolling.
-    - Could be helped by making the last source line (with text) being aligned to the last part of the preview with rendered content. 
+    - Could be helped by making the last source line (with text) being aligned to the last part of the preview with rendered content, specifically in terms of absolute scroll position.
+        - This is specific to scrolling toward the end of a large note with disproportionate source lines to output height. Scrolling to the end/past of the source content should scroll the preview to the end/past the rendered content. 
         - Might involve adding more padding to the bottom of the preview pane.
     - [ ] Related: Scroll sync doesn't quite work correctly in the smaller preview of a large note. It sometimes scrolls to far.
     - [ ] Diagrams (Mermaid and PlantUML) and likely images sometimes scroll the preview further than they should.
         - Not particularly bad, this is mostly a slight tuning issue. 
         - Sometimes jumps around with mermaid rendering in and out.
+    - `iframe` and `details` tags also contribute to this issue.
 - [ ] Retain explorer dropdown state
 - [ ] <kbd>INSERT</kbd> should toggle the edit/preview mode, similar to Vim.
 - [ ] CSS: the note tabs should just be trapezoids with a border color.
@@ -201,9 +202,12 @@
 - [ ] Ensure mermaid is rendered in a worker and is memoized.
 - [ ] Add loading state for large notes' source view.
     - Opening large notes hangs for a second, which makes the app feel unresponsive. 
-- [ ] KaTeX: Add support for ChatGPT's preferred parenthesis format.
+- ~~[ ] KaTeX: Add support for ChatGPT's preferred parenthesis format.~~
+    - `\(...\)` inline
+    - `\[...\]` block
     - Document in the cheat sheet
     - Discourage its use for GFM compatibility. 
+    - Edit: the copy button strips the escape characters now, so this won't practically work.
 - [ ] KaTeX: Placeholder leaks through:
     - `Since with every union, a vertex in a smaller set transfers from a set of size $s$ to a set of size $\ge 2s$, the number of times it spends $\$1$ is at most $\log_2 n$.`
     - This issue comes from escaped dollar signs within a math block, which breaks placeholders.
@@ -217,7 +221,7 @@
     - [ ] Add UI test for this after it is known to work to catch regressions.
 - [ ] Syntax highlighting breaks within quote blocks (`> `).
     - Source view
-    - Quote blocks themselves are still not differentiated in the source view.
+    - Quote blocks themselves are still not differentiated in the source view. Should be a slightly lighter gray in the source view, akin to the rendered styling.
 - [ ] Window does not re-open to previous size. 
 - [ ] The scrollbar for the preview should have the same styling as the source view.
 
