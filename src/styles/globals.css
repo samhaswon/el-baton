@@ -4374,6 +4374,10 @@ html.mac .zen.fullscreen .popover.show,html.no-mac .zen .popover.show {
   overflow-anchor:none
 }
 
+.preview.preview-sync-scroll {
+  padding-bottom:calc(1.25rem + 55vh) !important
+}
+
 .preview>.preview-content {
   min-width:0;
   position:relative
@@ -4680,4 +4684,3 @@ html.mac .zen.fullscreen .popover.show,html.no-mac .zen .popover.show {
   margin-right:.3125rem;
   margin-top:-3px
 }
-

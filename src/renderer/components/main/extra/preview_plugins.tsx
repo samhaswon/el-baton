@@ -255,6 +255,13 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
     this._forceFreshMermaidRender = false;
     this._mermaidRendering = false;
 
+    if ( nodes.length ) {
+      $.$window.trigger ( 'preview:dynamic-content:updated', [{
+        source: 'mermaid',
+        partial: this._lastPreviewRenderWasPartial
+      }] );
+    }
+
   }
 
   __plantumlRenderResult = ( _event, message: { id: number, ok: boolean, result?: PlantUMLRenderResult, error?: string } ) => {
@@ -345,10 +352,14 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
 
     this._plantumlRendering = true;
 
+    let nodeCount = 0;
+
     try {
 
       const serverUrl = this.__getPlantUMLServerUrl (),
             nodes = Array.from ( document.querySelectorAll ( '.preview .plantuml' ) );
+
+      nodeCount = nodes.length;
 
       for ( const node of nodes ) {
 
@@ -410,6 +421,13 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
     } finally {
 
       this._plantumlRendering = false;
+
+      if ( nodeCount ) {
+        $.$window.trigger ( 'preview:dynamic-content:updated', [{
+          source: 'plantuml',
+          partial: this._lastPreviewRenderWasPartial
+        }] );
+      }
 
     }
 

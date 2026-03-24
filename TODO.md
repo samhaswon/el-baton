@@ -175,18 +175,18 @@
     listsprites
     @enduml
     ```
-- [ ] Correct scroll handling for details tags, both open and closed.
+- [X] Correct scroll handling for details tags, both open and closed.
     - Might require some amount of non-linearity in scrolling.
     - Could be helped by making the last source line (with text) being aligned to the last part of the preview with rendered content, specifically in terms of absolute scroll position.
         - This is specific to scrolling toward the end of a large note with disproportionate source lines to output height. Scrolling to the end/past of the source content should scroll the preview to the end/past the rendered content. 
         - Might involve adding more padding to the bottom of the preview pane.
-    - [ ] Related: Scroll sync doesn't quite work correctly in the smaller preview of a large note. It sometimes scrolls to far.
-    - [ ] Diagrams (Mermaid and PlantUML) and likely images sometimes scroll the preview further than they should.
+    - [X] Related: Scroll sync doesn't quite work correctly in the smaller preview of a large note. It sometimes scrolls to far.
+    - [X] Diagrams (Mermaid and PlantUML) and likely images sometimes scroll the preview further than they should.
         - Not particularly bad, this is mostly a slight tuning issue. 
         - Sometimes jumps around with mermaid rendering in and out.
     - `iframe` and `details` tags also contribute to this issue.
 - [ ] Retain explorer dropdown state
-- [ ] <kbd>INSERT</kbd> should toggle the edit/preview mode, similar to Vim.
+- [ ] <kbd>INSERT</kbd> should toggle the edit/preview/split-view mode, similar to Vim.
 - [ ] CSS: the note tabs should just be trapezoids with a border color.
 - [ ] Split view: lightly highlight the edit location when typing.
 - [ ] Bug: window randomly scrolls to the top when switching to another app for a while. Cursor remains, but the scroll moves on its own.
@@ -224,6 +224,9 @@
     - Quote blocks themselves are still not differentiated in the source view. Should be a slightly lighter gray in the source view, akin to the rendered styling.
 - [ ] Window does not re-open to previous size. 
 - [ ] The scrollbar for the preview should have the same styling as the source view.
+- [ ] When editing, diagrams (Mermaid/PlantUML) flash in and out. 
+    - Might need to figure out how to keep them persistent.
+    - Could be related to how we replace the whole preview every time.
 
 ## Mobile App
 

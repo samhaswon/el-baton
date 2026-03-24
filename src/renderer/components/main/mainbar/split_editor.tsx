@@ -9,6 +9,10 @@ import Layout from '@renderer/components/main/layout';
 import Editor from './editor';
 import Preview from './preview';
 
+type ScrollAnchorKind = 'heading' | 'p' | 'li' | 'blockquote' | 'table' | 'pre' | 'pre-end' | 'hr' | 'details' | 'summary' | 'details-end' | 'media' | 'media-end';
+type SourceAnchor = { line: number, kind: ScrollAnchorKind, key?: string };
+type PreviewAnchor = { top: number, kind: ScrollAnchorKind, key?: string };
+
 /* SPLIT EDITOR */
 
 class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean, hasSidebar: boolean, content: string, getMonaco: () => MonacoEditor | undefined, splitViewSyncEnabled: boolean, maxSyncFps: number }, { content?: string }> {
@@ -20,8 +24,9 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
   _previewSyncFrame = 0;
   _anchorsFrame = 0;
   _settledSyncFrame = 0;
+  _previewToggleNode: HTMLDivElement | null = null;
   _sourceAnchorCacheContent?: string;
-  _sourceAnchorCache: { line: number, kind: 'heading' | 'p' | 'li' | 'blockquote' | 'table' | 'pre' | 'hr', key?: string }[] = [];
+  _sourceAnchorCache: SourceAnchor[] = [];
   _anchorPairs: { source: number, preview: number }[] = [];
   _anchorsCache?: { sourceMaxUnits: number, previewMaxScrollTop: number, anchors: { source: number, preview: number }[] };
   _pendingRenderMeta: { kind?: string, sourceSnapshot?: { sourceUnits: number, sourceMaxUnits: number }, partialWindow?: { startLine: number, endLine: number, totalLines: number } } | undefined;
@@ -34,6 +39,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
   _lastPreviewScrollTop = NaN;
   _lastSourceSyncAt = 0;
   _lastPreviewSyncAt = 0;
+  _lastDiagramMetricsSignature = '';
 
   state = {
     content: undefined as string | undefined
@@ -49,8 +55,12 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     $.$window.on ( 'preview:rendered', this.__previewRendered );
     $.$window.on ( 'preview:render:start', this.__previewRenderStart );
+    $.$window.on ( 'preview:dynamic-content:updated', this.__previewDynamicContentUpdated );
     $.$window.on ( 'monaco:update', this.__scheduleSourceSync );
     $.$document.on ( 'layoutresizable:resize', this.__layoutResized );
+
+    this._previewToggleNode = this._previewRef.current;
+    this._previewToggleNode?.addEventListener ( 'toggle', this.__previewToggle, true );
 
     this.__scheduleAnchorsRebuild ();
     this.__scheduleSourceSync (); // Align from top when entering split mode
@@ -61,8 +71,12 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     $.$window.off ( 'preview:rendered', this.__previewRendered );
     $.$window.off ( 'preview:render:start', this.__previewRenderStart );
+    $.$window.off ( 'preview:dynamic-content:updated', this.__previewDynamicContentUpdated );
     $.$window.off ( 'monaco:update', this.__scheduleSourceSync );
     $.$document.off ( 'layoutresizable:resize', this.__layoutResized );
+
+    this._previewToggleNode?.removeEventListener ( 'toggle', this.__previewToggle, true );
+    this._previewToggleNode = null;
 
     window.cancelAnimationFrame ( this._sourceSyncFrame );
     window.cancelAnimationFrame ( this._previewSyncFrame );
@@ -109,13 +123,28 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     if ( this._sourceAnchorCacheContent === content ) return this._sourceAnchorCache;
 
     const lines = content.split ( '\n' ),
-          anchors: { line: number, kind: 'heading' | 'p' | 'li' | 'blockquote' | 'table' | 'pre' | 'hr', key?: string }[] = [];
+          anchors: SourceAnchor[] = [];
 
     let inFence = false,
         inParagraph = false,
-        inTable = false;
+        inTable = false,
+        closedDetailsDepth = 0,
+        fenceKind: 'pre' | 'media' | undefined = undefined,
+        fenceMediaKey: string | undefined = undefined,
+        mediaSequence = 0;
+
+    const detailsStack: boolean[] = [],
+          htmlMediaStack: { type: string, key: string }[] = [],
+          anchoredLines = new Set<string> ();
 
     const headingOccurrences: Record<string, number> = {};
+
+    const pushAnchor = ( line: number, kind: ScrollAnchorKind, key?: string ) => {
+      const dedupeKey = `${line}:${kind}:${key || ''}`;
+      if ( anchoredLines.has ( dedupeKey ) ) return;
+      anchoredLines.add ( dedupeKey );
+      anchors.push ({ line, kind, key });
+    };
 
     for ( let index = 0, l = lines.length; index < l; index++ ) {
 
@@ -129,10 +158,35 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         continue;
       }
 
+      if ( closedDetailsDepth > 0 && !/<\/?details\b/i.test ( line ) && !/<summary\b/i.test ( line ) ) {
+        inParagraph = false;
+        inTable = false;
+        continue;
+      }
+
       if ( /^\s{0,3}(?:```+|~~~+)/.test ( line ) ) {
         if ( !inFence ) {
-          anchors.push ({ line: lineNumber, kind: 'pre' });
+          const languageMatch = line.match ( /^\s{0,3}(?:```+|~~~+)\s*([a-z0-9_-]+)/i ),
+                language = languageMatch && languageMatch[1] ? languageMatch[1].toLowerCase () : '';
+
+          fenceKind = this.__isDiagramFenceLanguage ( language ) ? 'media' : 'pre';
+
+          if ( fenceKind === 'media' ) {
+            fenceMediaKey = `m:${++mediaSequence}`;
+            pushAnchor ( lineNumber, 'media', fenceMediaKey );
+          } else {
+            pushAnchor ( lineNumber, 'pre' );
+          }
+        } else {
+          if ( fenceKind === 'media' ) {
+            pushAnchor ( lineNumber, 'media-end', fenceMediaKey );
+            fenceMediaKey = undefined;
+          } else {
+            pushAnchor ( lineNumber, 'pre-end' );
+          }
+          fenceKind = undefined;
         }
+
         inFence = !inFence;
         inParagraph = false;
         inTable = false;
@@ -140,6 +194,128 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       }
 
       if ( inFence ) continue;
+
+      const detailsTags = line.match ( /<\/?details\b[^>]*>/gi ) || [];
+
+      for ( let detailsIndex = 0, detailsLength = detailsTags.length; detailsIndex < detailsLength; detailsIndex++ ) {
+
+        const tag = detailsTags[detailsIndex];
+
+        if ( /^<\s*\/details\b/i.test ( tag ) ) {
+          const wasOpen = detailsStack.pop ();
+          if ( wasOpen === false ) {
+            closedDetailsDepth = Math.max ( 0, closedDetailsDepth - 1 );
+          }
+          pushAnchor ( lineNumber, 'details-end' );
+          continue;
+        }
+
+        const isOpen = this.__isDetailsTagOpen ( tag );
+        detailsStack.push ( isOpen );
+        if ( !isOpen ) {
+          closedDetailsDepth++;
+        }
+        pushAnchor ( lineNumber, 'details' );
+
+      }
+
+      if ( /<summary\b/i.test ( line ) ) {
+        pushAnchor ( lineNumber, 'summary' );
+      }
+
+      if ( /<\/?details\b/i.test ( line ) || /<summary\b/i.test ( line ) ) {
+        inParagraph = false;
+        inTable = false;
+        continue;
+      }
+
+      if ( closedDetailsDepth > 0 ) {
+        inParagraph = false;
+        inTable = false;
+        continue;
+      }
+
+      const markdownImageMatch = line.match ( /^\s{0,3}!\[[^\]]*\]\((?:[^()\\]|\\.|(?:\([^)]*\)))*\)/ );
+
+      if ( markdownImageMatch ) {
+        const mediaKey = `m:${++mediaSequence}`;
+        pushAnchor ( lineNumber, 'media', mediaKey );
+        pushAnchor ( Math.min ( lines.length, lineNumber + 0.92 ), 'media-end', mediaKey );
+        inParagraph = false;
+        inTable = false;
+        continue;
+      }
+
+      const mediaOpeningTags = line.match ( /<(img|iframe|video|figure)\b[^>]*>/ig ) || [];
+      let consumedByMedia = false;
+
+      for ( let mediaIndex = 0, mediaLength = mediaOpeningTags.length; mediaIndex < mediaLength; mediaIndex++ ) {
+
+        const mediaTag = mediaOpeningTags[mediaIndex],
+              mediaMatch = mediaTag.match ( /^<\s*(img|iframe|video|figure)\b/i ),
+              mediaType = mediaMatch && mediaMatch[1] ? mediaMatch[1].toLowerCase () : '';
+
+        if ( !mediaType ) continue;
+
+        const mediaKey = `m:${++mediaSequence}`;
+        pushAnchor ( lineNumber, 'media', mediaKey );
+        consumedByMedia = true;
+
+        const isSelfContained = mediaType === 'img' || /\/\s*>$/.test ( mediaTag ) || new RegExp ( `<\\s*\\/\\s*${mediaType}\\s*>`, 'i' ).test ( line );
+
+        if ( isSelfContained ) {
+          pushAnchor ( Math.min ( lines.length, lineNumber + 0.92 ), 'media-end', mediaKey );
+        } else {
+          htmlMediaStack.push ({ type: mediaType, key: mediaKey });
+        }
+
+      }
+
+      const mediaClosingTags = line.match ( /<\/(iframe|video|figure)\s*>/ig ) || [];
+
+      for ( let closeIndex = 0, closeLength = mediaClosingTags.length; closeIndex < closeLength; closeIndex++ ) {
+
+        const closingTag = mediaClosingTags[closeIndex],
+              closingMatch = closingTag.match ( /^<\s*\/\s*(iframe|video|figure)\s*>/i ),
+              closingType = closingMatch && closingMatch[1] ? closingMatch[1].toLowerCase () : '';
+
+        if ( !closingType ) continue;
+
+        let closingKey: string | undefined = undefined;
+
+        for ( let stackIndex = htmlMediaStack.length - 1; stackIndex >= 0; stackIndex-- ) {
+          if ( htmlMediaStack[stackIndex].type !== closingType ) continue;
+          closingKey = htmlMediaStack[stackIndex].key;
+          htmlMediaStack.splice ( stackIndex, 1 );
+          break;
+        }
+
+        pushAnchor ( lineNumber, 'media-end', closingKey );
+        consumedByMedia = true;
+
+      }
+
+      if ( consumedByMedia ) {
+        inParagraph = false;
+        inTable = false;
+        continue;
+      }
+
+      const hasOpeningParagraphTag = /<p\b[^>]*>/i.test ( line ),
+            hasClosingParagraphTag = /<\/p>/i.test ( line );
+
+      if ( hasOpeningParagraphTag ) {
+        pushAnchor ( lineNumber, 'p' );
+        inParagraph = !hasClosingParagraphTag;
+        inTable = false;
+        continue;
+      }
+
+      if ( hasClosingParagraphTag ) {
+        inParagraph = false;
+        inTable = false;
+        continue;
+      }
 
       const headingMatch = line.match ( /^\s{0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$/ );
 
@@ -150,14 +326,14 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
         headingOccurrences[normalizedText] = occurrence;
 
-        anchors.push ({ line: lineNumber, kind: 'heading', key });
+        pushAnchor ( lineNumber, 'heading', key );
         inParagraph = false;
         inTable = false;
         continue;
       }
 
       if ( /^\s{0,3}(?:---+|\*\*\*+|___+)\s*$/.test ( line ) ) {
-        anchors.push ({ line: lineNumber, kind: 'hr' });
+        pushAnchor ( lineNumber, 'hr' );
         inParagraph = false;
         inTable = false;
         continue;
@@ -165,7 +341,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
       if ( /^\s{0,3}\|.+\|\s*$/.test ( line ) ) {
         if ( !inTable ) {
-          anchors.push ({ line: lineNumber, kind: 'table' });
+          pushAnchor ( lineNumber, 'table' );
         }
         inParagraph = false;
         inTable = true;
@@ -175,19 +351,19 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       }
 
       if ( /^\s{0,3}(?:[-*+]|\d+[.)])\s+/.test ( line ) ) {
-        anchors.push ({ line: lineNumber, kind: 'li' });
+        pushAnchor ( lineNumber, 'li' );
         inParagraph = false;
         continue;
       }
 
       if ( /^\s{0,3}>\s?/.test ( line ) ) {
-        anchors.push ({ line: lineNumber, kind: 'blockquote' });
+        pushAnchor ( lineNumber, 'blockquote' );
         inParagraph = false;
         continue;
       }
 
       if ( !inParagraph ) {
-        anchors.push ({ line: lineNumber, kind: 'p' });
+        pushAnchor ( lineNumber, 'p' );
         inParagraph = true;
       }
 
@@ -197,6 +373,21 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     this._sourceAnchorCache = anchors;
 
     return anchors;
+
+  }
+
+  __isDetailsTagOpen = ( detailsTag: string ) => {
+
+    const match = detailsTag.match ( /^<details\b([^>]*)>/i ),
+          attributes = match ? match[1] : '';
+
+    return /(?:^|\s)open(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?(?=\s|$)/i.test ( attributes );
+
+  }
+
+  __isDiagramFenceLanguage = ( language: string ) => {
+
+    return language === 'mermaid' || language === 'plantuml' || language === 'puml' || language === 'uml';
 
   }
 
@@ -212,7 +403,48 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       return previewKind === 'p';
     }
 
+    if ( sourceKind === 'media' ) {
+      return previewKind === 'media' || previewKind === 'pre';
+    }
+
+    if ( sourceKind === 'media-end' ) {
+      return previewKind === 'media-end' || previewKind === 'pre-end';
+    }
+
+    if ( sourceKind === 'pre' ) {
+      return previewKind === 'pre' || previewKind === 'media';
+    }
+
+    if ( sourceKind === 'pre-end' ) {
+      return previewKind === 'pre-end' || previewKind === 'media-end';
+    }
+
     return false;
+
+  }
+
+  __isPreviewAnchorNodeVisible = ( node: HTMLElement ) => {
+
+    let current = node.parentElement as HTMLElement | null;
+
+    while ( current ) {
+
+      if ( current.tagName.toLowerCase () === 'details' && !current.hasAttribute ( 'open' ) ) {
+
+        if ( node.tagName.toLowerCase () === 'summary' && node.parentElement === current ) {
+          current = current.parentElement as HTMLElement | null;
+          continue;
+        }
+
+        return false;
+
+      }
+
+      current = current.parentElement as HTMLElement | null;
+
+    }
+
+    return true;
 
   }
 
@@ -339,18 +571,45 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     }
 
     const sourceAnchors = this.__getSourceAnchors (),
-          blockNodes = Array.from ( preview.node.querySelectorAll ( 'h1, h2, h3, h4, h5, h6, p, pre, li, blockquote, table, hr' ) ) as HTMLElement[],
+          blockNodes = Array.from ( preview.node.querySelectorAll ( 'h1, h2, h3, h4, h5, h6, p, pre, li, blockquote, table, hr, details, summary, .mermaid, .plantuml, iframe, img, video, figure' ) ) as HTMLElement[],
           anchors: { source: number, preview: number }[] = [],
-          previewAnchors: { top: number, kind: 'heading' | 'p' | 'li' | 'blockquote' | 'table' | 'pre' | 'hr', key?: string }[] = [],
+          previewAnchors: PreviewAnchor[] = [],
+          diagramMetrics: { kind: 'mermaid' | 'plantuml', top: number, height: number, endTop: number }[] = [],
           previewContentNode = ( preview.node.querySelector ( '.preview-content' ) as HTMLElement | null ) || preview.node;
 
     const previewHeadingOccurrences: Record<string, number> = {};
+    let previewMediaSequence = 0;
 
     for ( let index = 0, l = blockNodes.length; index < l; index++ ) {
 
       const node = blockNodes[index],
             tag = node.tagName.toLowerCase (),
             top = this.__getPreviewNodeTop ( node, previewContentNode );
+
+      if ( !this.__isPreviewAnchorNodeVisible ( node ) ) continue;
+      if ( ( tag === 'img' || tag === 'iframe' || tag === 'video' || tag === 'figure' ) && node.closest ( '.mermaid, .plantuml' ) ) continue;
+
+      const isDiagramBlock = node.classList.contains ( 'mermaid' ) || node.classList.contains ( 'plantuml' ),
+            isMediaBlock = isDiagramBlock || tag === 'img' || tag === 'iframe' || tag === 'video' || tag === 'figure';
+
+      if ( isMediaBlock ) {
+        const mediaKey = `m:${++previewMediaSequence}`,
+              endTop = top + Math.max ( 0, node.offsetHeight - 1 );
+
+        previewAnchors.push ({ top, kind: 'media', key: mediaKey });
+        previewAnchors.push ({ top: endTop, kind: 'media-end', key: mediaKey });
+
+        if ( isDiagramBlock ) {
+          diagramMetrics.push ({
+            kind: node.classList.contains ( 'plantuml' ) ? 'plantuml' : 'mermaid',
+            top,
+            height: Math.max ( 0, node.offsetHeight ),
+            endTop
+          });
+        }
+
+        continue;
+      }
 
       if ( /^h[1-6]$/.test ( tag ) ) {
         const normalizedText = ( node.textContent || '' ).trim ().toLowerCase (),
@@ -368,21 +627,37 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       } else if ( tag === 'table' ) {
         previewAnchors.push ({ top, kind: 'table' });
       } else if ( tag === 'pre' ) {
+        const endTop = top + Math.max ( 0, node.offsetHeight - 1 );
         previewAnchors.push ({ top, kind: 'pre' });
+        previewAnchors.push ({ top: endTop, kind: 'pre-end' });
       } else if ( tag === 'hr' ) {
         previewAnchors.push ({ top, kind: 'hr' });
+      } else if ( tag === 'details' ) {
+        const endTop = top + Math.max ( 0, node.offsetHeight - 1 );
+        previewAnchors.push ({ top, kind: 'details' });
+        previewAnchors.push ({ top: endTop, kind: 'details-end' });
+      } else if ( tag === 'summary' ) {
+        previewAnchors.push ({ top, kind: 'summary' });
       } else {
         previewAnchors.push ({ top, kind: 'p' });
       }
 
     }
 
-    const previewHeadingByKey = new Map<string, number> ();
+    const previewAnchorsByKey = new Map<string, number[]> ();
 
     for ( let index = 0, l = previewAnchors.length; index < l; index++ ) {
       const anchor = previewAnchors[index];
-      if ( anchor.kind !== 'heading' || !anchor.key ) continue;
-      previewHeadingByKey.set ( anchor.key, anchor.top );
+      if ( !anchor.key ) continue;
+
+      const key = `${anchor.kind}:${anchor.key}`,
+            queue = previewAnchorsByKey.get ( key );
+
+      if ( queue ) {
+        queue.push ( index );
+      } else {
+        previewAnchorsByKey.set ( key, [index] );
+      }
     }
 
     const usedSource = new Set<number> (),
@@ -390,14 +665,24 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     for ( let index = 0, l = sourceAnchors.length; index < l; index++ ) {
       const sourceAnchor = sourceAnchors[index];
-      if ( sourceAnchor.kind !== 'heading' || !sourceAnchor.key ) continue;
+      if ( !sourceAnchor.key ) continue;
 
-      const previewTop = previewHeadingByKey.get ( sourceAnchor.key );
-      if ( !_.isNumber ( previewTop ) ) continue;
+      const queue = previewAnchorsByKey.get ( `${sourceAnchor.kind}:${sourceAnchor.key}` );
+      if ( !queue || !queue.length ) continue;
 
-      const previewIndex = previewAnchors.findIndex ( anchor => anchor.kind === 'heading' && anchor.key === sourceAnchor.key && anchor.top === previewTop );
+      let previewIndex = -1;
 
-      if ( previewIndex >= 0 ) usedPreview.add ( previewIndex );
+      while ( queue.length ) {
+        const candidate = queue.shift ();
+        if ( !_.isNumber ( candidate ) || usedPreview.has ( candidate ) ) continue;
+        previewIndex = candidate;
+        break;
+      }
+
+      if ( previewIndex < 0 ) continue;
+
+      const previewTop = previewAnchors[previewIndex].top;
+      usedPreview.add ( previewIndex );
       usedSource.add ( index );
       anchors.push ({
         source: sourceAnchor.line - 1,
@@ -495,6 +780,75 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     this._anchorPairs = normalized;
     this._anchorsCache = undefined;
+
+    const steepSegments: {
+      sourceStart: number,
+      sourceEnd: number,
+      sourceSpan: number,
+      previewStart: number,
+      previewEnd: number,
+      previewSpan: number,
+      previewPerSourceUnit: number
+    }[] = [];
+
+    for ( let index = 1, l = normalized.length; index < l; index++ ) {
+      const left = normalized[index - 1],
+            right = normalized[index],
+            sourceSpan = right.source - left.source,
+            previewSpan = right.preview - left.preview;
+
+      if ( sourceSpan <= 0 ) continue;
+
+      const density = previewSpan / sourceSpan;
+
+      if ( previewSpan >= 120 && density >= 100 ) {
+        steepSegments.push ({
+          sourceStart: Number ( left.source.toFixed ( 3 ) ),
+          sourceEnd: Number ( right.source.toFixed ( 3 ) ),
+          sourceSpan: Number ( sourceSpan.toFixed ( 3 ) ),
+          previewStart: Math.round ( left.preview ),
+          previewEnd: Math.round ( right.preview ),
+          previewSpan: Math.round ( previewSpan ),
+          previewPerSourceUnit: Number ( density.toFixed ( 2 ) )
+        });
+      }
+    }
+
+    if ( diagramMetrics.length || steepSegments.length ) {
+      const payload = {
+        diagramCount: diagramMetrics.length,
+        diagramMetrics,
+        sourceMediaAnchors: sourceAnchors.filter ( anchor => anchor.kind === 'media' || anchor.kind === 'media-end' ).length,
+        steepSegments
+      },
+            signature = JSON.stringify ( payload );
+
+      if ( this._lastDiagramMetricsSignature !== signature ) {
+        this._lastDiagramMetricsSignature = signature;
+        console.info ( '[split-sync] diagram/anchor metrics', payload );
+      }
+    } else {
+      this._lastDiagramMetricsSignature = '';
+    }
+
+  }
+
+  __previewToggle = ( event: Event ) => {
+
+    const target = event.target as HTMLElement | null;
+
+    if ( !target || target.tagName.toLowerCase () !== 'details' ) return;
+
+    this._anchorsCache = undefined;
+    this.__scheduleAnchorsRebuild ();
+    this.__scheduleSourceSync ();
+
+  }
+
+  __previewDynamicContentUpdated = () => {
+
+    this._anchorsCache = undefined;
+    this.__scheduleAnchorsRebuild ();
 
   }
 
@@ -747,16 +1101,6 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       : shouldUseLinear
       ? this.__mapSourceToPreviewLinear ( source, preview )
       : this.__mapSourceToPreview ( source, preview, anchors );
-
-    if ( !shouldUsePartialWindow && !shouldUseLinear && anchors && anchors.length <= 1200 ) {
-      const nearestAnchor = this.__findNearestAnchorBySource ( anchors, source.sourceUnits ),
-            crossedAnchor = this.__findCrossedAnchorBySource ( anchors, this._lastSourceUnits, source.sourceUnits );
-      if ( nearestAnchor ) {
-        nextScrollTop = nearestAnchor.preview;
-      } else if ( crossedAnchor && Math.abs ( crossedAnchor.preview - nextScrollTop ) < 36 ) {
-        nextScrollTop = crossedAnchor.preview;
-      }
-    }
 
     this._lastSourceScrollTop = source.scrollTop;
     this._lastSourceUnits = source.sourceUnits;

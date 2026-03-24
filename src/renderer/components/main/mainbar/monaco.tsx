@@ -200,7 +200,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
     }
 
-    editor.onDidScrollChange ( _.debounce ( event => {
+    editor.onDidScrollChange ( event => {
 
       if ( onScroll ) {
         ( onScroll as any ) ( event ); //TSC
@@ -212,7 +212,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
         this._spellcheckScrollDebounced ();
       }
 
-    }, 25 ) );
+    } );
 
     if ( editorDidUnmount ) {
 
