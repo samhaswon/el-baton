@@ -1,12 +1,16 @@
 /* IMPORT */
 
 const path = require ( 'path' );
+const MiniCssExtractPlugin = require ( 'mini-css-extract-plugin' );
+const CssMinimizerPlugin = require ( 'css-minimizer-webpack-plugin' );
 const CopyWebpackPlugin = require ( 'copy-webpack-plugin' );
 const HtmlWebpackPlugin = require ( 'html-webpack-plugin' );
 const TerserPlugin = require ( 'terser-webpack-plugin' );
 const {isDevelopment, shared} = require ( './webpack.shared.js' );
 
 /* CONFIG */
+
+const cssLoader = isDevelopment ? 'style-loader' : MiniCssExtractPlugin.loader;
 
 const config = {
   ...shared,
@@ -34,7 +38,7 @@ const config = {
       {
         test: /\.module\.css$/,
         use: [
-          'style-loader',
+          cssLoader,
           {
             loader: 'css-loader',
             options: {
@@ -50,7 +54,7 @@ const config = {
       {
         test: /\.css$/,
         exclude: /\.module\.css$/,
-        use: [ 'style-loader', 'css-loader' ]
+        use: [ cssLoader, 'css-loader' ]
       },
       {
         test: /\.(png|jpe?g|gif|svg|ico|ttf|woff2?|eot)$/i,
@@ -60,6 +64,11 @@ const config = {
   },
   plugins: [
     ...shared.plugins,
+    ...( isDevelopment ? [] : [
+      new MiniCssExtractPlugin ({
+        filename: 'renderer.css'
+      })
+    ]),
     new HtmlWebpackPlugin ({
       template: path.resolve ( __dirname, 'src/renderer/index.html' ),
       filename: 'index.html'
@@ -81,7 +90,8 @@ const config = {
         terserOptions: {
           keep_fnames: true
         }
-      })
+      }),
+      new CssMinimizerPlugin ()
     ]
   }
 };
