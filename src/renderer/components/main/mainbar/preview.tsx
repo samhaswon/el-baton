@@ -36,7 +36,7 @@ type PreviewRenderMeta = {
   }
 };
 
-const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocused, getMonaco, sourceFilePath, disableScriptSanitization, batteryRenderDelayMs = 0, enableWorker = true, largeRenderMode = 'always', syncScroll = false }) => {
+const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocused, getMonaco, sourceFilePath, disableScriptSanitization, batteryRenderDelayMs = 0, enableWorker = true, largeRenderMode = 'always', syncScroll = false, previewTheme = 'default' }) => {
   const effectiveContent = content,
         isLargeDocument = content.length >= Config.preview.largeDocumentThreshold,
         largeNoteFullRenderDelay = _.clamp ( Number ( Config.preview.largeNoteFullRenderDelay ) || DEFAULT_LARGE_NOTE_FULL_RENDER_DELAY, 0, 5000 ),
@@ -61,7 +61,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
         pendingRenderMetaRef = React.useRef<PreviewRenderMeta | undefined> ( undefined );
 
   const isInitialDocumentRender = ( currentDocumentKeyRef.current !== sourceFilePath ) || !hasCompletedInitialRenderRef.current,
-        schedulingEditorFocused = enableWorker ? isEditorFocused : false,
+        schedulingEditorFocused = enableWorker ? isEditorFocused : true,
         shouldDeferRender = enableWorker && schedulingEditorFocused && isLargeDocument && (
           largeRenderMode === 'always' ||
           ( largeRenderMode === 'after-initial' && !isInitialDocumentRender )
@@ -73,6 +73,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
     cwd: Config.cwd,
     notesPath: Config.notes.path,
     attachmentsPath: Config.attachments.path,
+    mermaidTheme: previewTheme,
     notesToken: Config.notes.token,
     attachmentsToken: Config.attachments.token,
     tagsToken: Config.tags.token,
@@ -81,7 +82,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
     notesReFlags: Config.notes.re.flags,
     disableScriptSanitization,
     katex: Config.katex
-  }), [disableScriptSanitization, sourceFilePath] );
+  }), [disableScriptSanitization, sourceFilePath, previewTheme] );
 
   React.useEffect ( () => {
     Markdown.setRuntimeConfig ( runtimeConfig );
@@ -558,6 +559,7 @@ export default connect ({
     syncScroll,
     isEditorFocused: container.editor.hasFocus (),
     getMonaco: container.editor.getMonaco,
+    previewTheme: container.theme.get () === 'dark' ? 'dark' : 'default',
     sourceFilePath: container.note.get ()?.filePath
   })
 })( Preview );

@@ -223,9 +223,9 @@
 - [ ] Syntax highlighting breaks within quote blocks (`> `).
     - Source view
     - Quote blocks themselves are still not differentiated in the source view. Should be a slightly lighter gray in the source view, akin to the rendered styling.
-- [ ] Window does not re-open to previous size. 
+- ~~[ ] Window does not re-open to previous size.~~
 - [ ] The scrollbar for the preview should have the same styling as the source view.
-- [ ] When editing, diagrams (Mermaid/PlantUML) flash in and out. 
+- [X] When editing, diagrams (Mermaid/PlantUML) flash in and out. 
     - Might need to figure out how to keep them persistent.
     - Could be related to how we replace the whole preview every time.
 

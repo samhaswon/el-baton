@@ -22,7 +22,6 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
   _mermaidRendering = false;
   _mermaidTheme;
   _lastPreviewRenderWasPartial = false;
-  _forceFreshMermaidRender = false;
   _mermaidRenderQueued = false;
   _pendingMermaidRenderMeta;
 
@@ -42,7 +41,6 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
     $.$document.on ( 'click', '.preview .mermaid-open-external', this.__mermaidOpenExternalClick );
     $.$document.on ( 'click', '.preview .plantuml-open-external', this.__plantumlOpenExternalClick );
     ipc.on ( 'plantuml-render-result', this.__plantumlRenderResult );
-    $.$window.on ( 'preview:render:start', this.__previewRenderStart );
     $.$window.on ( 'preview:rendered', this.__renderMermaids );
     $.$window.on ( 'preview:rendered', this.__renderPlantUMLs );
     $.$window.on ( 'preview:render:stop', this.__renderMermaids );
@@ -68,7 +66,6 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
     $.$document.off ( 'click', this.__mermaidOpenExternalClick );
     $.$document.off ( 'click', this.__plantumlOpenExternalClick );
     ipc.removeListener ( 'plantuml-render-result', this.__plantumlRenderResult );
-    $.$window.off ( 'preview:render:start', this.__previewRenderStart );
     $.$window.off ( 'preview:rendered', this.__renderMermaids );
     $.$window.off ( 'preview:rendered', this.__renderPlantUMLs );
     $.$window.off ( 'preview:render:stop', this.__renderMermaids );
@@ -99,6 +96,18 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
 
   }
 
+  __setMermaidCache = ( source: string, svg: string ) => {
+
+    MermaidCache.set ( this.__getMermaidCacheKey ( source ), svg );
+
+  }
+
+  __getMermaidCachedSvg = ( source: string ) => {
+
+    return MermaidCache.get ( this.__getMermaidCacheKey ( source ) );
+
+  }
+
   __getPlantUMLServerUrl = () => {
 
     return PlantUML.normalizeServerUrl ( Config.plantuml.externalServerUrl );
@@ -108,16 +117,6 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
   __getPlantUMLCacheKey = ( source: string, serverUrl?: string ) => {
 
     return `${serverUrl || ''}\u0000${source}`;
-
-  }
-
-  __previewRenderStart = ( _event, renderMeta? ) => {
-
-    if ( this._lastPreviewRenderWasPartial && renderMeta && renderMeta.kind === 'full-deferred' ) {
-      this._forceFreshMermaidRender = true;
-      MermaidCache.clear ();
-      PlantUMLCache.clear ();
-    }
 
   }
 
@@ -230,14 +229,13 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
         const existingSvgNode = $node.children ( 'svg' )[0];
 
         if ( existingSvgNode && currentNodeTheme === currentTheme ) {
-          MermaidCache.set ( this.__getMermaidCacheKey ( source ), existingSvgNode.outerHTML );
+          this.__setMermaidCache ( source, existingSvgNode.outerHTML );
           $node.data ( 'mermaidSource', source );
           $node.data ( 'mermaidTheme', currentTheme );
           continue;
         }
 
-        const cacheKey = this.__getMermaidCacheKey ( source ),
-              cachedSvg = this._forceFreshMermaidRender ? undefined : MermaidCache.get ( cacheKey );
+        const cachedSvg = this.__getMermaidCachedSvg ( source );
 
         if ( cachedSvg ) {
           const $external = $node.children ( '.mermaid-open-external' ).detach ();
@@ -256,7 +254,7 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
                 svg = _.isString ( result ) ? result : result.svg,
                 $external = $node.children ( '.mermaid-open-external' ).detach ();
 
-          MermaidCache.set ( cacheKey, svg );
+          this.__setMermaidCache ( source, svg );
 
           $node.empty ();
           if ( $external.length ) $node.append ( $external );
@@ -278,7 +276,6 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
 
     } finally {
 
-      this._forceFreshMermaidRender = false;
       this._mermaidRendering = false;
 
       if ( nodeCount ) {

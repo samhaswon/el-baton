@@ -23,6 +23,7 @@ type MarkdownRuntimeConfig = {
   cwd?: string;
   notesPath?: string;
   attachmentsPath?: string;
+  mermaidTheme?: string;
   notesToken: string;
   attachmentsToken: string;
   tagsToken: string;
@@ -61,6 +62,7 @@ const Markdown = {
     cwd: undefined,
     notesPath: undefined,
     attachmentsPath: undefined,
+    mermaidTheme: 'default',
     notesToken: '@note',
     attachmentsToken: '@attachment',
     tagsToken: '@tag',
@@ -698,7 +700,9 @@ const Markdown = {
         regex: /<pre><code\s[^>]*language-mermaid[^>]*>([^]+?)<\/code><\/pre>/g,
         replace ( match, $1 ) {
           const source = decode ( $1 ),
-                cachedSvg = MermaidCache.get ( source );
+                theme = Markdown._runtimeConfig.mermaidTheme || 'default',
+                cacheKey = `${theme}\u0000${source}`,
+                cachedSvg = MermaidCache.get ( cacheKey );
           return MarkdownRenderHelpers.renderMermaidBlock ( source, cachedSvg );
         }
       }];
