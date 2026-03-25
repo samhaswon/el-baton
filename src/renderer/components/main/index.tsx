@@ -203,7 +203,16 @@ class Main extends React.Component<{ loading: boolean, refresh: Function, listen
         <PreviewPlugins />
         <Shortcuts />
         <QuickPanel />
-        <Layout className={`main app-wrapper ${isFullscreen ? 'fullscreen' : ''} ${hasSidebar ? 'focus' : ''} ${isZen ? 'zen' : ''}`} direction="horizontal" resizable={true} isFocus={isFocus} isZen={isZen} hasSidebar={hasSidebar} resetCounter={panelResetCounter}>
+        <Layout
+          className={`main app-wrapper ${isFullscreen ? 'fullscreen' : ''} ${hasSidebar ? 'focus' : ''} ${isZen ? 'zen' : ''}`}
+          direction="horizontal"
+          resizable={true}
+          isFocus={isFocus}
+          isZen={isZen}
+          hasSidebar={hasSidebar}
+          resizeToken={`${panel || 'none'}:${isOpeningPanel ? 1 : 0}:${isClosingPanel ? 1 : 0}`}
+          resetCounter={panelResetCounter}
+        >
           {isFocus || isZen || !hasSidebar ? null : <Activitybar panel={panel} setPanel={this.setPanel} />}
           <Sidepanel panel={isStandaloneMainbarView ? null : panel} setPanel={this.setPanel} isClosing={isClosingPanel} isOpening={isOpeningPanel} animationsDisabled={animationsDisabled} />
           <Mainbar panel={panel} />

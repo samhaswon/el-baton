@@ -1237,7 +1237,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
           content = _.isString ( this.state.content ) ? this.state.content : this.props.content;
 
     return (
-      <Layout className="split-editor" direction="horizontal" resizable={true} isFocus={isFocus} isZen={isZen} hasSidebar={hasSidebar}>
+      <Layout className="split-editor" direction="horizontal" resizable={true} optimizeUpdates={true} isFocus={isFocus} isZen={isZen} hasSidebar={hasSidebar}>
         <Editor onChange={this.__change} onUpdate={this.__change} onScroll={splitViewSyncEnabled ? this.__scheduleSourceSync : undefined} />
         <Preview content={content} onAnchorNavigate={this.__previewAnchorNavigate} onScroll={splitViewSyncEnabled ? this.__schedulePreviewSync : undefined} previewRef={this._previewRef} enableWorker={false} largeRenderMode="after-initial" syncScroll={splitViewSyncEnabled} />
       </Layout>

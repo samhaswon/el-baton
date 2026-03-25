@@ -284,6 +284,13 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     this.editor.layout ();
     this.editorUpdateZones ();
 
+    const model = this.editor.getModel ();
+
+    if ( model && this.props.language === 'markdown' ) {
+      this.resetSpellcheckCoverage ();
+      this._spellcheckDebounced ();
+    }
+
   }
 
   editorUpdateDebounced = _.debounce ( this.editorUpdate, 25 )

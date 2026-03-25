@@ -10,15 +10,38 @@ import ToolbarButton from './toolbar_button';
 
 const OpenButton = ({ openInApp }) => {
   const [isRendering, setIsRendering] = React.useState<boolean> ( false );
+  const watchdogRef = React.useRef<number | undefined> ( undefined );
 
   React.useEffect ( () => {
-    const onRenderStart = () => setIsRendering ( true ),
-          onRenderStop = () => setIsRendering ( false );
+    const clearWatchdog = () => {
+      if ( !watchdogRef.current ) return;
+      window.clearTimeout ( watchdogRef.current );
+      watchdogRef.current = undefined;
+    };
+
+    const scheduleWatchdog = () => {
+      clearWatchdog ();
+      watchdogRef.current = window.setTimeout ( () => {
+        setIsRendering ( false );
+        watchdogRef.current = undefined;
+      }, 3000 );
+    };
+
+    const onRenderStart = () => {
+      setIsRendering ( true );
+      scheduleWatchdog ();
+    };
+
+    const onRenderStop = () => {
+      clearWatchdog ();
+      setIsRendering ( false );
+    };
 
     $.$window.on ( 'preview:render:start', onRenderStart );
     $.$window.on ( 'preview:render:stop', onRenderStop );
 
     return () => {
+      clearWatchdog ();
       $.$window.off ( 'preview:render:start', onRenderStart );
       $.$window.off ( 'preview:render:stop', onRenderStop );
     };

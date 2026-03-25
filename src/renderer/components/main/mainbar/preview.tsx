@@ -36,6 +36,65 @@ type PreviewRenderMeta = {
   }
 };
 
+const areEquivalentNodes = ( left: ChildNode, right: ChildNode ): boolean => {
+  if ( left.nodeType !== right.nodeType ) return false;
+
+  if ( left.nodeType === Node.TEXT_NODE || left.nodeType === Node.COMMENT_NODE ) {
+    return left.textContent === right.textContent;
+  }
+
+  const leftElement = left as Element,
+        rightElement = right as Element;
+
+  if ( leftElement.tagName !== rightElement.tagName ) return false;
+  if ( leftElement.className !== rightElement.className ) return false;
+  if ( leftElement.id !== rightElement.id ) return false;
+
+  return left.isEqualNode ( right );
+};
+
+const patchPreviewContent = ( target: HTMLElement, nextHtml: string ) => {
+  const nextContainer = document.createElement ( 'div' );
+  nextContainer.innerHTML = nextHtml;
+
+  const currentNodes = Array.from ( target.childNodes ),
+        nextNodes = Array.from ( nextContainer.childNodes );
+
+  let prefixLength = 0;
+
+  while ( prefixLength < currentNodes.length && prefixLength < nextNodes.length && areEquivalentNodes ( currentNodes[prefixLength], nextNodes[prefixLength] ) ) {
+    prefixLength++;
+  }
+
+  let suffixLength = 0;
+
+  while (
+    suffixLength < ( currentNodes.length - prefixLength ) &&
+    suffixLength < ( nextNodes.length - prefixLength ) &&
+    areEquivalentNodes (
+      currentNodes[currentNodes.length - 1 - suffixLength],
+      nextNodes[nextNodes.length - 1 - suffixLength]
+    )
+  ) {
+    suffixLength++;
+  }
+
+  if ( prefixLength === currentNodes.length && prefixLength === nextNodes.length ) return;
+
+  for ( let index = currentNodes.length - 1 - suffixLength; index >= prefixLength; index-- ) {
+    target.removeChild ( currentNodes[index] );
+  }
+
+  const anchor = target.childNodes[prefixLength] || null,
+        fragment = document.createDocumentFragment ();
+
+  for ( let index = prefixLength; index < ( nextNodes.length - suffixLength ); index++ ) {
+    fragment.appendChild ( nextNodes[index].cloneNode ( true ) );
+  }
+
+  target.insertBefore ( fragment, anchor );
+};
+
 const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocused, getMonaco, sourceFilePath, disableScriptSanitization, batteryRenderDelayMs = 0, enableWorker = true, largeRenderMode = 'always', syncScroll = false, previewTheme = 'default' }) => {
   const effectiveContent = content,
         isLargeDocument = content.length >= Config.preview.largeDocumentThreshold,
@@ -55,6 +114,8 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
         workerUnavailableRef = React.useRef<boolean> ( false ),
         hasCompletedInitialRenderRef = React.useRef<boolean> ( false ),
         currentDocumentKeyRef = React.useRef<string | undefined> ( sourceFilePath ),
+        previewContentRef = React.useRef<HTMLDivElement> ( null ),
+        appliedHtmlRef = React.useRef<string> ( '' ),
         timeoutRef = React.useRef<number | undefined> ( undefined ),
         idleRef = React.useRef<number | undefined> ( undefined ),
         renderMetaRef = React.useRef<PreviewRenderMeta> ({ kind: 'initial' }),
@@ -233,10 +294,22 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
   React.useEffect ( () => {
     setHtml ( '' );
     setIsRendering ( true );
+    appliedHtmlRef.current = '';
     renderMetaRef.current = { kind: 'initial-loading' };
     currentDocumentKeyRef.current = sourceFilePath;
     hasCompletedInitialRenderRef.current = false;
   }, [sourceFilePath] );
+
+  React.useLayoutEffect ( () => {
+    const previewContentNode = previewContentRef.current;
+
+    if ( !previewContentNode ) return;
+    if ( appliedHtmlRef.current === html ) return;
+
+    patchPreviewContent ( previewContentNode, html );
+
+    appliedHtmlRef.current = html;
+  }, [html] );
 
   const clearScheduled = React.useCallback ( () => {
     if ( timeoutRef.current ) {
@@ -386,6 +459,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
 
   const getDebounceDelay = React.useCallback ( () => {
     if ( !schedulingEditorFocused ) return 0;
+    if ( effectiveBatteryRenderDelay <= 0 ) return 0;
     const base = content.length >= MEDIUM_PREVIEW_RENDER_THRESHOLD ? 180 : 80,
           variable = Math.min ( 180, Math.floor ( content.length / 800 ) );
     return Math.max ( TYPING_DEBOUNCE_MIN, Math.min ( TYPING_DEBOUNCE_MAX + effectiveBatteryRenderDelay, base + variable + effectiveBatteryRenderDelay ) );
@@ -403,6 +477,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
             const sourceSnapshot = getSourceSnapshot (),
                   renderMeta = { kind: shouldDeferRender ? 'full-deferred' : 'full-live', sourceSnapshot };
             if ( renderJobId !== renderJobRef.current ) return;
+            setIsRendering ( true );
             renderMetaRef.current = renderMeta;
             emitRenderStart ( renderMeta );
             let nextHtml: string;
@@ -443,6 +518,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
           totalLines: partial.totalLines
         }
       };
+      setIsRendering ( true );
       emitRenderStart ( renderMetaRef.current );
       renderInWorker ( partial.content, false ).then ( partialHtml => {
         if ( renderJobId !== renderJobRef.current ) return;
@@ -487,11 +563,11 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
   React.useEffect ( () => {
     if ( isRendering || !disableScriptSanitization ) return;
 
-    const container = resolvedPreviewRef.current;
+    const previewContentNode = previewContentRef.current;
 
-    if ( !container ) return;
+    if ( !previewContentNode ) return;
 
-    const scripts = Array.from ( container.querySelectorAll ( '.preview-content script' ) ) as HTMLScriptElement[];
+    const scripts = Array.from ( previewContentNode.querySelectorAll ( 'script' ) ) as HTMLScriptElement[];
 
     scripts.forEach ( script => {
       const replacement = document.createElement ( 'script' );
@@ -538,7 +614,8 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
 
   return (
     <div ref={resolvedPreviewRef} className={previewClassName} onClick={onClick} onScroll={onScroll}>
-      {showLoading ? <div className="preview-loading-state">Loading preview...</div> : <div className="preview-content" dangerouslySetInnerHTML={{ __html: html }}></div>}
+      {showLoading ? <div className="preview-loading-state">Loading preview...</div> : null}
+      <div ref={previewContentRef} className="preview-content"></div>
     </div>
   );
 };
