@@ -13,6 +13,50 @@ type MonacoLanguageLoader = () => MonacoLanguageModule;
 
 /* CONSTANTS */
 
+const MERMAID_LANGUAGE: MonacoLanguageModule = {
+  conf: {
+    comments: {
+      lineComment: '%%'
+    },
+    brackets: [
+      ['{', '}'],
+      ['[', ']'],
+      ['(', ')']
+    ],
+    autoClosingPairs: [
+      { open: '{', close: '}' },
+      { open: '[', close: ']' },
+      { open: '(', close: ')' },
+      { open: '"', close: '"' }
+    ],
+    surroundingPairs: [
+      { open: '{', close: '}' },
+      { open: '[', close: ']' },
+      { open: '(', close: ')' },
+      { open: '"', close: '"' }
+    ]
+  },
+  language: {
+    defaultToken: '',
+    tokenPostfix: '.mmd',
+    tokenizer: {
+      root: [
+        [/^\s*%%.*$/, 'comment'],
+        [/\b(?:graph|flowchart|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|journey|gantt|pie|mindmap|timeline|quadrantChart|gitGraph|requirementDiagram|C4Context|C4Container|C4Component|C4Dynamic|C4Deployment)\b/, 'keyword'],
+        [/\b(?:subgraph|end|direction|style|classDef|class|linkStyle|click|section|task|title|accTitle|accDescr)\b/, 'keyword.control'],
+        [/\b(?:TB|TD|BT|RL|LR)\b/, 'keyword.directive'],
+        [/\b[a-zA-Z_][\w-]*\b(?=\s*[\[\(\{])/, 'variable'],
+        [/<-->|<--|-->|==>|===|---|-.->|--x|x--|o--|--o|\|\|/, 'operator'],
+        [/[{}\[\]()/]/, 'delimiter'],
+        [/".*?"/, 'string'],
+        [/\b\d+(?:\.\d+)?\b/, 'number'],
+        [/#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/, 'number.hex'],
+        [/\s+/, 'white']
+      ]
+    }
+  }
+};
+
 const BASIC_LANGUAGE_LOADERS: Record<string, MonacoLanguageLoader> = {
   abap: () => require ( 'monaco-editor/esm/vs/basic-languages/abap/abap.js' ),
   apex: () => require ( 'monaco-editor/esm/vs/basic-languages/apex/apex.js' ),
@@ -50,6 +94,7 @@ const BASIC_LANGUAGE_LOADERS: Record<string, MonacoLanguageLoader> = {
   lua: () => require ( 'monaco-editor/esm/vs/basic-languages/lua/lua.js' ),
   m3: () => require ( 'monaco-editor/esm/vs/basic-languages/m3/m3.js' ),
   markdown: () => require ( 'monaco-editor/esm/vs/basic-languages/markdown/markdown.js' ),
+  mermaid: () => MERMAID_LANGUAGE,
   mdx: () => require ( 'monaco-editor/esm/vs/basic-languages/mdx/mdx.js' ),
   mips: () => require ( 'monaco-editor/esm/vs/basic-languages/mips/mips.js' ),
   msdax: () => require ( 'monaco-editor/esm/vs/basic-languages/msdax/msdax.js' ),
@@ -97,6 +142,50 @@ const BASIC_LANGUAGE_LOADERS: Record<string, MonacoLanguageLoader> = {
   yaml: () => require ( 'monaco-editor/esm/vs/basic-languages/yaml/yaml.js' )
 };
 
+const BASIC_LANGUAGE_ALIASES: Record<string, string> = {
+  bash: 'shell',
+  fish: 'shell',
+  sh: 'shell',
+  zsh: 'shell',
+  ps1: 'powershell',
+  pwsh: 'powershell',
+  cmd: 'bat',
+  batch: 'bat',
+  dos: 'bat',
+  js: 'javascript',
+  jsx: 'javascript',
+  mjs: 'javascript',
+  cjs: 'javascript',
+  ts: 'typescript',
+  tsx: 'typescript',
+  py: 'python',
+  yml: 'yaml',
+  md: 'markdown',
+  htm: 'html',
+  'c++': 'cpp',
+  cplusplus: 'cpp',
+  cs: 'csharp',
+  'c#': 'csharp',
+  mmd: 'mermaid',
+  mermaidjs: 'mermaid'
+};
+
+// Monaco 0.55 ships some basic-language modules that pull in broad editor contribution bundles.
+// Dynamically loading those modules in this app causes DI "UNKNOWN service" runtime failures.
+const UNSAFE_DYNAMIC_LANGUAGE_IDS = new Set<string> ([
+  'freemarker2',
+  'handlebars',
+  'html',
+  'javascript',
+  'liquid',
+  'mdx',
+  'python',
+  'razor',
+  'typescript',
+  'xml',
+  'yaml'
+]);
+
 const BASIC_LANGUAGE_IDS = Object.keys ( BASIC_LANGUAGE_LOADERS );
 const ensuredLanguages = new Set<string> ();
 
@@ -114,22 +203,47 @@ const MonacoLanguages = {
 
     if ( ensuredLanguages.has ( normalized ) ) return true;
 
-    const loader = BASIC_LANGUAGE_LOADERS[normalized];
+    const canonical = BASIC_LANGUAGE_ALIASES[normalized] || normalized;
+    const loader = BASIC_LANGUAGE_LOADERS[canonical];
+
+    if ( UNSAFE_DYNAMIC_LANGUAGE_IDS.has ( canonical ) ) {
+      return monaco.languages.getLanguages ().some ( entry => entry.id === normalized || entry.id === canonical );
+    }
 
     if ( !loader ) {
-      return monaco.languages.getLanguages ().some ( entry => entry.id === normalized );
+      if ( monaco.languages.getLanguages ().some ( entry => entry.id === normalized ) ) {
+        ensuredLanguages.add ( normalized );
+        return true;
+      }
+
+      if ( canonical !== normalized && monaco.languages.getLanguages ().some ( entry => entry.id === canonical ) ) {
+        return false;
+      }
+
+      return false;
     }
 
     try {
       const module = loader ();
       if ( !module?.language || !module?.conf ) return false;
 
-      if ( !monaco.languages.getLanguages ().some ( entry => entry.id === normalized ) ) {
-        monaco.languages.register ({ id: normalized });
+      if ( !monaco.languages.getLanguages ().some ( entry => entry.id === canonical ) ) {
+        monaco.languages.register ({ id: canonical });
       }
 
-      monaco.languages.setMonarchTokensProvider ( normalized, module.language );
-      monaco.languages.setLanguageConfiguration ( normalized, module.conf );
+      monaco.languages.setMonarchTokensProvider ( canonical, module.language );
+      monaco.languages.setLanguageConfiguration ( canonical, module.conf );
+
+      ensuredLanguages.add ( canonical );
+
+      if ( canonical !== normalized ) {
+        if ( !monaco.languages.getLanguages ().some ( entry => entry.id === normalized ) ) {
+          monaco.languages.register ({ id: normalized });
+        }
+
+        monaco.languages.setMonarchTokensProvider ( normalized, module.language );
+        monaco.languages.setLanguageConfiguration ( normalized, module.conf );
+      }
 
       ensuredLanguages.add ( normalized );
 

@@ -360,10 +360,17 @@ const Monaco = {
 
     const tokenizer = LanguageMarkdown.language.tokenizer as any;
 
-    tokenizer.root.shift ();
-    tokenizer.root.unshift (
-      [/^(\s{0,3})(#+)((?:[^\\#]|@escapes)+)((?:#+)?)/, ['white', 'keyword.title', 'title', 'keyword.title']],
-    );
+    const headingRuleIndex = tokenizer.root.findIndex ( rule => {
+      if ( !Array.isArray ( rule ) || !( rule[0] instanceof RegExp ) ) return false;
+      return rule[0].source === '^(\\s{0,3})(#+)((?:[^\\\\#]|@escapes)+)((?:#+)?)';
+    });
+    const headingRule = [/^(\s{0,3})(#+)((?:[^\\#]|@escapes)+)((?:#+)?)/, ['white', 'keyword.title', 'title', 'keyword.title']];
+
+    if ( headingRuleIndex >= 0 ) {
+      tokenizer.root[headingRuleIndex] = headingRule;
+    } else {
+      tokenizer.root.unshift ( headingRule );
+    }
 
     // Custom KaTeX/LaTeX fenced blocks in markdown source.
     tokenizer.root.unshift (

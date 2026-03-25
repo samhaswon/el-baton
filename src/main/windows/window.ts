@@ -210,7 +210,11 @@ class Window {
 
   resolveSpellcheckerLanguages ( available: string[], preferred: string[] ): string[] {
 
-    if ( !available.length ) return [];
+    if ( !available.length ) {
+      const selected = preferred.length ? preferred : ['en-US'];
+
+      return Array.from ( new Set ( selected.map ( locale => this.normalizeLocaleCode ( locale ) ).filter ( _.identity ) ) );
+    }
 
     const availableByLower = new Map ( available.map ( locale => [locale.toLowerCase (), locale] ) );
     const selected = new Set<string> ();
@@ -246,20 +250,48 @@ class Window {
 
   configureSpellcheckerLocalization ( win: BrowserWindow ) {
 
+    if ( !win || win.isDestroyed () ) return;
+
     const session = win.webContents.session;
+
+    try {
+      session.setSpellCheckerEnabled?.( true );
+    } catch ( error ) {
+      console.warn ( '[spellcheck] Failed to enable spellchecker', error );
+    }
+
     const available = session.availableSpellCheckerLanguages || [];
-
-    if ( !available.length ) return;
-
     const preferred = this.getPreferredLocales ();
     const languages = this.resolveSpellcheckerLanguages ( available, preferred );
 
     if ( !languages.length ) return;
 
-    try {
-      session.setSpellCheckerLanguages ( languages );
-    } catch ( error ) {
-      console.warn ( '[spellcheck] Failed to set spellchecker languages', error );
+    const candidateSets = _.uniqBy ([
+      [languages[0]],
+      ['en-US']
+    ].map ( set => _.uniq ( set.map ( locale => this.normalizeLocaleCode ( locale ) ).filter ( _.identity ) ) ).filter ( set => !!set.length ), set => set.join ( '\n' ) );
+
+    for ( let index = 0, length = candidateSets.length; index < length; index++ ) {
+      const candidates = candidateSets[index];
+
+      try {
+        session.setSpellCheckerLanguages ( candidates );
+        const active = session.getSpellCheckerLanguages?.() || [];
+        console.info ( '[spellcheck] Applied spellchecker languages', {
+          requested: candidates,
+          active,
+          availableCount: available.length
+        } );
+        return;
+      } catch ( error ) {
+        if ( index === candidateSets.length - 1 ) {
+          console.warn ( '[spellcheck] Failed to set spellchecker languages', {
+            requested: candidates,
+            availableCount: available.length,
+            error
+          } );
+        }
+      }
     }
 
   }
@@ -293,8 +325,33 @@ class Window {
     }, options );
 
     const win = new BrowserWindow ( options );
+    const session = win.webContents.session;
+    const dictionaryDownloadURL = process.env.EL_BATON_SPELLCHECK_DICTIONARY_URL || 'https://redirector.gvt1.com/edgedl/chrome/dict/';
+
+    try {
+      session.setSpellCheckerDictionaryDownloadURL?.( dictionaryDownloadURL );
+      console.info ( '[spellcheck] Dictionary download URL configured', { dictionaryDownloadURL } );
+    } catch ( error ) {
+      console.warn ( '[spellcheck] Failed to configure dictionary download URL', { dictionaryDownloadURL, error } );
+    }
+
+    session.on ( 'spellcheck-dictionary-download-begin', ( _event, languageCode ) => {
+      console.info ( '[spellcheck] Dictionary download begin', { languageCode } );
+    } );
+    session.on ( 'spellcheck-dictionary-download-success', ( _event, languageCode ) => {
+      console.info ( '[spellcheck] Dictionary download success', { languageCode } );
+    } );
+    session.on ( 'spellcheck-dictionary-download-failure', ( _event, languageCode ) => {
+      console.warn ( '[spellcheck] Dictionary download failure', { languageCode } );
+    } );
+    session.on ( 'spellcheck-dictionary-initialized', ( _event, languageCode ) => {
+      console.info ( '[spellcheck] Dictionary initialized', { languageCode } );
+    } );
 
     this.configureSpellcheckerLocalization ( win );
+    win.webContents.once ( 'did-finish-load', () => this.configureSpellcheckerLocalization ( win ) );
+    setTimeout ( () => this.configureSpellcheckerLocalization ( win ), 1500 );
+    setTimeout ( () => this.configureSpellcheckerLocalization ( win ), 4000 );
 
     remoteMain.enable ( win.webContents );
 

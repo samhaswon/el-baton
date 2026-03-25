@@ -3,6 +3,8 @@
 import KatexRanges from '@common/katex_ranges';
 
 let spellchecker: { isMisspelled: ( word: string ) => boolean, getCorrectionsForMisspelling: ( word: string ) => string[] } | undefined;
+let systemDictionarySpellchecker: { isMisspelled: ( word: string ) => boolean, getCorrectionsForMisspelling: ( word: string ) => string[] } | undefined;
+let systemDictionaryLoadAttempted = false;
 
 try {
   spellchecker = require ( 'spellchecker' );
@@ -46,6 +48,7 @@ declare const self: {
 /* CONSTANTS */
 
 const WORD_RE = /[A-Za-z][A-Za-z'’-]*/g;
+const MAX_SUGGESTIONS = 3;
 
 /* STATE */
 
@@ -68,6 +71,102 @@ const shouldCheckWord = ( word: string ): boolean => {
 const normalizeWord = ( word: string ): string => {
 
   return ( word || '' ).trim ().toLowerCase ();
+
+};
+
+const getSystemDictionarySpellchecker = () => {
+
+  if ( systemDictionaryLoadAttempted ) return systemDictionarySpellchecker;
+
+  systemDictionaryLoadAttempted = true;
+
+  try {
+    const fs = require ( 'fs' ),
+          dictionaryFiles = [
+            '/usr/share/dict/words',
+            '/usr/share/dict/american-english',
+            '/usr/share/dict/british-english',
+            '/usr/dict/words',
+            '/usr/share/hunspell/en_US.dic'
+          ],
+          words = new Set<string> (),
+          wordsByInitial = new Map<string, string[]> ();
+
+    const addWord = ( rawWord: string ) => {
+
+      const token = ( rawWord || '' ).trim ().replace ( /\/.*$/, '' );
+
+      if ( !token ) return;
+      if ( /^\d+$/.test ( token ) ) return;
+
+      const normalized = normalizeWord ( token );
+
+      if ( normalized.length <= 2 ) return;
+      if ( !/^[a-z][a-z'’-]*$/.test ( normalized ) ) return;
+      if ( words.has ( normalized ) ) return;
+
+      words.add ( normalized );
+
+      const initial = normalized[0];
+      const bucket = wordsByInitial.get ( initial );
+
+      if ( bucket ) {
+        bucket.push ( normalized );
+      } else {
+        wordsByInitial.set ( initial, [normalized] );
+      }
+
+    };
+
+    for ( let index = 0, length = dictionaryFiles.length; index < length; index++ ) {
+      const dictionaryPath = dictionaryFiles[index];
+
+      if ( !fs.existsSync ( dictionaryPath ) ) continue;
+
+      const content = fs.readFileSync ( dictionaryPath, 'utf8' );
+
+      if ( !content ) continue;
+
+      const lines = content.split ( /\r?\n/g );
+
+      for ( let lineIndex = 0, lineLength = lines.length; lineIndex < lineLength; lineIndex++ ) {
+        addWord ( lines[lineIndex] );
+      }
+    }
+
+    if ( !words.size ) return;
+
+    systemDictionarySpellchecker = {
+      isMisspelled: ( word: string ) => !words.has ( normalizeWord ( word ) ),
+      getCorrectionsForMisspelling: ( word: string ) => {
+        const normalized = normalizeWord ( word );
+
+        if ( !normalized ) return [];
+
+        const bucket = wordsByInitial.get ( normalized[0] ) || [];
+        const suggestions: string[] = [];
+
+        for ( let index = 0, length = bucket.length; index < length; index++ ) {
+          const candidate = bucket[index];
+
+          if ( Math.abs ( candidate.length - normalized.length ) > 2 ) continue;
+          if ( !candidate.startsWith ( normalized.slice ( 0, 2 ) ) ) continue;
+
+          suggestions.push ( candidate );
+
+          if ( suggestions.length >= 5 ) break;
+        }
+
+        return suggestions;
+      }
+    };
+
+    console.info ( '[spellcheck] worker using system dictionary fallback', { wordCount: words.size } );
+  } catch {
+    /* ignore system dictionary fallback failures */
+  }
+
+  return systemDictionarySpellchecker;
 
 };
 
@@ -111,12 +210,14 @@ self.onmessage = ( event: MessageEvent<WorkerMessage> ) => {
   cancelled.delete ( id );
 
   try {
-    if ( !spellchecker ) {
+    const activeSpellchecker = spellchecker || getSystemDictionarySpellchecker ();
+
+    if ( !activeSpellchecker ) {
       self.postMessage ({ type: 'unavailable', id, error: 'Spellchecker native module unavailable' });
       return;
     }
 
-    const misspellings: { start: number, end: number, word: string }[] = [];
+    const misspellings: { start: number, end: number, word: string, suggestions: string[] }[] = [];
     const katexRanges = KatexRanges.find ( content );
     let match: RegExpExecArray | null;
     let rangeIndex = 0;
@@ -144,12 +245,19 @@ self.onmessage = ( event: MessageEvent<WorkerMessage> ) => {
       if ( !shouldCheckWord ( word ) ) continue;
       if ( sessionDictionary.has ( normalizeWord ( word ) ) ) continue;
       if ( persistentDictionary.has ( normalizeWord ( word ) ) ) continue;
-      if ( !spellchecker.isMisspelled ( word ) ) continue;
+      if ( !activeSpellchecker.isMisspelled ( word ) ) continue;
+
+      let suggestions: string[] = [];
+
+      try {
+        suggestions = ( activeSpellchecker.getCorrectionsForMisspelling ( word ) || [] ).slice ( 0, MAX_SUGGESTIONS );
+      } catch {}
 
       misspellings.push ({
         start: match.index,
         end: match.index + word.length,
-        word
+        word,
+        suggestions
       });
     }
 

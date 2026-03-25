@@ -31,8 +31,11 @@ type SpellcheckerModule = {
 
 const SPELLCHECK_WORD_RE = /[A-Za-z][A-Za-z'’-]*/g;
 const SPELLCHECK_MAX_SUGGESTIONS = 3;
+const CODE_FENCE_LANGUAGE_RE = /^\s{0,3}(?:`{3,}|~{3,})\s*([a-z0-9_+#./-]+)\s*$/gim;
+const CODE_FENCE_LANGUAGE_SKIP = new Set (['plantuml', 'puml', 'uml', 'katex', 'latex', 'tex', 'asciimath']);
 
 let spellcheckWorkerGloballyUnavailable = false;
+let spellcheckEnvironmentLogged = false;
 
 const shouldSpellcheckWord = ( word: string ): boolean => {
 
@@ -47,6 +50,35 @@ const shouldSpellcheckWord = ( word: string ): boolean => {
 const normalizeSpellcheckWord = ( word: string ): string => {
 
   return ( word || '' ).trim ().toLowerCase ();
+
+};
+
+const normalizeCodeFenceLanguage = ( language: string ): string => {
+
+  return String ( language || '' ).trim ().toLowerCase ();
+
+};
+
+const getCodeFenceLanguages = ( content: string ): string[] => {
+
+  if ( !content ) return [];
+
+  const languages = new Set<string> ();
+
+  CODE_FENCE_LANGUAGE_RE.lastIndex = 0;
+
+  let match: RegExpExecArray | null;
+
+  while ( ( match = CODE_FENCE_LANGUAGE_RE.exec ( content ) ) ) {
+    const language = normalizeCodeFenceLanguage ( match[1] || '' );
+
+    if ( !language ) continue;
+    if ( CODE_FENCE_LANGUAGE_SKIP.has ( language ) ) continue;
+
+    languages.add ( language );
+  }
+
+  return [...languages];
 
 };
 
@@ -80,12 +112,17 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
   _spellcheckMsgId: number = 0;
   _spellcheckActiveId?: number;
   _spellcheckPending = new Map<number, { resolve: ( value: any ) => void, reject: ( error: any ) => void }> ();
+  _spellcheckRequestSeq: number = 0;
+  _spellcheckSuggestionsByWord = new Map<string, string[]> ();
   _spellcheckDebounced = _.debounce ( () => this.spellcheckCurrentModel (), 180 );
   _spellcheckScrollDebounced = _.debounce ( () => this.spellcheckCurrentModel ( true ), 320 );
   _spellcheckCoverage?: { versionId: number, startLineNumber: number, endLineNumber: number };
   _spellcheckEnabledRuntime = true;
   _isApplyingEmojiEasterEgg: boolean = false;
   _languageLoadSeq: number = 0;
+  _embeddedLanguageLoadSeq: number = 0;
+  _embeddedFenceLanguagesEnsured = new Set<string> ();
+  _ensureEmbeddedFenceLanguagesDebounced = _.debounce ( () => this.ensureMarkdownFenceLanguages (), 90 );
 
   /* LIFECYCLE */
 
@@ -130,6 +167,8 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     $.$window.off ( 'monaco:update', this.editorUpdateDebounced );
 
     this.clearTableFormatTimeout ();
+    this._ensureEmbeddedFenceLanguagesDebounced.cancel ();
+    this._embeddedLanguageLoadSeq++;
     this.cleanupSpellcheck ();
     this.destroyMonaco ();
 
@@ -179,6 +218,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       this._tableFormatTouchedLines.clear ();
       this.resetSpellcheckCoverage ();
       this._spellcheckDebounced ();
+      this._ensureEmbeddedFenceLanguagesDebounced ();
 
     });
 
@@ -242,6 +282,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
       this.resetSpellcheckCoverage ();
       this._spellcheckDebounced ();
+      this._ensureEmbeddedFenceLanguagesDebounced ();
 
     });
 
@@ -283,13 +324,6 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
     this.editor.layout ();
     this.editorUpdateZones ();
-
-    const model = this.editor.getModel ();
-
-    if ( model && this.props.language === 'markdown' ) {
-      this.resetSpellcheckCoverage ();
-      this._spellcheckDebounced ();
-    }
 
   }
 
@@ -736,6 +770,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
     this._preventOnChangeEvent = false;
     this._spellcheckDebounced ();
+    this._ensureEmbeddedFenceLanguagesDebounced ();
 
   }
 
@@ -765,8 +800,55 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
       monaco.editor.setModelLanguage ( model, language );
       this._spellcheckDebounced ();
+      this._ensureEmbeddedFenceLanguagesDebounced ();
 
     });
+
+  }
+
+  ensureMarkdownFenceLanguages = () => {
+
+    if ( !this.editor ) return;
+    if ( this.props.language !== 'markdown' ) return;
+
+    const model = this.editor.getModel ();
+
+    if ( !model ) return;
+
+    const detectedLanguages = getCodeFenceLanguages ( model.getValue () ),
+          pendingLanguages = detectedLanguages.filter ( language => !this._embeddedFenceLanguagesEnsured.has ( language ) );
+
+    if ( !pendingLanguages.length ) return;
+
+    const loadSeq = ++this._embeddedLanguageLoadSeq;
+
+    Promise.all ( pendingLanguages.map ( async language => ({
+      language,
+      ensured: await MonacoLanguages.ensure ( language )
+    })) ).then ( results => {
+
+      if ( loadSeq !== this._embeddedLanguageLoadSeq ) return;
+      if ( !this.editor ) return;
+      if ( this.editor.getModel () !== model ) return;
+      if ( this.props.language !== 'markdown' ) return;
+
+      let ensuredAny = false;
+
+      for ( let index = 0, length = results.length; index < length; index++ ) {
+        const result = results[index];
+
+        if ( !result.ensured ) continue;
+
+        this._embeddedFenceLanguagesEnsured.add ( result.language );
+        ensuredAny = true;
+      }
+
+      if ( !ensuredAny ) return;
+
+      monaco.editor.setModelLanguage ( model, 'markdown' );
+      this._spellcheckDebounced ();
+
+    } );
 
   }
 
@@ -888,6 +970,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     this.rejectPendingSpellchecks ( new Error ( 'Spellcheck worker terminated' ) );
     this._spellcheckWorker?.terminate ();
     delete this._spellcheckWorker;
+    this._spellcheckRequestSeq++;
 
   }
 
@@ -900,9 +983,50 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
   getRendererSpellchecker (): SpellcheckerModule | undefined {
 
     if ( this._rendererSpellchecker ) return this._rendererSpellchecker;
-    if ( this._rendererSpellcheckerLoadAttempted ) return;
 
-    this._rendererSpellcheckerLoadAttempted = true;
+    try {
+      const nativeSpellchecker = require ( 'spellchecker' );
+
+      if ( nativeSpellchecker && typeof nativeSpellchecker.isMisspelled === 'function' && typeof nativeSpellchecker.getCorrectionsForMisspelling === 'function' ) {
+        this._rendererSpellchecker = {
+          isMisspelled: ( word: string ) => !!nativeSpellchecker.isMisspelled ( word ),
+          getCorrectionsForMisspelling: ( word: string ) => {
+            try {
+              return nativeSpellchecker.getCorrectionsForMisspelling ( word ) || [];
+            } catch ( error ) {
+              return [];
+            }
+          }
+        };
+
+        if ( !spellcheckEnvironmentLogged ) {
+          spellcheckEnvironmentLogged = true;
+
+          const probeWord = 'zzzzzznotaword',
+                probeMisspelled = this._rendererSpellchecker.isMisspelled ( probeWord ),
+                probeSuggestions = this._rendererSpellchecker.getCorrectionsForMisspelling ( probeWord ),
+                sampleWord = 'teh',
+                sampleMisspelled = this._rendererSpellchecker.isMisspelled ( sampleWord ),
+                sampleSuggestions = this._rendererSpellchecker.getCorrectionsForMisspelling ( sampleWord );
+
+          console.info ( '[spellcheck] renderer fallback ready', {
+            provider: 'native',
+            hasIsWordMisspelled: true,
+            hasGetWordSuggestions: true,
+            probeWord,
+            probeMisspelled,
+            probeSuggestionsCount: probeSuggestions.length,
+            sampleWord,
+            sampleMisspelled,
+            sampleSuggestionsCount: sampleSuggestions.length
+          } );
+        }
+
+        this._rendererSpellcheckerLoadAttempted = true;
+
+        return this._rendererSpellchecker;
+      }
+    } catch {}
 
     try {
       const electron = require ( 'electron' ),
@@ -919,10 +1043,49 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
             }
           }
         };
+
+        if ( !spellcheckEnvironmentLogged ) {
+          spellcheckEnvironmentLogged = true;
+
+          try {
+            const probeWord = 'zzzzzznotaword',
+                  probeMisspelled = !!webFrame.isWordMisspelled ( probeWord ),
+                  probeSuggestions = webFrame.getWordSuggestions ( probeWord ) || [],
+                  sampleWord = 'teh',
+                  sampleMisspelled = !!webFrame.isWordMisspelled ( sampleWord ),
+                  sampleSuggestions = webFrame.getWordSuggestions ( sampleWord ) || [];
+            console.info ( '[spellcheck] renderer fallback ready', {
+              provider: 'webframe',
+              hasIsWordMisspelled: true,
+              hasGetWordSuggestions: true,
+              probeWord,
+              probeMisspelled,
+              probeSuggestionsCount: probeSuggestions.length,
+              sampleWord,
+              sampleMisspelled,
+              sampleSuggestionsCount: sampleSuggestions.length
+            } );
+          } catch ( error ) {
+            console.info ( '[spellcheck] renderer fallback ready, but probe failed', {
+              error: error instanceof Error ? error.message : String ( error )
+            } );
+          }
+        }
+      } else if ( !spellcheckEnvironmentLogged ) {
+        spellcheckEnvironmentLogged = true;
+        console.info ( '[spellcheck] renderer fallback unavailable', {
+          hasWebFrame: !!webFrame,
+          hasIsWordMisspelled: !!( webFrame && typeof webFrame.isWordMisspelled === 'function' ),
+          hasGetWordSuggestions: !!( webFrame && typeof webFrame.getWordSuggestions === 'function' )
+        } );
       }
     } catch ( error ) {
-      console.error ( '[spellcheck] Failed to initialize renderer spellchecker fallback', error );
+      if ( !this._rendererSpellcheckerLoadAttempted ) {
+        console.error ( '[spellcheck] Failed to initialize renderer spellchecker fallback', error );
+      }
     }
+
+    this._rendererSpellcheckerLoadAttempted = true;
 
     return this._rendererSpellchecker;
 
@@ -936,6 +1099,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
     if ( !model ) return;
 
+    this._spellcheckSuggestionsByWord.clear ();
     monaco.editor.setModelMarkers ( model, 'spellcheck', [] );
     this.resetSpellcheckCoverage ();
 
@@ -1024,12 +1188,17 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       if ( !shouldSpellcheckWord ( word ) ) continue;
       if ( this._spellcheckSessionDictionary.has ( normalizedWord ) ) continue;
       if ( this._spellcheckPersistentDictionary.has ( normalizedWord ) ) continue;
-      if ( !spellchecker.isMisspelled ( word ) ) continue;
+      const isMisspelled = spellchecker.isMisspelled ( word );
+      const suggestions = spellchecker.getCorrectionsForMisspelling ( word ).slice ( 0, SPELLCHECK_MAX_SUGGESTIONS );
+
+      // Some backends can return false for isMisspelled while still producing suggestions.
+      if ( !isMisspelled && !suggestions.length ) continue;
 
       misspellings.push ({
         start: match.index,
         end: match.index + word.length,
-        word
+        word,
+        suggestions
       });
     }
 
@@ -1174,6 +1343,12 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
     if ( !word ) return [];
 
+    const cachedSuggestions = this._spellcheckSuggestionsByWord.get ( normalizeSpellcheckWord ( word ) );
+
+    if ( cachedSuggestions?.length ) {
+      return cachedSuggestions.slice ( 0, SPELLCHECK_MAX_SUGGESTIONS );
+    }
+
     const spellchecker = this.getRendererSpellchecker ();
 
     if ( !spellchecker ) return [];
@@ -1191,9 +1366,10 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     if ( !model ) return;
 
     const appConfig = this.props.container.appConfig.get (),
-          spellcheckDisabled = appConfig.spellcheck.disable || this.props.container.window.isBatterySpellcheckDisabled ();
+          spellcheckDisabled = appConfig.spellcheck.disable;
 
     if ( spellcheckDisabled ) {
+      this._spellcheckRequestSeq++;
       if ( this._spellcheckEnabledRuntime ) {
         this._spellcheckEnabledRuntime = false;
         this.clearSpellcheckMarkers ();
@@ -1207,6 +1383,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     this._spellcheckEnabledRuntime = true;
 
     if ( this.props.language !== 'markdown' ) {
+      this._spellcheckRequestSeq++;
       this.clearSpellcheckMarkers ();
       return;
     }
@@ -1215,6 +1392,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
           {content, baseOffset} = target;
 
     if ( !content ) {
+      this._spellcheckRequestSeq++;
       this.clearSpellcheckMarkers ();
       return;
     }
@@ -1225,11 +1403,9 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       return;
     }
 
-    this.initSpellcheckWorker ();
+    const requestSeq = ++this._spellcheckRequestSeq;
 
-    if ( this._spellcheckActiveId && this._spellcheckWorker ) {
-      this._spellcheckWorker.postMessage ({ type: 'cancel', id: this._spellcheckActiveId });
-    }
+    this.initSpellcheckWorker ();
 
     let misspellings: any[] = [];
 
@@ -1237,7 +1413,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       try {
         misspellings = await this.spellcheckInWorker ( content );
       } catch ( error ) {
-        if ( !this._spellcheckWorkerUnavailable ) return;
+        if ( requestSeq !== this._spellcheckRequestSeq ) return;
         misspellings = this.spellcheckInRenderer ( content );
       }
     } else {
@@ -1245,10 +1421,31 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     }
 
     if ( !this.editor ) return;
+    if ( requestSeq !== this._spellcheckRequestSeq ) return;
 
     const currentModel = this.editor.getModel ();
 
     if ( !currentModel || currentModel !== model ) return;
+
+    const suggestionsByWord = new Map<string, string[]> ();
+
+    for ( let index = 0, length = misspellings.length; index < length; index++ ) {
+      const misspelling = misspellings[index];
+
+      if ( !misspelling?.word ) continue;
+
+      const key = normalizeSpellcheckWord ( misspelling.word );
+
+      if ( !key || suggestionsByWord.has ( key ) ) continue;
+
+      const suggestions = Array.isArray ( misspelling.suggestions ) ? misspelling.suggestions : [];
+
+      if ( !suggestions.length ) continue;
+
+      suggestionsByWord.set ( key, suggestions.slice ( 0, SPELLCHECK_MAX_SUGGESTIONS ) );
+    }
+
+    this._spellcheckSuggestionsByWord = suggestionsByWord;
 
     const markers = misspellings.map ( item => {
       const start = model.getPositionAt ( baseOffset + item.start ),
