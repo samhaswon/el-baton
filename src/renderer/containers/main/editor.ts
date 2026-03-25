@@ -49,8 +49,13 @@ class Editor extends Container<EditorState, MainCTX> {
       const model = monaco.getModel (),
             view = monaco.saveViewState ();
 
-      if ( view && view.viewState.firstPositionDeltaTop === 0 ) {
-        view.viewState.firstPositionDeltaTop = Infinity; // Ensuring we are scrolling to the very top, important in zen mode
+      if ( view ) {
+        const firstPosition = view.viewState.firstPosition,
+              isAtDocumentTop = !!firstPosition && firstPosition.lineNumber <= 1 && firstPosition.column <= 1;
+
+        if ( isAtDocumentTop && view.viewState.firstPositionDeltaTop === 0 ) {
+          view.viewState.firstPositionDeltaTop = Infinity; // Ensuring we are scrolling to the very top, important in zen mode
+        }
       }
 
       return {

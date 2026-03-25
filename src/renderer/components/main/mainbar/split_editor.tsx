@@ -39,7 +39,6 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
   _lastPreviewScrollTop = NaN;
   _lastSourceSyncAt = 0;
   _lastPreviewSyncAt = 0;
-  _lastDiagramMetricsSignature = '';
 
   state = {
     content: undefined as string | undefined
@@ -55,6 +54,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     $.$window.on ( 'preview:rendered', this.__previewRendered );
     $.$window.on ( 'preview:render:start', this.__previewRenderStart );
+    $.$window.on ( 'preview:render:stop', this.__previewRenderStop );
     $.$window.on ( 'preview:dynamic-content:updated', this.__previewDynamicContentUpdated );
     $.$window.on ( 'monaco:update', this.__scheduleSourceSync );
     $.$document.on ( 'layoutresizable:resize', this.__layoutResized );
@@ -71,6 +71,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     $.$window.off ( 'preview:rendered', this.__previewRendered );
     $.$window.off ( 'preview:render:start', this.__previewRenderStart );
+    $.$window.off ( 'preview:render:stop', this.__previewRenderStop );
     $.$window.off ( 'preview:dynamic-content:updated', this.__previewDynamicContentUpdated );
     $.$window.off ( 'monaco:update', this.__scheduleSourceSync );
     $.$document.off ( 'layoutresizable:resize', this.__layoutResized );
@@ -574,7 +575,6 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
           blockNodes = Array.from ( preview.node.querySelectorAll ( 'h1, h2, h3, h4, h5, h6, p, pre, li, blockquote, table, hr, details, summary, .mermaid, .plantuml, iframe, img, video, figure' ) ) as HTMLElement[],
           anchors: { source: number, preview: number }[] = [],
           previewAnchors: PreviewAnchor[] = [],
-          diagramMetrics: { kind: 'mermaid' | 'plantuml', top: number, height: number, endTop: number }[] = [],
           previewContentNode = ( preview.node.querySelector ( '.preview-content' ) as HTMLElement | null ) || preview.node;
 
     const previewHeadingOccurrences: Record<string, number> = {};
@@ -598,15 +598,6 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
         previewAnchors.push ({ top, kind: 'media', key: mediaKey });
         previewAnchors.push ({ top: endTop, kind: 'media-end', key: mediaKey });
-
-        if ( isDiagramBlock ) {
-          diagramMetrics.push ({
-            kind: node.classList.contains ( 'plantuml' ) ? 'plantuml' : 'mermaid',
-            top,
-            height: Math.max ( 0, node.offsetHeight ),
-            endTop
-          });
-        }
 
         continue;
       }
@@ -780,56 +771,6 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     this._anchorPairs = normalized;
     this._anchorsCache = undefined;
-
-    const steepSegments: {
-      sourceStart: number,
-      sourceEnd: number,
-      sourceSpan: number,
-      previewStart: number,
-      previewEnd: number,
-      previewSpan: number,
-      previewPerSourceUnit: number
-    }[] = [];
-
-    for ( let index = 1, l = normalized.length; index < l; index++ ) {
-      const left = normalized[index - 1],
-            right = normalized[index],
-            sourceSpan = right.source - left.source,
-            previewSpan = right.preview - left.preview;
-
-      if ( sourceSpan <= 0 ) continue;
-
-      const density = previewSpan / sourceSpan;
-
-      if ( previewSpan >= 120 && density >= 100 ) {
-        steepSegments.push ({
-          sourceStart: Number ( left.source.toFixed ( 3 ) ),
-          sourceEnd: Number ( right.source.toFixed ( 3 ) ),
-          sourceSpan: Number ( sourceSpan.toFixed ( 3 ) ),
-          previewStart: Math.round ( left.preview ),
-          previewEnd: Math.round ( right.preview ),
-          previewSpan: Math.round ( previewSpan ),
-          previewPerSourceUnit: Number ( density.toFixed ( 2 ) )
-        });
-      }
-    }
-
-    if ( diagramMetrics.length || steepSegments.length ) {
-      const payload = {
-        diagramCount: diagramMetrics.length,
-        diagramMetrics,
-        sourceMediaAnchors: sourceAnchors.filter ( anchor => anchor.kind === 'media' || anchor.kind === 'media-end' ).length,
-        steepSegments
-      },
-            signature = JSON.stringify ( payload );
-
-      if ( this._lastDiagramMetricsSignature !== signature ) {
-        this._lastDiagramMetricsSignature = signature;
-        console.info ( '[split-sync] diagram/anchor metrics', payload );
-      }
-    } else {
-      this._lastDiagramMetricsSignature = '';
-    }
 
   }
 
@@ -1133,8 +1074,8 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     if ( !source || !preview ) return;
 
-    // While typing against a partial preview, source scroll must remain authoritative.
-    if ( this._isPreviewPartial && source.monaco.hasTextFocus () ) return;
+    // While a partial preview render is actively in-flight, source scroll remains authoritative.
+    if ( this._isPreviewPartial && this._isPreviewRendering && source.monaco.hasTextFocus () ) return;
 
     const shouldUseLinear = this._isPreviewPartial || this._isPreviewRendering,
           anchors = shouldUseLinear ? undefined : this.__getAnchors ( source, preview );
@@ -1194,6 +1135,10 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     if ( !this.props.splitViewSyncEnabled ) return;
 
+    if ( Date.now () >= this._ignorePreviewScrollUntil ) {
+      this._ignoreSourceScrollUntil = Math.max ( this._ignoreSourceScrollUntil, Date.now () + 180 );
+    }
+
     if ( this._previewSyncFrame ) return;
 
     this._previewSyncFrame = window.requestAnimationFrame ( () => {
@@ -1245,6 +1190,25 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     this._isPreviewRendering = true;
     this._previewToSourceLockUntil = Date.now () + 800;
     this._ignorePreviewScrollUntil = Date.now () + 400;
+
+  }
+
+  __previewRenderStop = ( _event, renderMeta? ) => {
+
+    if ( renderMeta && renderMeta.kind === 'full-live' ) return;
+    if ( !this._isPreviewRendering ) return;
+
+    this._isPreviewRendering = false;
+
+    if ( renderMeta && renderMeta.kind === 'cancelled' ) {
+      this._isPreviewPartial = false;
+      this._currentPartialWindow = undefined;
+      const now = Date.now ();
+      this._previewToSourceLockUntil = Math.max ( this._previewToSourceLockUntil, now + 120 );
+      this._ignorePreviewScrollUntil = Math.max ( this._ignorePreviewScrollUntil, now + 120 );
+    }
+
+    this.__scheduleSourceSync ();
 
   }
 

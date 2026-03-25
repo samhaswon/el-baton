@@ -5,12 +5,15 @@ import * as _ from 'lodash';
 import {decode} from 'html-entities';
 import isAbsoluteUrl from 'is-absolute-url';
 import * as path from 'path';
+import Config from '@common/config';
 import Emoji from '@common/emoji';
 import MarkdownPath from '@common/markdown_path';
 import MarkdownRenderHelpers from '@common/markdown_render_helpers';
+import PlantUML from '@common/plantuml';
 import AsciiMath from './asciimath';
 import Highlighter from './highlighter';
 import MermaidCache from './mermaid_cache';
+import PlantUMLCache from './plantuml_cache';
 import Utils from './utils';
 const cmark = require ( 'cmark-gfm' );
 
@@ -720,8 +723,12 @@ const Markdown = {
         type: 'output',
         regex: /<pre><code\s[^>]*language-(?:plantuml|puml|uml)[^>]*>([^]+?)<\/code><\/pre>/g,
         replace ( match, $1 ) {
-          const source = decode ( $1 );
-          return MarkdownRenderHelpers.renderPlantUMLBlock ( source );
+          const source = PlantUML.normalizeSource ( decode ( $1 ) ),
+                serverUrl = PlantUML.normalizeServerUrl ( Config.plantuml.externalServerUrl ),
+                cacheKey = `${serverUrl || ''}\u0000${source}`,
+                cachedResult = PlantUMLCache.get ( cacheKey ),
+                cachedSvg = ( cachedResult && cachedResult.status === 'ok' ) ? cachedResult.svg : undefined;
+          return MarkdownRenderHelpers.renderPlantUMLBlock ( source, cachedSvg );
         }
       }];
 

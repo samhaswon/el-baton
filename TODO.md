@@ -189,7 +189,7 @@
 - [ ] <kbd>INSERT</kbd> should toggle the edit/preview/split-view mode, similar to Vim.
 - [ ] CSS: the note tabs should just be trapezoids with a border color.
 - [ ] Split view: lightly highlight the edit location when typing.
-- [ ] Bug: window randomly scrolls to the top when switching to another app for a while. Cursor remains, but the scroll moves on its own.
+- [X] Bug: window randomly scrolls to the top when switching to another app for a while. Cursor remains, but the scroll moves on its own.
     - Might be related to the user scrolling the preview pane last?
     - Might be related to the app going into the background and attempting to trigger the on-battery state? Kind of hard to tell.
     - Preview "rendering" state button in the toolbar gets stuck in its rendering indication. Might be related?
@@ -218,6 +218,7 @@
 - [ ] When a user highlights text and types a brace/bracket/parenthesis or formatting that wraps text (`*`, `_`, `~`, ...), autofill on both sides and do not delete the text.
 - [ ] Auto-close brackets, braces, and parenthesis
     - If a user types `(`, autofill the closing `)`.
+        - If the user types some and then types the closing `)`, do not add a duplicate parenthesis.
     - [ ] Add UI test for this after it is known to work to catch regressions.
 - [ ] Syntax highlighting breaks within quote blocks (`> `).
     - Source view

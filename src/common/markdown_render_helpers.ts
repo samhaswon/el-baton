@@ -269,9 +269,13 @@ const MarkdownRenderHelpers = {
 
   },
 
-  renderPlantUMLBlock ( source: string ): string {
+  renderPlantUMLBlock ( source: string, cachedSvg?: string ): string {
 
     const payload = encodeURIComponent ( source );
+
+    if ( cachedSvg ) {
+      return `<div class="plantuml"><code class="plantuml-source hidden">${payload}</code>${cachedSvg}</div>`;
+    }
 
     return `<div class="plantuml"><code class="plantuml-source hidden">${payload}</code></div>`;
 

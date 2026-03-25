@@ -23,8 +23,11 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
   _mermaidTheme;
   _lastPreviewRenderWasPartial = false;
   _forceFreshMermaidRender = false;
+  _mermaidRenderQueued = false;
+  _pendingMermaidRenderMeta;
 
   _plantumlRendering = false;
+  _plantumlRenderQueued = false;
   _plantumlRequestId = 0;
   _plantumlPending = new Map<number, { resolve: ( value: PlantUMLRenderResult ) => void, reject: ( error: Error ) => void, timeoutId: number }> ();
 
@@ -42,6 +45,8 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
     $.$window.on ( 'preview:render:start', this.__previewRenderStart );
     $.$window.on ( 'preview:rendered', this.__renderMermaids );
     $.$window.on ( 'preview:rendered', this.__renderPlantUMLs );
+    $.$window.on ( 'preview:render:stop', this.__renderMermaids );
+    $.$window.on ( 'preview:render:stop', this.__renderPlantUMLs );
     this.__renderMermaids ();
     this.__renderPlantUMLs ();
 
@@ -66,6 +71,8 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
     $.$window.off ( 'preview:render:start', this.__previewRenderStart );
     $.$window.off ( 'preview:rendered', this.__renderMermaids );
     $.$window.off ( 'preview:rendered', this.__renderPlantUMLs );
+    $.$window.off ( 'preview:render:stop', this.__renderMermaids );
+    $.$window.off ( 'preview:render:stop', this.__renderPlantUMLs );
 
     for ( const [id, pending] of this._plantumlPending.entries () ) {
       window.clearTimeout ( pending.timeoutId );
@@ -106,7 +113,7 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
 
   __previewRenderStart = ( _event, renderMeta? ) => {
 
-    if ( this._lastPreviewRenderWasPartial && renderMeta && renderMeta.kind !== 'partial' ) {
+    if ( this._lastPreviewRenderWasPartial && renderMeta && renderMeta.kind === 'full-deferred' ) {
       this._forceFreshMermaidRender = true;
       MermaidCache.clear ();
       PlantUMLCache.clear ();
@@ -161,105 +168,131 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
 
   __renderMermaids = async ( _event?, renderMeta? ) => {
 
-    if ( this._mermaidRendering ) return;
-    this._mermaidRendering = true;
-    this._lastPreviewRenderWasPartial = !!( renderMeta && renderMeta.kind === 'partial' );
-
-    const currentTheme = this.__getMermaidTheme ();
-
-    const mermaid = await this.__ensureMermaid ();
-
-    if ( !mermaid ) {
-      const nodes = Array.from ( document.querySelectorAll ( '.preview .mermaid' ) );
-
-      for ( const node of nodes ) {
-        $(node).html ( MarkdownRenderHelpers.renderMermaidError ( 'Failed to load Mermaid renderer' ) );
-      }
-
-      this._mermaidRendering = false;
+    if ( this._mermaidRendering ) {
+      this._mermaidRenderQueued = true;
+      if ( renderMeta ) this._pendingMermaidRenderMeta = renderMeta;
       return;
     }
 
-    const nodes = Array.from ( document.querySelectorAll ( '.preview .mermaid' ) );
+    this._mermaidRendering = true;
 
-    for ( const node of nodes ) {
+    const effectiveRenderMeta = renderMeta || this._pendingMermaidRenderMeta;
+    this._pendingMermaidRenderMeta = undefined;
+    this._lastPreviewRenderWasPartial = !!( effectiveRenderMeta && effectiveRenderMeta.kind === 'partial' );
 
-      const $node = $(node),
-            sourceNode = $node.find ( '.mermaid-source' )[0],
-            currentSource = $node.data ( 'mermaidSource' ),
-            currentNodeTheme = $node.data ( 'mermaidTheme' );
+    const currentTheme = this.__getMermaidTheme ();
+    let nodeCount = 0;
 
-      if ( !sourceNode && currentNodeTheme === currentTheme && currentSource ) continue;
-      if ( !sourceNode ) continue;
+    try {
 
-      const encoded = sourceNode.textContent || '';
+      const mermaid = await this.__ensureMermaid ();
 
-      let source = '';
+      if ( !mermaid ) {
+        const nodes = Array.from ( document.querySelectorAll ( '.preview .mermaid' ) );
+        nodeCount = nodes.length;
 
-      try {
-        source = decodeURIComponent ( encoded );
-      } catch ( error ) {
-        const message = error instanceof Error ? error.message : String ( error );
-        console.error ( `[mermaid] ${message}` );
-        $node.html ( MarkdownRenderHelpers.renderMermaidError ( message ) );
-        continue;
+        for ( const node of nodes ) {
+          $(node).html ( MarkdownRenderHelpers.renderMermaidError ( 'Failed to load Mermaid renderer' ) );
+        }
+
+        return;
       }
 
-      if ( !source.trim () ) continue;
-      if ( currentSource === source && currentNodeTheme === currentTheme ) continue;
+      const nodes = Array.from ( document.querySelectorAll ( '.preview .mermaid' ) );
+      nodeCount = nodes.length;
 
-      const existingSvgNode = $node.children ( 'svg' )[0];
+      for ( const node of nodes ) {
 
-      if ( existingSvgNode && currentNodeTheme === currentTheme ) {
-        MermaidCache.set ( this.__getMermaidCacheKey ( source ), existingSvgNode.outerHTML );
-        $node.data ( 'mermaidSource', source );
-        $node.data ( 'mermaidTheme', currentTheme );
-        continue;
+        const $node = $(node),
+              sourceNode = $node.find ( '.mermaid-source' )[0],
+              currentSource = $node.data ( 'mermaidSource' ),
+              currentNodeTheme = $node.data ( 'mermaidTheme' );
+
+        if ( !sourceNode && currentNodeTheme === currentTheme && currentSource ) continue;
+        if ( !sourceNode ) continue;
+
+        const encoded = sourceNode.textContent || '';
+
+        let source = '';
+
+        try {
+          source = decodeURIComponent ( encoded );
+        } catch ( error ) {
+          const message = error instanceof Error ? error.message : String ( error );
+          console.error ( `[mermaid] ${message}` );
+          $node.html ( MarkdownRenderHelpers.renderMermaidError ( message ) );
+          continue;
+        }
+
+        if ( !source.trim () ) continue;
+        if ( currentSource === source && currentNodeTheme === currentTheme ) continue;
+
+        const existingSvgNode = $node.children ( 'svg' )[0];
+
+        if ( existingSvgNode && currentNodeTheme === currentTheme ) {
+          MermaidCache.set ( this.__getMermaidCacheKey ( source ), existingSvgNode.outerHTML );
+          $node.data ( 'mermaidSource', source );
+          $node.data ( 'mermaidTheme', currentTheme );
+          continue;
+        }
+
+        const cacheKey = this.__getMermaidCacheKey ( source ),
+              cachedSvg = this._forceFreshMermaidRender ? undefined : MermaidCache.get ( cacheKey );
+
+        if ( cachedSvg ) {
+          const $external = $node.children ( '.mermaid-open-external' ).detach ();
+          $node.empty ();
+          if ( $external.length ) $node.append ( $external );
+          $node.append ( cachedSvg );
+          $node.data ( 'mermaidSource', source );
+          $node.data ( 'mermaidTheme', currentTheme );
+          continue;
+        }
+
+        const id = _.uniqueId ( 'mermaid-' );
+
+        try {
+          const result = await mermaid.render ( id, source ),
+                svg = _.isString ( result ) ? result : result.svg,
+                $external = $node.children ( '.mermaid-open-external' ).detach ();
+
+          MermaidCache.set ( cacheKey, svg );
+
+          $node.empty ();
+          if ( $external.length ) $node.append ( $external );
+          $node.append ( svg );
+          $node.data ( 'mermaidSource', source );
+          $node.data ( 'mermaidTheme', currentTheme );
+        } catch ( error ) {
+          const message = error instanceof Error ? error.message : String ( error );
+          console.error ( `[mermaid] ${message}` );
+          $node.html ( MarkdownRenderHelpers.renderMermaidError ( message ) );
+        }
+
       }
 
-      const cacheKey = this.__getMermaidCacheKey ( source ),
-            cachedSvg = this._forceFreshMermaidRender ? undefined : MermaidCache.get ( cacheKey );
+    } catch ( error ) {
 
-      if ( cachedSvg ) {
-        const $external = $node.children ( '.mermaid-open-external' ).detach ();
-        $node.empty ();
-        if ( $external.length ) $node.append ( $external );
-        $node.append ( cachedSvg );
-        $node.data ( 'mermaidSource', source );
-        $node.data ( 'mermaidTheme', currentTheme );
-        continue;
+      const message = error instanceof Error ? error.message : String ( error );
+      console.error ( `[mermaid] Unexpected render failure: ${message}` );
+
+    } finally {
+
+      this._forceFreshMermaidRender = false;
+      this._mermaidRendering = false;
+
+      if ( nodeCount ) {
+        $.$window.trigger ( 'preview:dynamic-content:updated', [{
+          source: 'mermaid',
+          partial: this._lastPreviewRenderWasPartial
+        }] );
       }
 
-      const id = _.uniqueId ( 'mermaid-' );
-
-      try {
-        const result = await mermaid.render ( id, source ),
-              svg = _.isString ( result ) ? result : result.svg,
-              $external = $node.children ( '.mermaid-open-external' ).detach ();
-
-        MermaidCache.set ( cacheKey, svg );
-
-        $node.empty ();
-        if ( $external.length ) $node.append ( $external );
-        $node.append ( svg );
-        $node.data ( 'mermaidSource', source );
-        $node.data ( 'mermaidTheme', currentTheme );
-      } catch ( error ) {
-        const message = error instanceof Error ? error.message : String ( error );
-        console.error ( `[mermaid] ${message}` );
-        $node.html ( MarkdownRenderHelpers.renderMermaidError ( message ) );
+      if ( this._mermaidRenderQueued ) {
+        this._mermaidRenderQueued = false;
+        void this.__renderMermaids ( undefined, this._pendingMermaidRenderMeta );
       }
 
-    }
-
-    this._forceFreshMermaidRender = false;
-    this._mermaidRendering = false;
-
-    if ( nodes.length ) {
-      $.$window.trigger ( 'preview:dynamic-content:updated', [{
-        source: 'mermaid',
-        partial: this._lastPreviewRenderWasPartial
-      }] );
     }
 
   }
@@ -348,7 +381,10 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
 
   __renderPlantUMLs = async () => {
 
-    if ( this._plantumlRendering ) return;
+    if ( this._plantumlRendering ) {
+      this._plantumlRenderQueued = true;
+      return;
+    }
 
     this._plantumlRendering = true;
 
@@ -418,6 +454,11 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
 
       }
 
+    } catch ( error ) {
+
+      const message = error instanceof Error ? error.message : String ( error );
+      console.error ( `[plantuml] Unexpected render failure: ${message}` );
+
     } finally {
 
       this._plantumlRendering = false;
@@ -427,6 +468,11 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
           source: 'plantuml',
           partial: this._lastPreviewRenderWasPartial
         }] );
+      }
+
+      if ( this._plantumlRenderQueued ) {
+        this._plantumlRenderQueued = false;
+        void this.__renderPlantUMLs ();
       }
 
     }

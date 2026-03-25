@@ -13,14 +13,14 @@ const OpenButton = ({ openInApp }) => {
 
   React.useEffect ( () => {
     const onRenderStart = () => setIsRendering ( true ),
-          onRendered = () => setIsRendering ( false );
+          onRenderStop = () => setIsRendering ( false );
 
     $.$window.on ( 'preview:render:start', onRenderStart );
-    $.$window.on ( 'preview:rendered', onRendered );
+    $.$window.on ( 'preview:render:stop', onRenderStop );
 
     return () => {
       $.$window.off ( 'preview:render:start', onRenderStart );
-      $.$window.off ( 'preview:rendered', onRendered );
+      $.$window.off ( 'preview:render:stop', onRenderStop );
     };
   }, [] );
 

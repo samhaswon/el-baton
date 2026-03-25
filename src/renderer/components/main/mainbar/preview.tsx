@@ -23,6 +23,19 @@ const isDollarMathDelimiterLine = ( line: string ) => line.trim () === '$$';
 const isBracketMathStartLine = ( line: string ) => line.trim () === '\\[';
 const isBracketMathEndLine = ( line: string ) => line.trim () === '\\]';
 
+type PreviewRenderMeta = {
+  kind?: string,
+  sourceSnapshot?: {
+    sourceUnits: number,
+    sourceMaxUnits: number
+  },
+  partialWindow?: {
+    startLine: number,
+    endLine: number,
+    totalLines: number
+  }
+};
+
 const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocused, getMonaco, sourceFilePath, disableScriptSanitization, batteryRenderDelayMs = 0, enableWorker = true, largeRenderMode = 'always', syncScroll = false }) => {
   const effectiveContent = content,
         isLargeDocument = content.length >= Config.preview.largeDocumentThreshold,
@@ -44,10 +57,12 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
         currentDocumentKeyRef = React.useRef<string | undefined> ( sourceFilePath ),
         timeoutRef = React.useRef<number | undefined> ( undefined ),
         idleRef = React.useRef<number | undefined> ( undefined ),
-        renderMetaRef = React.useRef<any> ({ kind: 'initial' });
+        renderMetaRef = React.useRef<PreviewRenderMeta> ({ kind: 'initial' }),
+        pendingRenderMetaRef = React.useRef<PreviewRenderMeta | undefined> ( undefined );
 
   const isInitialDocumentRender = ( currentDocumentKeyRef.current !== sourceFilePath ) || !hasCompletedInitialRenderRef.current,
-        shouldDeferRender = isLargeDocument && (
+        schedulingEditorFocused = enableWorker ? isEditorFocused : false,
+        shouldDeferRender = enableWorker && schedulingEditorFocused && isLargeDocument && (
           largeRenderMode === 'always' ||
           ( largeRenderMode === 'after-initial' && !isInitialDocumentRender )
         );
@@ -134,7 +149,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
       workerInitStartedRef.current = false;
       console.error ( '[preview] Failed to initialize markdown worker, falling back to main thread render', error );
     }
-  }, [content.length, enableWorker, isEditorFocused, rejectPendingWorker, sourceFilePath] );
+  }, [enableWorker, rejectPendingWorker] );
 
   React.useEffect ( () => {
     return () => {
@@ -159,6 +174,30 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
     }
     activeWorkerMsgIdRef.current = undefined;
   }, [] );
+
+  const emitRenderStop = React.useCallback ( ( meta?: PreviewRenderMeta ) => {
+    const completedMeta = meta || pendingRenderMetaRef.current || renderMetaRef.current;
+    pendingRenderMetaRef.current = undefined;
+    $.$window.trigger ( 'preview:render:stop', [completedMeta] );
+  }, [] );
+
+  const emitRenderEnd = React.useCallback ( ( meta?: PreviewRenderMeta ) => {
+    const completedMeta = meta || pendingRenderMetaRef.current || renderMetaRef.current;
+    pendingRenderMetaRef.current = undefined;
+    $.$window.trigger ( 'preview:rendered', [completedMeta] );
+    $.$window.trigger ( 'preview:render:stop', [completedMeta] );
+  }, [] );
+
+  const emitRenderStart = React.useCallback ( ( meta: PreviewRenderMeta ) => {
+    if ( pendingRenderMetaRef.current ) {
+      emitRenderStop ({
+        ...pendingRenderMetaRef.current,
+        kind: 'cancelled'
+      });
+    }
+    pendingRenderMetaRef.current = meta;
+    $.$window.trigger ( 'preview:render:start', [meta] );
+  }, [emitRenderStop] );
 
   const renderInWorker = React.useCallback ( ( input: string, abortableOnMainThread: boolean = true ): Promise<string> => {
     const worker = workerRef.current;
@@ -345,16 +384,16 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
   }, [getMonaco] );
 
   const getDebounceDelay = React.useCallback ( () => {
-    if ( !isEditorFocused ) return 0;
+    if ( !schedulingEditorFocused ) return 0;
     const base = content.length >= MEDIUM_PREVIEW_RENDER_THRESHOLD ? 180 : 80,
           variable = Math.min ( 180, Math.floor ( content.length / 800 ) );
     return Math.max ( TYPING_DEBOUNCE_MIN, Math.min ( TYPING_DEBOUNCE_MAX + effectiveBatteryRenderDelay, base + variable + effectiveBatteryRenderDelay ) );
-  }, [content.length, effectiveBatteryRenderDelay, isEditorFocused] );
+  }, [content.length, effectiveBatteryRenderDelay, schedulingEditorFocused] );
 
   React.useEffect ( () => {
     cancelWorkerRender ();
 
-    if ( enableWorker && hasCompletedInitialRenderRef.current && isEditorFocused ) {
+    if ( enableWorker && hasCompletedInitialRenderRef.current && schedulingEditorFocused ) {
       initWorker ();
     }
 
@@ -364,7 +403,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
                   renderMeta = { kind: shouldDeferRender ? 'full-deferred' : 'full-live', sourceSnapshot };
             if ( renderJobId !== renderJobRef.current ) return;
             renderMetaRef.current = renderMeta;
-            $.$window.trigger ( 'preview:render:start', [renderMeta] );
+            emitRenderStart ( renderMeta );
             let nextHtml: string;
             try {
               nextHtml = await renderInWorker ( content, true );
@@ -403,7 +442,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
           totalLines: partial.totalLines
         }
       };
-      $.$window.trigger ( 'preview:render:start', [renderMetaRef.current] );
+      emitRenderStart ( renderMetaRef.current );
       renderInWorker ( partial.content, false ).then ( partialHtml => {
         if ( renderJobId !== renderJobRef.current ) return;
         setHtml ( partialHtml );
@@ -426,17 +465,23 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
       renderJobRef.current++;
       cancelWorkerRender ();
       clearScheduled ();
+      if ( pendingRenderMetaRef.current ) {
+        emitRenderStop ({
+          ...pendingRenderMetaRef.current,
+          kind: 'cancelled'
+        });
+      }
     };
 
-  }, [content, effectiveContent, shouldDeferRender, getDebounceDelay, clearScheduled, scheduleIdle, isEditorFocused, buildPartialPreview, getSourceSnapshot, renderInWorker, cancelWorkerRender, enableWorker, effectiveLargeNoteFullRenderDelay, largeRenderMode, initWorker] );
+  }, [content, effectiveContent, shouldDeferRender, getDebounceDelay, clearScheduled, scheduleIdle, schedulingEditorFocused, buildPartialPreview, getSourceSnapshot, renderInWorker, cancelWorkerRender, emitRenderEnd, emitRenderStart, emitRenderStop, enableWorker, effectiveLargeNoteFullRenderDelay, largeRenderMode, initWorker] );
 
   React.useEffect ( () => () => clearScheduled (), [clearScheduled] );
 
   React.useEffect ( () => {
     if ( isRendering ) return;
     if ( !hasCompletedInitialRenderRef.current ) hasCompletedInitialRenderRef.current = true;
-    $.$window.trigger ( 'preview:rendered', [renderMetaRef.current] );
-  }, [html, isRendering] );
+    emitRenderEnd ( renderMetaRef.current );
+  }, [html, isRendering, emitRenderEnd] );
 
   React.useEffect ( () => {
     if ( isRendering || !disableScriptSanitization ) return;
