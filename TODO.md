@@ -215,10 +215,10 @@
     - Bold: CTRL + b
     - Italic: CTRL + i
     - ...
-- [ ] When a user highlights text and types a brace/bracket/parenthesis or formatting that wraps text (`*`, `_`, `~`, ...), autofill on both sides and do not delete the text.
-- [ ] Auto-close brackets, braces, and parenthesis
+- [ ] Auto-close brackets, braces, parenthesis, and formatting.
     - If a user types `(`, autofill the closing `)`.
         - If the user types some and then types the closing `)`, do not add a duplicate parenthesis.
+    - [ ] When a user highlights text and types a brace/bracket/parenthesis or formatting that wraps text (`*`, `_`, `~`, ...), autofill on both sides and do not delete the text.
     - [ ] Add UI test for this after it is known to work to catch regressions.
 - [ ] Syntax highlighting breaks within quote blocks (`> `).
     - Source view
