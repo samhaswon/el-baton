@@ -13,10 +13,10 @@ import Tagbox from './tagbox';
 
 /* POPOVER NOTE TAGS */
 
-const PopoverNoteTags = ({ tags, isEditing, toggleEditing, replaceTags }) => (
+const PopoverNoteTags = ({ tags, suggestions, isEditing, toggleEditing, replaceTags }) => (
   <Popover open={isEditing} onBeforeClose={() => _.defer ( () => toggleEditing ( false ) )} anchor=".popover-note-tags-trigger" className="popover-note-tags">
     <FixedList className="popover-note-tags-list card-block" data={tags} fallbackEmptyMessage="No tags">{Tag}</FixedList>
-    <Tagbox className="card-footer" tags={_.clone ( tags )} onChange={tags => replaceTags ( undefined, Tags.sort ( tags ) )} />
+    <Tagbox className="card-footer" tags={_.clone ( tags )} suggestions={suggestions} onChange={tags => replaceTags ( undefined, Tags.sort ( tags ) )} />
   </Popover>
 );
 
@@ -25,8 +25,19 @@ const PopoverNoteTags = ({ tags, isEditing, toggleEditing, replaceTags }) => (
 export default connect ({
   container: Main,
   selector: ({ container }) => ({
-    note: container.note.get (),
     tags: container.note.getTags (),
+    suggestions: (() => {
+      const noteTagsSet = new Set ( container.note.getTags () );
+      const allTagsSet = new Set<string> ();
+
+      Object.values ( container.notes.get () ).forEach ( note => {
+        container.note.getTags ( note ).forEach ( tag => {
+          if ( !noteTagsSet.has ( tag ) ) allTagsSet.add ( tag );
+        });
+      });
+
+      return Tags.sort ( Array.from ( allTagsSet ) ) as string[];
+    }) (),
     isEditing: container.tags.isEditing (),
     toggleEditing: container.tags.toggleEditing,
     replaceTags: container.note.replaceTags

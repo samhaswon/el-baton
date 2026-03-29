@@ -193,7 +193,7 @@
     - Might be related to the user scrolling the preview pane last?
     - Might be related to the app going into the background and attempting to trigger the on-battery state? Kind of hard to tell.
     - Preview "rendering" state button in the toolbar gets stuck in its rendering indication. Might be related?
-- [ ] Suggestions for tags based on what exists, excluding what the note is already tagged with.
+- [X] Suggestions for tags based on what exists, excluding what the note is already tagged with.
 - [ ] Use `react-window` on the explorer pane.
 - [ ] Investigate removing the smaller preview for large notes
     - [ ] Identify how rendering changes could be made more efficient

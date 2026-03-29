@@ -3567,7 +3567,28 @@ span>script:last-child {
 }
 
 .popover-note-attachments,.popover-note-tags {
+  position:fixed !important;
+  top:0;
+  left:0;
+  margin:0 !important;
   min-width:6.5em
+}
+
+.popover-note-tags {
+  width:max-content;
+  transform-origin:top left
+}
+
+.popover-note-tags-suggestions {
+  max-height:10rem;
+  overflow:auto
+}
+
+.popover-note-tags-suggestion {
+  display:block;
+  border-radius:0;
+  margin-bottom:0;
+  text-align:left
 }
 
 /* Shared window layout outside component-owned styles. */
