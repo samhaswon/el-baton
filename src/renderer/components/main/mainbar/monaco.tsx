@@ -33,6 +33,21 @@ const SPELLCHECK_WORD_RE = /[A-Za-z][A-Za-z'’-]*/g;
 const SPELLCHECK_MAX_SUGGESTIONS = 3;
 const CODE_FENCE_LANGUAGE_RE = /^\s{0,3}(?:`{3,}|~{3,})\s*([a-z0-9_+#./-]+)\s*$/gim;
 const CODE_FENCE_LANGUAGE_SKIP = new Set (['plantuml', 'puml', 'uml', 'katex', 'latex', 'tex', 'asciimath']);
+const AUTO_PAIR_OPEN_TO_CLOSE: Record<string, string> = {
+  '(': ')',
+  '[': ']',
+  '{': '}',
+  '*': '*',
+  '_': '_',
+  '~': '~',
+  '`': '`'
+};
+const AUTO_PAIR_CLOSE_TO_OPEN: Record<string, string> = {
+  ')': '(',
+  ']': '[',
+  '}': '{'
+};
+const AUTO_PAIR_WRAPPERS = new Set<string> ([...Object.keys ( AUTO_PAIR_OPEN_TO_CLOSE ), ...Object.keys ( AUTO_PAIR_CLOSE_TO_OPEN )]);
 
 let spellcheckWorkerGloballyUnavailable = false;
 let spellcheckEnvironmentLogged = false;
@@ -209,6 +224,20 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     ( editor as any ).addCommand ( monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {
       this.props.container.search.focus ();
     });
+
+    ( editor as any ).addCommand ( monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyB, () => {
+      this.applyInlineFormattingShortcut ( '**', '**' );
+    });
+
+    ( editor as any ).addCommand ( monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI, () => {
+      this.applyInlineFormattingShortcut ( '*', '*' );
+    });
+
+    ( editor as any ).addCommand ( monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyX, () => {
+      this.applyInlineFormattingShortcut ( '~~', '~~' );
+    });
+
+    editor.onKeyDown ( this.handleMarkdownAutoPairKeyDown );
 
     editor.onDidChangeModel ( () => {
 
@@ -561,6 +590,322 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     } finally {
       this._preventOnChangeEvent = false;
     }
+
+  }
+
+  applyInlineFormattingShortcut ( open: string, close: string ) {
+
+    if ( this.props.language !== 'markdown' ) return;
+
+    this.wrapSelectionsWithPair ( open, close );
+
+  }
+
+  wrapSelectionsWithPair ( open: string, close: string ) {
+
+    const editor = this.editor,
+          model = editor?.getModel ();
+
+    if ( !editor || !model ) return false;
+
+    const selections = editor.getSelections ();
+
+    if ( !selections?.length ) return false;
+
+    type WrappedSelection = {
+      index: number,
+      anchorOffset: number,
+      activeOffset: number
+    };
+
+    const sortedSelections = selections
+      .map ( ( selection, index ) => ({
+        selection,
+        index,
+        startOffset: model.getOffsetAt ({
+          lineNumber: selection.startLineNumber,
+          column: selection.startColumn
+        })
+      }) )
+      .sort ( ( a, b ) => b.startOffset - a.startOffset );
+
+    const wrappedSelections: WrappedSelection[] = [];
+
+    for ( let index = 0, length = sortedSelections.length; index < length; index++ ) {
+      const selection = sortedSelections[index].selection,
+            selectionIndex = sortedSelections[index].index,
+            startPosition = {
+              lineNumber: selection.startLineNumber,
+              column: selection.startColumn
+            },
+            endPosition = {
+              lineNumber: selection.endLineNumber,
+              column: selection.endColumn
+            },
+            startOffset = model.getOffsetAt ( startPosition ),
+            endOffset = model.getOffsetAt ( endPosition ),
+            anchorOffset = model.getOffsetAt ({
+              lineNumber: selection.selectionStartLineNumber,
+              column: selection.selectionStartColumn
+            }),
+            activeOffset = model.getOffsetAt ({
+              lineNumber: selection.positionLineNumber,
+              column: selection.positionColumn
+            }),
+            selectedText = model.getValueInRange ({
+              startLineNumber: selection.startLineNumber,
+              startColumn: selection.startColumn,
+              endLineNumber: selection.endLineNumber,
+              endColumn: selection.endColumn
+            }),
+            replacement = `${open}${selectedText}${close}`;
+
+      editor.executeEdits ( '', [{
+        range: new monaco.Range ( selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn ),
+        text: replacement,
+        forceMoveMarkers: true
+      }] );
+
+      const delta = replacement.length - ( endOffset - startOffset );
+
+      for ( let prevIndex = 0, prevLength = wrappedSelections.length; prevIndex < prevLength; prevIndex++ ) {
+        const prev = wrappedSelections[prevIndex];
+        if ( prev.anchorOffset >= startOffset ) prev.anchorOffset += delta;
+        if ( prev.activeOffset >= startOffset ) prev.activeOffset += delta;
+      }
+
+      if ( startOffset === endOffset ) {
+        const cursorOffset = startOffset + open.length;
+
+        wrappedSelections.push ({
+          index: selectionIndex,
+          anchorOffset: cursorOffset,
+          activeOffset: cursorOffset
+        });
+      } else {
+        wrappedSelections.push ({
+          index: selectionIndex,
+          anchorOffset: anchorOffset + open.length,
+          activeOffset: activeOffset + open.length
+        });
+      }
+    }
+
+    const nextSelections = wrappedSelections
+      .sort ( ( a, b ) => a.index - b.index )
+      .map ( item => {
+        const anchorPosition = model.getPositionAt ( item.anchorOffset ),
+              activePosition = model.getPositionAt ( item.activeOffset );
+
+        return new monaco.Selection (
+          anchorPosition.lineNumber,
+          anchorPosition.column,
+          activePosition.lineNumber,
+          activePosition.column
+        );
+      });
+
+    editor.setSelections ( nextSelections );
+
+    return true;
+
+  }
+
+  handleMarkdownAutoPairKeyDown = ( event: monaco.IKeyboardEvent ) => {
+
+    if ( this.props.language !== 'markdown' ) return;
+
+    const browserEvent = event.browserEvent;
+
+    if ( !browserEvent ) return;
+    if ( browserEvent.isComposing ) return;
+    if ( browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey ) return;
+
+    const key = browserEvent.key;
+
+    if ( typeof key !== 'string' || !AUTO_PAIR_WRAPPERS.has ( key ) ) return;
+
+    if ( key === '`' ) {
+      this.handleMarkdownBacktickKeyDown ( event );
+      return;
+    }
+
+    const editor = this.editor,
+          model = editor?.getModel ();
+
+    if ( !editor || !model ) return;
+
+    const selections = editor.getSelections ();
+
+    if ( !selections?.length ) return;
+
+    const hasSelection = selections.some ( selection => !selection.isEmpty () );
+
+    if ( hasSelection ) {
+      const open = AUTO_PAIR_OPEN_TO_CLOSE[key] ? key : AUTO_PAIR_CLOSE_TO_OPEN[key],
+            close = AUTO_PAIR_OPEN_TO_CLOSE[key] || key;
+
+      if ( !open || !close ) return;
+
+      if ( this.wrapSelectionsWithPair ( open, close ) ) {
+        event.preventDefault ();
+        event.stopPropagation ();
+      }
+
+      return;
+    }
+
+    if ( AUTO_PAIR_CLOSE_TO_OPEN[key] ) {
+      const nextPositions = selections.map ( selection => {
+        const startColumn = selection.positionColumn,
+              endColumn = startColumn + 1,
+              lineNumber = selection.positionLineNumber,
+              lineMaxColumn = model.getLineMaxColumn ( lineNumber );
+
+        if ( endColumn > lineMaxColumn ) return;
+
+        const nextCharacter = model.getValueInRange ({
+          startLineNumber: lineNumber,
+          startColumn,
+          endLineNumber: lineNumber,
+          endColumn
+        });
+
+        if ( nextCharacter !== key ) return;
+
+        return new monaco.Selection ( lineNumber, endColumn, lineNumber, endColumn );
+      });
+
+      if ( nextPositions.every ( _.identity ) ) {
+        editor.setSelections ( nextPositions as monaco.Selection[] );
+        event.preventDefault ();
+        event.stopPropagation ();
+      }
+
+      return;
+    }
+
+    const close = AUTO_PAIR_OPEN_TO_CLOSE[key];
+
+    if ( !close ) return;
+
+    if ( this.wrapSelectionsWithPair ( key, close ) ) {
+      event.preventDefault ();
+      event.stopPropagation ();
+    }
+
+  }
+
+  handleMarkdownBacktickKeyDown ( event: monaco.IKeyboardEvent ) {
+
+    const editor = this.editor,
+          model = editor?.getModel ();
+
+    if ( !editor || !model ) return;
+
+    const selections = editor.getSelections ();
+
+    if ( !selections?.length ) return;
+
+    const hasSelection = selections.some ( selection => !selection.isEmpty () );
+
+    if ( hasSelection ) {
+      if ( this.wrapSelectionsWithPair ( '`', '`' ) ) {
+        event.preventDefault ();
+        event.stopPropagation ();
+      }
+      return;
+    }
+
+    const sortedSelections = selections
+      .map ( ( selection, index ) => {
+        const position = {
+                lineNumber: selection.positionLineNumber,
+                column: selection.positionColumn
+              },
+              offset = model.getOffsetAt ( position );
+
+        return { index, offset, position };
+      })
+      .sort ( ( a, b ) => b.offset - a.offset );
+
+    const nextCursorOffsets: Array<{ index: number, offset: number }> = [];
+
+    for ( let index = 0, length = sortedSelections.length; index < length; index++ ) {
+      const {index: selectionIndex, offset, position} = sortedSelections[index],
+            lineContent = model.getLineContent ( position.lineNumber ),
+            before = lineContent.slice ( 0, position.column - 1 ),
+            beforeTicksMatch = before.match ( /`+$/ ),
+            beforeTicks = beforeTicksMatch ? beforeTicksMatch[0].length : 0,
+            nextColumn = position.column + 1,
+            lineMaxColumn = model.getLineMaxColumn ( position.lineNumber ),
+            nextCharacter = nextColumn <= lineMaxColumn
+              ? model.getValueInRange ({
+                startLineNumber: position.lineNumber,
+                startColumn: position.column,
+                endLineNumber: position.lineNumber,
+                endColumn: nextColumn
+              })
+              : '';
+
+      if ( beforeTicks === 2 && nextCharacter !== '`' ) {
+        editor.executeEdits ( '', [{
+          range: new monaco.Range ( position.lineNumber, position.column, position.lineNumber, position.column ),
+          text: '`\n```',
+          forceMoveMarkers: true
+        }] );
+
+        const delta = 5;
+
+        for ( let prevIndex = 0, prevLength = nextCursorOffsets.length; prevIndex < prevLength; prevIndex++ ) {
+          if ( nextCursorOffsets[prevIndex].offset >= offset ) nextCursorOffsets[prevIndex].offset += delta;
+        }
+
+        nextCursorOffsets.push ({
+          index: selectionIndex,
+          offset: offset + 1
+        });
+
+        continue;
+      }
+
+      if ( nextCharacter === '`' ) {
+        nextCursorOffsets.push ({
+          index: selectionIndex,
+          offset: offset + 1
+        });
+        continue;
+      }
+
+      editor.executeEdits ( '', [{
+        range: new monaco.Range ( position.lineNumber, position.column, position.lineNumber, position.column ),
+        text: '``',
+        forceMoveMarkers: true
+      }] );
+
+      const delta = 2;
+
+      for ( let prevIndex = 0, prevLength = nextCursorOffsets.length; prevIndex < prevLength; prevIndex++ ) {
+        if ( nextCursorOffsets[prevIndex].offset >= offset ) nextCursorOffsets[prevIndex].offset += delta;
+      }
+
+      nextCursorOffsets.push ({
+        index: selectionIndex,
+        offset: offset + 1
+      });
+    }
+
+    const nextSelections = nextCursorOffsets
+      .sort ( ( a, b ) => a.index - b.index )
+      .map ( item => {
+        const position = model.getPositionAt ( item.offset );
+
+        return new monaco.Selection ( position.lineNumber, position.column, position.lineNumber, position.column );
+      });
+
+    editor.setSelections ( nextSelections );
+    event.preventDefault ();
+    event.stopPropagation ();
 
   }
 

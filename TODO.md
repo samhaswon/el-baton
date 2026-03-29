@@ -211,15 +211,15 @@
 - [ ] KaTeX: Placeholder leaks through:
     - `Since with every union, a vertex in a smaller set transfers from a set of size $s$ to a set of size $\ge 2s$, the number of times it spends $\$1$ is at most $\log_2 n$.`
     - This issue comes from escaped dollar signs within a math block, which breaks placeholders.
-- [ ] Support formatting keyboard shortcuts
+- [X] Support formatting keyboard shortcuts
     - Bold: CTRL + b
     - Italic: CTRL + i
     - ...
-- [ ] Auto-close brackets, braces, parenthesis, and formatting.
+- [X] Auto-close brackets, braces, parenthesis, and formatting.
     - If a user types `(`, autofill the closing `)`.
         - If the user types some and then types the closing `)`, do not add a duplicate parenthesis.
-    - [ ] When a user highlights text and types a brace/bracket/parenthesis or formatting that wraps text (`*`, `_`, `~`, ...), autofill on both sides and do not delete the text.
-    - [ ] Add UI test for this after it is known to work to catch regressions.
+    - [X] When a user highlights text and types a brace/bracket/parenthesis or formatting that wraps text (`*`, `_`, `~`, ...), autofill on both sides and do not delete the text.
+    - [X] Add UI test for this after it is known to work to catch regressions.
 - [ ] Syntax highlighting breaks within quote blocks (`> `).
     - Source view
     - Quote blocks themselves are still not differentiated in the source view. Should be a slightly lighter gray in the source view, akin to the rendered styling.
@@ -228,6 +228,8 @@
 - [X] When editing, diagrams (Mermaid/PlantUML) flash in and out. 
     - Might need to figure out how to keep them persistent.
     - Could be related to how we replace the whole preview every time.
+- [ ] Allow on-battery mode to be turned off when on battery.
+- [ ] Code fence language suggestions should only appear on the opening part of a fence, not a closing part.
 
 ## Mobile App
 

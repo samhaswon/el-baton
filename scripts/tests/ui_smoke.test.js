@@ -36,6 +36,7 @@ const noteFileNames = [
 const wait = ms => new Promise ( resolve => setTimeout ( resolve, ms ) );
 const ariaToBool = value => value === 'true';
 const infoPaneScrollNoteFileName = '00 Info Pane Scroll Test.md';
+const formattingFixtureNoteFileName = '00 Formatting Shortcuts Test.md';
 
 const rmrf = targetPath => {
   if ( fs.existsSync ( targetPath ) ) {
@@ -117,7 +118,18 @@ const writeInfoPaneScrollNote = runtimePaths => {
   fs.writeFileSync ( notePath, content, 'utf8' );
 };
 
-const writeSettings = ({ theme, panel = 'explorer', runtimePaths, extraOpenTabs = [] }) => {
+const writeFormattingFixtureNote = runtimePaths => {
+  const content = [
+    '# Formatting Shortcuts Test',
+    '',
+    'Fixture seed'
+  ].join ( '\n' );
+
+  const notePath = path.join ( runtimePaths.workspacePath, 'notes', formattingFixtureNoteFileName );
+  fs.writeFileSync ( notePath, content, 'utf8' );
+};
+
+const writeSettings = ({ theme, panel = 'explorer', runtimePaths, extraOpenTabs = [], disableAutomaticRenaming = false }) => {
   const settingsPath = path.join ( runtimePaths.homePath, '.el-baton.json' );
   const openTabs = [
     ...noteFileNames.map ( fileName => path.join ( runtimePaths.workspacePath, 'notes', fileName ) ),
@@ -143,6 +155,9 @@ const writeSettings = ({ theme, panel = 'explorer', runtimePaths, extraOpenTabs 
     sorting: {
       by: 'title',
       type: 'ascending'
+    },
+    notes: {
+      disableAutomaticRenaming
     },
     theme,
     tutorial: true,
@@ -251,7 +266,7 @@ const ensureSidebarVisible = async page => {
   await page.waitForSelector ( '.activitybar', { timeout: 20000 } );
 };
 
-const launchApp = async ({ runtimeId, theme = 'dark', withInfoPaneScrollNote = false }) => {
+const launchApp = async ({ runtimeId, theme = 'dark', withInfoPaneScrollNote = false, withFormattingFixtureNote = false, disableAutomaticRenaming = false }) => {
   const runtimePaths = createRuntimePaths ( runtimeId );
 
   prepareRuntimePaths ( runtimePaths );
@@ -263,7 +278,12 @@ const launchApp = async ({ runtimeId, theme = 'dark', withInfoPaneScrollNote = f
     extraOpenTabs.push ( path.join ( runtimePaths.workspacePath, 'notes', infoPaneScrollNoteFileName ) );
   }
 
-  writeSettings ({ theme, runtimePaths, extraOpenTabs });
+  if ( withFormattingFixtureNote ) {
+    writeFormattingFixtureNote ( runtimePaths );
+    extraOpenTabs.push ( path.join ( runtimePaths.workspacePath, 'notes', formattingFixtureNoteFileName ) );
+  }
+
+  writeSettings ({ theme, runtimePaths, extraOpenTabs, disableAutomaticRenaming });
 
   const electronApp = await electron.launch ({
     args: [
@@ -475,6 +495,36 @@ const openExplorerNoteByTitle = async ( page, title ) => {
   await targetNote.waitFor ({ state: 'visible', timeout: 30000 });
   await targetNote.click ();
   await wait ( 150 );
+};
+
+const ensureSourceEditorReady = async page => {
+  const isEditorMode = async () => ( await page.locator ( '.mainbar-pane-main > .editor' ).count () ) > 0;
+  const isSplitMode = async () => ( await page.locator ( '.mainbar-pane-main > .split-editor' ).count () ) > 0;
+
+  if ( !( await isEditorMode () ) && !( await isSplitMode () ) ) {
+    await emitIPC ( page, 'note-edit-toggle' );
+  }
+
+  await page.waitForSelector ( '.mainbar-pane-main > .editor, .mainbar-pane-main > .split-editor', { timeout: 20000 } );
+
+  if ( await isSplitMode () ) {
+    await emitIPC ( page, 'editor-split-toggle' );
+  }
+
+  await page.waitForSelector ( '.mainbar-pane-main > .editor', { timeout: 20000 } );
+  await page.waitForSelector ( '.mainbar-pane-main > .editor .monaco-editor', { timeout: 30000 } );
+};
+
+const waitForActiveTabSaved = async ( page, timeout = 10000 ) => {
+  const deadline = Date.now () + timeout;
+
+  while ( Date.now () < deadline ) {
+    const activeTabText = await page.locator ( '.note-tabs .note-tab.active' ).first ().innerText ();
+    if ( !activeTabText.includes ( '*' ) ) return;
+    await wait ( 100 );
+  }
+
+  throw new Error ( 'Timed out waiting for active note tab dirty marker to clear after save' );
 };
 
 test ( 'ui: launches the main window and shows explorer notes', { timeout: 120000 }, async t => {
@@ -694,6 +744,86 @@ test ( 'ui: note interactions support local search, split view, and quick open',
   await page.locator ( '.quick-panel input[placeholder="Open note or attachment..."]' ).fill ( 'malformer' );
   await wait ( 200 );
   assert.ok ( await page.locator ( '.quick-panel .list-item' ).count () > 0 );
+} );
+
+test ( 'ui: editor formatting shortcuts and auto-pairing work for markdown edits', { timeout: 120000 }, async t => {
+  if ( shouldSkipForMissingDisplay ) {
+    t.skip ( 'UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.' );
+  }
+
+  ensurePrerequisites ();
+  assertReleaseBundle ();
+
+  const launched = await launchAppOrSkip ( t, { runtimeId: 'editor-format-shortcuts', theme: 'dark', withFormattingFixtureNote: true, disableAutomaticRenaming: true } );
+
+  if ( !launched ) return;
+
+  const {electronApp, page, runtimePaths} = launched;
+  const ctrlOrCmd = process.platform === 'darwin' ? 'Meta' : 'Control';
+
+  t.after ( async () => {
+    await electronApp.close ();
+    rmrf ( runtimePaths.runtimeBasePath );
+  } );
+
+  await openExplorerNoteByTitle ( page, 'Formatting Shortcuts Test' );
+
+  await ensureSourceEditorReady ( page );
+  await page.locator ( '.mainbar-pane-main > .editor .monaco-editor' ).first ().click ();
+
+  await page.keyboard.press ( `${ctrlOrCmd}+End` );
+  await page.keyboard.press ( 'Enter' );
+  await page.keyboard.type ( 'alpha' );
+
+  await page.keyboard.down ( 'Shift' );
+  for ( let index = 0; index < 5; index++ ) {
+    await page.keyboard.press ( 'ArrowLeft' );
+  }
+  await page.keyboard.up ( 'Shift' );
+  await page.keyboard.down ( ctrlOrCmd );
+  await page.keyboard.press ( 'b' );
+  await page.keyboard.up ( ctrlOrCmd );
+
+  await page.keyboard.press ( 'End' );
+  await page.keyboard.type ( '(' );
+  await page.keyboard.type ( 'z' );
+  await page.keyboard.type ( ')' );
+
+  await page.keyboard.press ( 'Enter' );
+  await page.keyboard.type ( 'delta' );
+  await page.keyboard.press ( 'Shift+Home' );
+  await page.keyboard.type ( '*' );
+  await page.keyboard.press ( 'ArrowRight' );
+  await page.keyboard.press ( 'ArrowRight' );
+
+  await page.keyboard.press ( 'Enter' );
+  await page.keyboard.type ( '``' );
+  await page.keyboard.type ( '`' );
+  await page.keyboard.type ( 'py' );
+  await page.keyboard.press ( 'Enter' );
+  await page.keyboard.type ( 'print(1)' );
+
+  await page.keyboard.down ( ctrlOrCmd );
+  await page.keyboard.press ( 's' );
+  await page.keyboard.up ( ctrlOrCmd );
+  await waitForActiveTabSaved ( page, 10000 );
+
+  const fixturePath = path.join ( runtimePaths.workspacePath, 'notes', formattingFixtureNoteFileName );
+  const deadline = Date.now () + 10000;
+  let source = '';
+
+  while ( Date.now () < deadline ) {
+    if ( fs.existsSync ( fixturePath ) ) {
+      source = fs.readFileSync ( fixturePath, 'utf8' );
+      if ( source.includes ( '**alpha**(z)' ) && source.includes ( '*delta*' ) && source.includes ( '```py\nprint(1)\n```' ) ) break;
+    }
+    await wait ( 120 );
+  }
+
+  assert.ok ( !!source, `Expected fixture note file to exist: ${fixturePath}` );
+  assert.ok ( source.includes ( '**alpha**(z)' ), `Expected saved note to include bold shortcut + parenthesis auto-close behavior.\nSource:\n${source}` );
+  assert.ok ( source.includes ( '*delta*' ), `Expected saved note to include selection wrap on '*' typing.\nSource:\n${source}` );
+  assert.ok ( source.includes ( '```py\nprint(1)\n```' ), `Expected saved note to include triple-backtick code block expansion.\nSource:\n${source}` );
 } );
 
 test ( 'ui: info pane is internally scrollable for long heading lists', { timeout: 120000 }, async t => {
