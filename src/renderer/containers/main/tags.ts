@@ -147,13 +147,13 @@ class Tags extends Container<TagsState, MainCTX> {
 
     let tags: TagsObj = {};
 
-    tags[ALL] = { icon: 'note', collapsed: false, path: ALL, name: TagSpecialsNames.ALL, notes: [], tags: {} };
-    tags[FAVORITES] = { icon: 'star', collapsed: false, path: FAVORITES, name: TagSpecialsNames.FAVORITES, notes: [], tags: {} };
-    tags[NOTEBOOKS] = { icon: 'notebook', iconCollapsed: 'notebook_multiple', collapsed: false, path: NOTEBOOKS, name: TagSpecialsNames.NOTEBOOKS, notes: [], tags: {} };
-    tags[TAGS] = { collapsed: false, path: TAGS, name: TagSpecialsNames.TAGS, notes: [], tags: {} };
-    tags[TEMPLATES] = { icon: 'tag_outline', iconCollapsed: 'tag_outline_multiple', collapsed: false, path: TEMPLATES, name: TagSpecialsNames.TEMPLATES, notes: [], tags: {} };
-    tags[UNTAGGED] = { icon: 'tag_crossed', collapsed: false, path: UNTAGGED, name: TagSpecialsNames.UNTAGGED, notes: [], tags: {} };
-    tags[TRASH] = { icon: 'delete', collapsed: false, path: TRASH, name: TagSpecialsNames.TRASH, notes: [], tags: {} };
+    tags[ALL] = { icon: 'note', collapsed: this.ctx.tag.isCollapsed ( ALL ), path: ALL, name: TagSpecialsNames.ALL, notes: [], tags: {} };
+    tags[FAVORITES] = { icon: 'star', collapsed: this.ctx.tag.isCollapsed ( FAVORITES ), path: FAVORITES, name: TagSpecialsNames.FAVORITES, notes: [], tags: {} };
+    tags[NOTEBOOKS] = { icon: 'notebook', iconCollapsed: 'notebook_multiple', collapsed: this.ctx.tag.isCollapsed ( NOTEBOOKS ), path: NOTEBOOKS, name: TagSpecialsNames.NOTEBOOKS, notes: [], tags: {} };
+    tags[TAGS] = { collapsed: this.ctx.tag.isCollapsed ( TAGS ), path: TAGS, name: TagSpecialsNames.TAGS, notes: [], tags: {} };
+    tags[TEMPLATES] = { icon: 'tag_outline', iconCollapsed: 'tag_outline_multiple', collapsed: this.ctx.tag.isCollapsed ( TEMPLATES ), path: TEMPLATES, name: TagSpecialsNames.TEMPLATES, notes: [], tags: {} };
+    tags[UNTAGGED] = { icon: 'tag_crossed', collapsed: this.ctx.tag.isCollapsed ( UNTAGGED ), path: UNTAGGED, name: TagSpecialsNames.UNTAGGED, notes: [], tags: {} };
+    tags[TRASH] = { icon: 'delete', collapsed: this.ctx.tag.isCollapsed ( TRASH ), path: TRASH, name: TagSpecialsNames.TRASH, notes: [], tags: {} };
 
     Object.values ( this.ctx.notes.get () ).forEach ( note => this._toggleNote ( tags, note, true ) );
 

@@ -49,7 +49,9 @@ const Settings = new Store ({
     window: {
       sidebar: true,
       zen: false,
-      panel: 'info'
+      panel: 'info',
+      explorerSectionsCollapsed: {},
+      explorerTagsCollapsed: {}
     }
   }
 });

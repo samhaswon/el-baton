@@ -7,7 +7,7 @@ import Main from '@renderer/containers/main';
 
 /* SETTINGS VIEW */
 
-const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanSpellcheck, isBatteryModeActive, isOnBatteryPower, hasBatteryPowerDetection }) => {
+const SettingsView = ({ config, filePath, refreshConfig, setConfig, setConfigValue, rescanSpellcheck, isBatteryModeActive, isOnBatteryPower, hasBatteryPowerDetection }) => {
 
   const canEdit = !!filePath;
   const [spellcheckWordsOpen, setSpellcheckWordsOpen] = React.useState ( false );
@@ -70,7 +70,26 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfigValue, rescanS
 
   const toggleAutoupdate = () => setConfigValue ( 'autoupdate', !config.autoupdate );
   const toggleHighPerformanceMode = () => setConfigValue ( 'performance.highPerformanceMode', !config.performance.highPerformanceMode );
-  const toggleBatteryMode = () => setConfigValue ( 'battery.enabled', !config.battery.enabled );
+  const toggleBatteryMode = () => {
+    if ( isBatteryModeActive ) {
+      return setConfig ({
+        ...config,
+        battery: {
+          ...config.battery,
+          enabled: false,
+          autoDetect: isOnBatteryPower ? false : config.battery.autoDetect
+        }
+      });
+    }
+
+    return setConfig ({
+      ...config,
+      battery: {
+        ...config.battery,
+        enabled: true
+      }
+    });
+  };
   const toggleBatteryAutoDetect = () => setConfigValue ( 'battery.autoDetect', !config.battery.autoDetect );
   const toggleBatteryOptimizeRendering = () => setConfigValue ( 'battery.optimizeRendering', !config.battery.optimizeRendering );
   const toggleBatteryDisableSpellcheck = () => setConfigValue ( 'battery.disableSpellcheck', !config.battery.disableSpellcheck );
@@ -725,6 +744,7 @@ export default connect ({
     config: container.appConfig.get (),
     filePath: container.appConfig.getFilePath (),
     refreshConfig: container.appConfig.refresh,
+    setConfig: container.appConfig.set,
     setConfigValue: container.appConfig.setValue,
     isBatteryModeActive: container.window.isBatteryModeActive (),
     isOnBatteryPower: container.window.isOnBatteryPower (),

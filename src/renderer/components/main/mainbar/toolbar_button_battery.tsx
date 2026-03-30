@@ -7,12 +7,14 @@ import ToolbarButton from './toolbar_button';
 
 /* TOOLBAR BUTTON BATTERY */
 
-const ToolbarButtonBattery = ({ isBatteryModeActive, batteryModeEnabled, hasBatteryPowerDetection, isOnBatteryPower, toggleBatteryMode }) => {
+const ToolbarButtonBattery = ({ isBatteryModeActive, batteryAutoDetect, hasBatteryPowerDetection, isOnBatteryPower, toggleBatteryMode }) => {
 
   const modeLabel = isBatteryModeActive ? 'On-Battery Mode: Active' : 'On-Battery Mode: Inactive',
         powerLabel = hasBatteryPowerDetection ? ( isOnBatteryPower ? 'Power Source: Battery' : 'Power Source: AC' ) : 'Power Source: Unknown',
         icon = isOnBatteryPower ? 'on_battery' : 'on_ac',
-        title = `${batteryModeEnabled ? 'Disable' : 'Enable'} Manual On-Battery Mode\n${modeLabel}\n${powerLabel}`;
+        disableLabel = ( isOnBatteryPower && batteryAutoDetect ) ? 'Disable On-Battery Mode (also turns off auto-detect)' : 'Disable On-Battery Mode',
+        enableLabel = 'Enable Manual On-Battery Mode',
+        title = `${isBatteryModeActive ? disableLabel : enableLabel}\n${modeLabel}\n${powerLabel}`;
 
   return <ToolbarButton icon={icon} title={title} isActive={isBatteryModeActive} onClick={toggleBatteryMode} />;
 
@@ -24,12 +26,32 @@ export default connect ({
   container: Main,
   selector: ({ container }) => ({
     isBatteryModeActive: container.window.isBatteryModeActive (),
-    batteryModeEnabled: container.appConfig.get ().battery.enabled,
+    batteryAutoDetect: container.appConfig.get ().battery.autoDetect,
     hasBatteryPowerDetection: container.window.hasBatteryPowerDetection (),
     isOnBatteryPower: container.window.isOnBatteryPower (),
     toggleBatteryMode: () => {
-      const current = container.appConfig.get ().battery.enabled;
-      return container.appConfig.setValue ( 'battery.enabled', !current );
+      const config = container.appConfig.get (),
+            isOnBatteryPower = container.window.isOnBatteryPower (),
+            isBatteryModeActive = container.window.isBatteryModeActive ();
+
+      if ( isBatteryModeActive ) {
+        return container.appConfig.set ({
+          ...config,
+          battery: {
+            ...config.battery,
+            enabled: false,
+            autoDetect: isOnBatteryPower ? false : config.battery.autoDetect
+          }
+        });
+      }
+
+      return container.appConfig.set ({
+        ...config,
+        battery: {
+          ...config.battery,
+          enabled: true
+        }
+      });
     }
   })
 })( ToolbarButtonBattery );

@@ -4,6 +4,7 @@
 import {is} from '@common/electron_util_shim';
 import * as _ from 'lodash';
 import * as React from 'react';
+import Settings from '@common/settings';
 import {connect} from 'overstated';
 import Main from '@renderer/containers/main';
 import Tree from '@renderer/components/main/structures/tree';
@@ -28,6 +29,20 @@ const getHeight = () => is.macos ? window.innerHeight - 76 : window.innerHeight 
       };
 
 const getNoteId = note => `${note.filePath}:${note.checksum}`;
+const explorerSectionsSettingsKey = 'window.explorerSectionsCollapsed';
+
+const getExplorerSectionsCollapsed = (): Record<string, boolean> => {
+
+  const persisted = Settings.get ( explorerSectionsSettingsKey );
+
+  if ( !_.isPlainObject ( persisted ) ) return {};
+
+  return Object.keys ( persisted ).reduce ( ( acc, key ) => {
+    acc[key] = !!persisted[key];
+    return acc;
+  }, {} as Record<string, boolean> );
+
+};
 
 const sortNotes = notes => _.sortBy ( notes, note => ( note.metadata.title || '' ).toLowerCase () );
 
@@ -93,17 +108,23 @@ const makeSectionNode = ( id: string, name: string, allChildren, collapsed: bool
   children: collapsed ? [] : allChildren
 });
 
-const explorerSectionsCollapsed: Record<string, boolean> = {};
-
 /* CONTENT */
 
 const Content = ({ isLoading, all, favorites, notebooks, tags, untagged, trash }) => {
 
   const [query, setQuery] = React.useState ( '' );
-  const [, forceUpdate] = React.useReducer ( ( counter: number ) => counter + 1, 0 );
+  const [explorerSectionsCollapsed, setExplorerSectionsCollapsed] = React.useState<Record<string, boolean>> (() => getExplorerSectionsCollapsed () );
   const toggleSection = React.useCallback ( ( id: string ) => {
-    explorerSectionsCollapsed[id] = !explorerSectionsCollapsed[id];
-    forceUpdate ();
+    setExplorerSectionsCollapsed ( prev => {
+      const next = {
+        ...prev,
+        [id]: !prev[id]
+      };
+
+      Settings.set ( explorerSectionsSettingsKey, next );
+
+      return next;
+    });
   }, [] );
   const queryTokens = React.useMemo ( () => getExplorerSearchTokens ( query ), [query] ),
         notesCollapsed = query ? false : !!explorerSectionsCollapsed.notes,

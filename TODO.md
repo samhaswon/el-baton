@@ -185,7 +185,7 @@
         - Not particularly bad, this is mostly a slight tuning issue. 
         - Sometimes jumps around with mermaid rendering in and out.
     - `iframe` and `details` tags also contribute to this issue.
-- [ ] Retain explorer dropdown state
+- [X] Retain explorer dropdown state
 - [ ] <kbd>INSERT</kbd> should toggle the edit/preview/split-view mode, similar to Vim.
 - [ ] CSS: the note tabs should just be trapezoids with a border color.
 - [ ] Split view: lightly highlight the edit location when typing.
@@ -228,7 +228,7 @@
 - [X] When editing, diagrams (Mermaid/PlantUML) flash in and out. 
     - Might need to figure out how to keep them persistent.
     - Could be related to how we replace the whole preview every time.
-- [ ] Allow on-battery mode to be turned off when on battery.
+- [X] Allow on-battery mode to be turned off when on battery.
 - [ ] Code fence language suggestions should only appear on the opening part of a fence, not a closing part.
 
 ## Mobile App

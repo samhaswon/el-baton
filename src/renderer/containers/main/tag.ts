@@ -3,10 +3,12 @@
 
 import * as _ from 'lodash';
 import {Container, autosuspend} from 'overstated';
+import Settings from '@common/settings';
 import Tags, {TagSpecials} from '@renderer/utils/tags';
 
 const {SEPARATOR} = Tags;
 const {DEFAULT, ALL, FAVORITES, NOTEBOOKS, TAGS, TEMPLATES, UNTAGGED, TRASH} = TagSpecials;
+const explorerTagsCollapsedSettingsKey = 'window.explorerTagsCollapsed';
 
 /* TAG */
 
@@ -23,6 +25,15 @@ class Tag extends Container<TagState, MainCTX> {
   state = {
     tag: DEFAULT
   };
+  _collapsedState: Record<string, boolean> = (() => {
+    const persisted = Settings.get ( explorerTagsCollapsedSettingsKey );
+    if ( !_.isPlainObject ( persisted ) ) return {};
+
+    return Object.keys ( persisted ).reduce ( ( acc, key ) => {
+      acc[key] = !!persisted[key];
+      return acc;
+    }, {} as Record<string, boolean> );
+  }) ();
 
   /* CONSTRUCTOR */
 
@@ -82,7 +93,9 @@ class Tag extends Container<TagState, MainCTX> {
 
     const obj = this.get ( tag );
 
-    return !!obj && !!obj.collapsed;
+    if ( obj ) return !!obj.collapsed;
+
+    return !!this._collapsedState[tag];
 
   }
 
@@ -101,6 +114,8 @@ class Tag extends Container<TagState, MainCTX> {
     if ( _.isEmpty ( current.tags ) && _.isEmpty ( current.notes ) ) return;
 
     current.collapsed = force;
+    this._collapsedState[tag] = force;
+    Settings.set ( explorerTagsCollapsedSettingsKey, this._collapsedState );
 
     const root = parts[0],
           isSpecialRoot = [ALL, FAVORITES, NOTEBOOKS, TAGS, TEMPLATES, UNTAGGED, TRASH].includes ( root as any );
