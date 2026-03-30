@@ -43,3 +43,29 @@ test ( 'code fence suggestions: prioritizes startsWith matches and deduplicates'
 
 });
 
+test ( 'code fence suggestions: opening context detection allows new opening fence', () => {
+
+  const context = CodeFenceSuggestions.getContext ( '```' );
+
+  assert.ok ( context );
+  assert.equal ( CodeFenceSuggestions.isOpeningContext ( context!, ['# Note title', 'Some paragraph'] ), true );
+
+});
+
+test ( 'code fence suggestions: opening context detection rejects closing fence', () => {
+
+  const context = CodeFenceSuggestions.getContext ( '```' );
+
+  assert.ok ( context );
+  assert.equal ( CodeFenceSuggestions.isOpeningContext ( context!, ['```python', 'print ( "hi" )'] ), false );
+
+});
+
+test ( 'code fence suggestions: opening context detection still allows explicit language query', () => {
+
+  const context = CodeFenceSuggestions.getContext ( '```ja' );
+
+  assert.ok ( context );
+  assert.equal ( CodeFenceSuggestions.isOpeningContext ( context!, ['```python', 'print ( "hi" )'] ), true );
+
+});

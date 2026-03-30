@@ -229,7 +229,8 @@
     - Might need to figure out how to keep them persistent.
     - Could be related to how we replace the whole preview every time.
 - [X] Allow on-battery mode to be turned off when on battery.
-- [ ] Code fence language suggestions should only appear on the opening part of a fence, not a closing part.
+- [X] Code fence language suggestions should only appear on the opening part of a fence, not a closing part.
+- [ ] Drop usage of overstated (unmaintained now).
 
 ## Mobile App
 

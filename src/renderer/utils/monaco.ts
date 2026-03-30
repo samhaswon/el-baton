@@ -515,6 +515,11 @@ const Monaco = {
         const codeFenceContext = CodeFenceSuggestions.getContext ( beforeCursor );
 
         if ( codeFenceContext ) {
+          const linesBefore = _.range ( 1, position.lineNumber ).map ( lineNumber => model.getLineContent ( lineNumber ) ),
+                isOpeningCodeFenceContext = CodeFenceSuggestions.isOpeningContext ( codeFenceContext, linesBefore );
+
+          if ( !isOpeningCodeFenceContext ) return;
+
           const monacoLanguageIds = monaco.languages.getLanguages ().map ( language => language.id );
           const candidates = [...CodeFenceSuggestions.baseLanguages, ...MonacoLanguages.ids, ...monacoLanguageIds];
           const suggestions = CodeFenceSuggestions.getSuggestions ( codeFenceContext.query, candidates, 30 ).map ( ( language, index ) => ({
