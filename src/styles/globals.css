@@ -3986,7 +3986,8 @@ html.mac .zen.fullscreen .popover.show,html.no-mac .zen .popover.show {
   user-select:text !important;
   padding:1.25rem !important;
   font-size:16px;
-  line-height:inherit
+  line-height:inherit;
+  contain: layout paint !important;
 }
 
 .preview.is-rendering::before {
