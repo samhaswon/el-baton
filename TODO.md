@@ -186,7 +186,9 @@
         - Sometimes jumps around with mermaid rendering in and out.
     - `iframe` and `details` tags also contribute to this issue.
 - [X] Retain explorer dropdown state
-- [ ] <kbd>INSERT</kbd> should toggle the edit/preview/split-view mode, similar to Vim.
+- [ ] Expand Vim-like options
+    - [ ] <kbd>INSERT</kbd> should toggle the edit/preview/split-view mode, similar to Vim, in vim mode.
+    - [ ] <kbd>Esc</kbd> should toggle command mode for things like jumps, replacements, etc.
 - [ ] CSS: the note tabs should just be trapezoids with a border color.
 - [ ] Split view: lightly highlight the edit location when typing.
 - [X] Bug: window randomly scrolls to the top when switching to another app for a while. Cursor remains, but the scroll moves on its own.
@@ -224,13 +226,19 @@
     - Source view
     - Quote blocks themselves are still not differentiated in the source view. Should be a slightly lighter gray in the source view, akin to the rendered styling.
 - ~~[ ] Window does not re-open to previous size.~~
-- [ ] The scrollbar for the preview should have the same styling as the source view.
+- [ ] Scrollbar:
+    - [ ] The scrollbar for the preview should have the same styling as the source view.
+    - [ ] The scrollbar for sidebar panels should have the same styling as the source view.
 - [X] When editing, diagrams (Mermaid/PlantUML) flash in and out. 
     - Might need to figure out how to keep them persistent.
     - Could be related to how we replace the whole preview every time.
 - [X] Allow on-battery mode to be turned off when on battery.
 - [X] Code fence language suggestions should only appear on the opening part of a fence, not a closing part.
 - [ ] Drop usage of overstated (unmaintained now).
+- [ ] Seed autocomplete from other notes
+    - possibly with an upper bound or most recently opened constraint.
+    - Should be done asynchronously at app startup. 
+    - Markov chain?
 
 ## Mobile App
 
