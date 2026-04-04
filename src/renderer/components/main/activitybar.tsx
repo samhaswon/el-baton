@@ -9,7 +9,7 @@ const tabsTop = [
   { id: 'explorer', icon: 'notebook', title: 'Explorer' },
   { id: 'search', icon: 'magnify', title: 'Global Search' },
   { id: 'graph', icon: 'tag_multiple', title: 'Graph' },
-  { id: 'info', icon: 'note', title: 'Info' }
+  { id: 'info', icon: 'info', title: 'Info' }
 ];
 
 const tabsBottom = [

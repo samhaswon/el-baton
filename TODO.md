@@ -197,12 +197,13 @@
     - Preview "rendering" state button in the toolbar gets stuck in its rendering indication. Might be related?
 - [X] Suggestions for tags based on what exists, excluding what the note is already tagged with.
 - [ ] Use `react-window` on the explorer pane.
+    - Or maybe `contain: layout paint !important;`?
 - [ ] Investigate removing the smaller preview for large notes
     - [ ] Identify how rendering changes could be made more efficient
         - Potentially, could involve applying some form of delta.
         - Could keep the smaller rendering window, but leave the rest of the note intact. Basically, hide that we're only rendering a smaller part of the document. Then, after the specified delay, actually re-render the whole document. If we do this well, the delay could be long.
 - [ ] Ensure mermaid is rendered in a worker and is memoized.
-- [ ] Add loading state for large notes' source view.
+- ~~[ ] Add loading state for large notes' source view.~~
     - Opening large notes hangs for a second, which makes the app feel unresponsive. 
 - ~~[ ] KaTeX: Add support for ChatGPT's preferred parenthesis format.~~
     - `\(...\)` inline
@@ -239,6 +240,13 @@
     - possibly with an upper bound or most recently opened constraint.
     - Should be done asynchronously at app startup. 
     - Markov chain?
+- [ ] Scrolling a video element from the preview causes the source to ghost in a temporary position.
+    - Test note: global Matthew 7 notes
+    - Probably just need to account for the height of the video.
+- [ ] When typing a path, folders and files should be suggested that exist from what has already been typed.
+- [ ] Paths to files should support spaces in filenames.
+- [ ] Disabling middle-click paste should enable middle-click to make multiple cursors for selection.
+    - If a user clicks in a position with the middle mouse button and drags down, another cursor should be created there that follows the original horizontally.
 
 ## Mobile App
 
