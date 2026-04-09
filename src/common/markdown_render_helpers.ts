@@ -38,6 +38,12 @@ const MarkdownRenderHelpers = {
 
   },
 
+  restoreEscapedDollarsForMath ( value: string ): string {
+
+    return value.replace ( new RegExp ( MarkdownRenderHelpers.escapedDollarPlaceholder, 'g' ), '\\$' );
+
+  },
+
   escapeHtml ( text: string ): string {
 
     return text
@@ -115,7 +121,7 @@ const MarkdownRenderHelpers = {
         continue;
       }
 
-      const texRaw = value.slice ( openEnd, closeStart );
+      const texRaw = MarkdownRenderHelpers.restoreEscapedDollarsForMath ( value.slice ( openEnd, closeStart ) );
 
       // Keep empty math blocks as literal text.
       if ( !texRaw.length ) {

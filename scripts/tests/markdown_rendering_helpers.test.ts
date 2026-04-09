@@ -117,6 +117,29 @@ test ( 'katex parsing: preserves escaped currency placeholders until after math 
 
 });
 
+test ( 'katex parsing: restores escaped dollar signs inside math payloads before rendering placeholders', () => {
+
+  const markdown = 'Since with every union, a vertex in a smaller set transfers from a set of size $s$ to a set of size $\\ge 2s$, the number of times it spends $\\$1$ is at most $\\log_2 n$.',
+        output = renderMathPipeline ( markdown );
+
+  assert.equal (
+    output,
+    'Since with every union, a vertex in a smaller set transfers from a set of size <math mode="inline">s</math> to a set of size <math mode="inline">\\ge 2s</math>, the number of times it spends <math mode="inline">\\$1</math> is at most <math mode="inline">\\log_2 n</math>.'
+  );
+  assert.doesNotMatch ( output, /MDESCAPEDDOLLARPLACEHOLDER/ );
+
+});
+
+test ( 'katex parsing: keeps escaped dollar signs literal inside a standalone inline math span', () => {
+
+  const markdown = '$\\$1$',
+        output = renderMathPipeline ( markdown );
+
+  assert.equal ( output, '<math mode="inline">\\$1</math>' );
+  assert.doesNotMatch ( output, /MDESCAPEDDOLLARPLACEHOLDER/ );
+
+});
+
 test ( 'katex parsing: renders the full repeated home-price expression without cross-consuming delimiters', () => {
 
   const markdown = 'Home price = (\\$ $\\times$ sqft) + (\\$ $\\times$ quality) - (\\$ $\\times$ Distance from water) - (\\$ $\\times$ distance to City Center) + (\\$ $\\times$ number of bedrooms) - (\\$ $\\times$ number of years since house was built) $\\pm$ (\\$ $\\times$ number of stories)',

@@ -211,7 +211,7 @@
     - Document in the cheat sheet
     - Discourage its use for GFM compatibility. 
     - Edit: the copy button strips the escape characters now, so this won't practically work.
-- [ ] KaTeX: Placeholder leaks through:
+- [X] KaTeX: Placeholder leaks through:
     - `Since with every union, a vertex in a smaller set transfers from a set of size $s$ to a set of size $\ge 2s$, the number of times it spends $\$1$ is at most $\log_2 n$.`
     - This issue comes from escaped dollar signs within a math block, which breaks placeholders.
 - [X] Support formatting keyboard shortcuts
@@ -247,6 +247,8 @@
 - [ ] Paths to files should support spaces in filenames.
 - [ ] Disabling middle-click paste should enable middle-click to make multiple cursors for selection.
     - If a user clicks in a position with the middle mouse button and drags down, another cursor should be created there that follows the original horizontally.
+- [ ] Some emojis aren't replaced correctly.
+    - E.g., :mermaid: does not become 🧜‍♀️ as shown in the dialogue boxes.
 
 ## Mobile App
 
