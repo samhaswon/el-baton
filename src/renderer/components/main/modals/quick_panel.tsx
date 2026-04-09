@@ -8,7 +8,7 @@ import {connect} from 'overstated';
 import Main from '@renderer/containers/main';
 import Item from '@renderer/components/main/quick_panel/item';
 import List from '@renderer/components/main/structures/list';
-import Modal from './modal';
+import Popover from '../popovers/popover';
 
 /* QUICK PANEL */
 
@@ -57,10 +57,13 @@ class QuickPanel extends React.Component<{ isOpen: boolean, setQuery: Function, 
     const {isOpen, toggleOpen, query, results} = this.props;
 
     return (
-      <Modal className="quick-panel" open={isOpen} onBeforeOpen={this.__beforeOpen} onBeforeClose={() => _.defer ( () => toggleOpen ( false ) )}>
-        <input ref={this.inputRef} placeholder="Open note or attachment..." className="autofocus card-header bordered small" defaultValue={query} onChange={this.onChange} />
-        <List className="list-quick-panel card-block" data={results.items} getHeight={this.getHeight} getItemKey={this.getItemKey} fallbackEmptyMessage={results.empty}>{Item}</List>
-      </Modal>
+      <>
+        <div className="quick-panel-anchor" />
+        <Popover className="quick-panel no-tip" open={isOpen} anchor=".quick-panel-anchor" onBeforeOpen={this.__beforeOpen} onBeforeClose={() => _.defer ( () => toggleOpen ( false ) )}>
+          <input ref={this.inputRef} placeholder="Open note or attachment..." className="autofocus card-header bordered small" defaultValue={query} onChange={this.onChange} />
+          <List className="list-quick-panel card-block" data={results.items} getHeight={this.getHeight} getItemKey={this.getItemKey} fallbackEmptyMessage={results.empty}>{Item}</List>
+        </Popover>
+      </>
     );
 
   }

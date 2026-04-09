@@ -37,7 +37,9 @@ class Popover extends React.Component<PopoverProps, {}> {
 
   }
 
-  componentDidUpdate () {
+  componentDidUpdate ( prevProps: PopoverProps ) {
+
+    if ( prevProps.open === this.props.open && prevProps.anchor === this.props.anchor ) return;
 
     this.update ();
 
