@@ -1,6 +1,7 @@
 
 /* IMPORT */
 
+import * as fs from 'fs';
 import * as _ from 'lodash';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js';
 import {Command, EditorCommand} from 'monaco-editor/esm/vs/editor/browser/editorExtensions.js';
@@ -11,6 +12,7 @@ import {is} from '@common/electron_util_shim';
 import Config from '@common/config';
 import CodeFenceSuggestions from '@common/code_fence_suggestions';
 import Emoji from '@common/emoji';
+import MarkdownPath from '@common/markdown_path';
 import Settings from '@common/settings';
 import MonacoLanguages from './monaco_languages';
 import ThemeLight from './monaco_light';
@@ -305,6 +307,44 @@ const Monaco = {
 
   },
 
+  getModelFilePath ( model: monaco.editor.ITextModel ): string | undefined {
+
+    const customFilePath = ( model as any ).filePath;
+
+    return _.isString ( customFilePath ) ? customFilePath : undefined;
+
+  },
+
+  getMarkdownPathCompletionContext ( beforeCursor: string ): { query: string } | undefined {
+
+    const markdownMatch = beforeCursor.match ( /(?:^|[^`])!?\[[^\]\n]*\]\(([^)\n]*)$/ ),
+          htmlMatch = beforeCursor.match ( /<(?:a|img|source)\b[^>\n]*?\s(?:src|href)="([^"\n]*)$/i );
+
+    if ( markdownMatch ) return { query: markdownMatch[1] };
+    if ( htmlMatch ) return { query: htmlMatch[1] };
+
+    return;
+
+  },
+
+  getMarkdownPathSuggestions ( query: string, sourceFilePath?: string ) {
+
+    const cwd = Config.cwd,
+          notesPath = Config.notes.path;
+
+    if ( !cwd || !notesPath || !fs.existsSync ( notesPath ) ) return [];
+
+    return MarkdownPath.listPathSuggestions ( query, {
+      cwd,
+      notesPath,
+      sourceFilePath,
+      attachmentsPath: Config.attachments.path,
+      attachmentsToken: Config.attachments.token,
+      notesToken: Config.notes.token
+    }).slice ( 0, 30 );
+
+  },
+
   initEnvironment () {
 
     self['MonacoEnvironment'] = {
@@ -535,6 +575,26 @@ const Monaco = {
             filterText: language,
             documentation: `Insert fenced code language \`${language}\``
           }));
+
+          if ( !suggestions.length ) return;
+
+          return { suggestions };
+        }
+
+        const pathContext = Monaco.getMarkdownPathCompletionContext ( beforeCursor );
+
+        if ( pathContext ) {
+          const sourceFilePath = Monaco.getModelFilePath ( model ),
+                range = new monaco.Range ( position.lineNumber, position.column - pathContext.query.length, position.lineNumber, position.column ),
+                suggestions = Monaco.getMarkdownPathSuggestions ( pathContext.query, sourceFilePath ).map ( ( entry, index ) => ({
+                  label: entry.path,
+                  kind: entry.isDirectory ? monaco.languages.CompletionItemKind.Folder : monaco.languages.CompletionItemKind.File,
+                  insertText: entry.path,
+                  range,
+                  sortText: `${entry.isDirectory ? '0' : '1'}${index.toString ().padStart ( 4, '0' )}`,
+                  filterText: entry.path,
+                  documentation: entry.isDirectory ? `Insert folder path \`${entry.path}\`` : `Insert file path \`${entry.path}\``
+                }));
 
           if ( !suggestions.length ) return;
 

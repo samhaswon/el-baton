@@ -192,6 +192,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
   shouldComponentUpdate ( nextProps ) { //TODO: Most of these update* functions should run in `componentDidMount`, but ensuring that the "value" doesn't get reset unnecessarily
 
     if ( nextProps.filePath !== this.props.filePath ) this.editorWillChange ();
+    if ( nextProps.filePath !== this.props.filePath ) this.updateModelFilePath ( nextProps.filePath );
 
     if ( nextProps.language !== this.props.language ) this.updateLanguage ( nextProps.language );
 
@@ -1070,6 +1071,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
       const finalModelOptions = _.merge ( {}, UMonaco.getModelOptions (), modelOptions || {} );
 
       model.updateOptions ( finalModelOptions );
+      ( model as any ).filePath = this.props.filePath; //UGLY
 
     }
 
@@ -1116,6 +1118,16 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     this._preventOnChangeEvent = false;
     this._spellcheckDebounced ();
     this._ensureEmbeddedFenceLanguagesDebounced ();
+
+  }
+
+  updateModelFilePath ( filePath: string ) {
+
+    const model = this.editor?.getModel ();
+
+    if ( !model ) return;
+
+    ( model as any ).filePath = filePath; //UGLY
 
   }
 

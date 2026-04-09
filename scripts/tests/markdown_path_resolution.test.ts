@@ -2,6 +2,8 @@
 
 import {test} from 'node:test';
 import * as assert from 'node:assert/strict';
+import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import MarkdownPath from '../../src/common/markdown_path';
 
@@ -149,5 +151,85 @@ test ( 'isPathInside: handles same path and nested paths only', () => {
   assert.equal ( MarkdownPath.isPathInside ( notesPath, notesPath ), true );
   assert.equal ( MarkdownPath.isPathInside ( notesPath, path.join ( notesPath, 'a/b.md' ) ), true );
   assert.equal ( MarkdownPath.isPathInside ( notesPath, '/workspace/data/notes-other/a.md' ), false );
+
+});
+
+test ( 'listPathSuggestions: suggests relative files and folders from the current note directory, including spaces', () => {
+
+  const tempRoot = fs.mkdtempSync ( path.join ( os.tmpdir (), 'elbaton-markdown-path-' ) );
+
+  try {
+    const tempNotesPath = path.join ( tempRoot, 'notes' ),
+          tempAttachmentsPath = path.join ( tempRoot, 'attachments' ),
+          sourceFilePath = path.join ( tempNotesPath, 'course', 'lesson.md' );
+
+    fs.mkdirSync ( path.join ( tempNotesPath, 'course', 'My Folder' ), { recursive: true } );
+    fs.mkdirSync ( tempAttachmentsPath, { recursive: true } );
+    fs.writeFileSync ( path.join ( tempNotesPath, 'course', 'My File.md' ), '' );
+    fs.writeFileSync ( path.join ( tempNotesPath, 'course', 'My Folder', 'Nested File.md' ), '' );
+
+    const suggestions = MarkdownPath.listPathSuggestions ( 'My F', {
+      cwd: tempRoot,
+      notesPath: tempNotesPath,
+      attachmentsPath: tempAttachmentsPath,
+      attachmentsToken: '@attachment',
+      notesToken: '@note',
+      sourceFilePath
+    });
+
+    assert.deepEqual ( suggestions, [
+      { path: 'My Folder/', isDirectory: true },
+      { path: 'My File.md', isDirectory: false }
+    ]);
+  } finally {
+    fs.rmSync ( tempRoot, { recursive: true, force: true } );
+  }
+
+});
+
+test ( 'listPathSuggestions: suggests token-prefixed attachment paths and preserves spaces', () => {
+
+  const tempRoot = fs.mkdtempSync ( path.join ( os.tmpdir (), 'elbaton-markdown-path-' ) );
+
+  try {
+    const tempNotesPath = path.join ( tempRoot, 'notes' ),
+          tempAttachmentsPath = path.join ( tempRoot, 'attachments' );
+
+    fs.mkdirSync ( path.join ( tempAttachmentsPath, 'Screenshots' ), { recursive: true } );
+    fs.mkdirSync ( tempNotesPath, { recursive: true } );
+    fs.writeFileSync ( path.join ( tempAttachmentsPath, 'Screenshots', 'Home Screen.png' ), '' );
+
+    const suggestions = MarkdownPath.listPathSuggestions ( '@attachment/Screenshots/Home S', {
+      cwd: tempRoot,
+      notesPath: tempNotesPath,
+      attachmentsPath: tempAttachmentsPath,
+      attachmentsToken: '@attachment',
+      notesToken: '@note',
+      sourceFilePath: path.join ( tempNotesPath, 'lesson.md' )
+    });
+
+    assert.deepEqual ( suggestions, [
+      { path: '@attachment/Screenshots/Home Screen.png', isDirectory: false }
+    ]);
+  } finally {
+    fs.rmSync ( tempRoot, { recursive: true, force: true } );
+  }
+
+});
+
+test ( 'listPathSuggestions: suggests token roots for partial token prefixes', () => {
+
+  const suggestions = MarkdownPath.listPathSuggestions ( '@att', {
+    cwd,
+    notesPath,
+    attachmentsPath,
+    attachmentsToken: '@attachment',
+    notesToken: '@note',
+    sourceFilePath
+  });
+
+  assert.deepEqual ( suggestions, [
+    { path: '@attachment/', isDirectory: true }
+  ]);
 
 });

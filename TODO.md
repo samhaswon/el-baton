@@ -248,8 +248,8 @@
         - Test note: global Matthew 7 notes
         - Probably just need to account for the height of the video.
     - [ ] Closed details tags scroll as if they're open, which can cause the preview to jump to the end quickly.
-- [ ] When typing a path, folders and files should be suggested that exist from what has already been typed.
-- [ ] Paths to files should support spaces in filenames.
+- [X] When typing a path, folders and files should be suggested that exist from what has already been typed.
+- [X] Paths to files should support spaces in filenames.
 - [X] Disabling middle-click paste should enable middle-click to make multiple cursors for selection.
     - If a user clicks in a position with the middle mouse button and drags down, another cursor should be created there that follows the original horizontally.
 - [ ] Some emojis aren't replaced correctly.
@@ -283,7 +283,7 @@
 
 ## Blocked
 
-- [ ] Upgrade to the latest Electron version when Wayland support is fixed.
+- [X] Upgrade to the latest Electron version when Wayland support is fixed.
     - https://github.com/electron/electron/issues/49244
-- [ ] Move to built-in `node:sqlite` when the project can be upgraded to a later ~~node~~ Electron version.
+- [X] Move to built-in `node:sqlite` when the project can be upgraded to a later ~~node~~ Electron version.
     - There appears to be a disconnect between the project and Electron node versions.

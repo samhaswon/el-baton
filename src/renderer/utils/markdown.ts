@@ -817,7 +817,7 @@ const Markdown = {
       return [
         { // Markdown
           type: 'language',
-          regex: /\[([^\]]*)\]\(([^)\s]+)\)/g,
+          regex: /\[([^\]]*)\]\(([^)]*)\)/g,
           replace ( match, $1, $2, index, content ) {
             if ( Markdown.extensions.utilities.isInsideCode ( content, index, true ) ) return match;
             const filePath = Markdown.resolveMarkdownRelativePath ( $2, sourceFilePath );
