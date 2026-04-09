@@ -180,7 +180,7 @@
     - Could be helped by making the last source line (with text) being aligned to the last part of the preview with rendered content, specifically in terms of absolute scroll position.
         - This is specific to scrolling toward the end of a large note with disproportionate source lines to output height. Scrolling to the end/past of the source content should scroll the preview to the end/past the rendered content. 
         - Might involve adding more padding to the bottom of the preview pane.
-    - [X] Related: Scroll sync doesn't quite work correctly in the smaller preview of a large note. It sometimes scrolls to far.
+    - [X] Related: Scroll sync doesn't quite work correctly in the smaller preview of a large note. It sometimes scrolls too far.
     - [X] Diagrams (Mermaid and PlantUML) and likely images sometimes scroll the preview further than they should.
         - Not particularly bad, this is mostly a slight tuning issue. 
         - Sometimes jumps around with mermaid rendering in and out.
@@ -189,8 +189,11 @@
 - [ ] Expand Vim-like options
     - [ ] <kbd>INSERT</kbd> should toggle the edit/preview/split-view mode, similar to Vim, in vim mode.
     - [ ] <kbd>Esc</kbd> should toggle command mode for things like jumps, replacements, etc.
-- [ ] CSS: the note tabs should just be trapezoids with a border color.
+- [X] CSS: the note tabs should just be ~~trapezoids~~ square-ish with a border color.
+    - Should be a white border for the selected tab in dark mode, black border for the selected note in light mode.
+    - Unselected notes should have no outline.
 - [ ] Split view: lightly highlight the edit location when typing.
+    - This should decay fairly quickly.
 - [X] Bug: window randomly scrolls to the top when switching to another app for a while. Cursor remains, but the scroll moves on its own.
     - Might be related to the user scrolling the preview pane last?
     - Might be related to the app going into the background and attempting to trigger the on-battery state? Kind of hard to tell.
@@ -252,6 +255,10 @@
 - [ ] Some emojis aren't replaced correctly.
     - E.g., :mermaid: does not become 🧜‍♀️ as shown in the dialogue boxes.
     - Emojis also don't render if they don't start the line.
+- [ ] Dictate button (microphone icon)
+    - Web Speech API?
+    - Wherever the cursor is placed, emit the dictation output there.
+    - Long pauses should ideally skip to a new output line (down 2 source lines)
 
 ## Mobile App
 

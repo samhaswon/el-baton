@@ -48,7 +48,8 @@
   overflow:hidden;
   text-overflow:ellipsis;
   z-index:1;
-  margin-bottom:0 !important
+  margin-bottom:0 !important;
+  border-color:transparent
 }
 
 .mainbar .note-tab::before,.mainbar .note-tab::after {
@@ -61,7 +62,8 @@
   border-top-width:1px;
   border-top-style:solid;
   border-bottom-width:0;
-  pointer-events:none
+  pointer-events:none;
+  border-color:transparent
 }
 
 .mainbar .note-tab::before {
@@ -69,8 +71,8 @@
   border-left-width:1px;
   border-left-style:solid;
   border-right-width:0;
-  transform:skewX(-24deg);
-  transform-origin:bottom right
+  /*transform:skewX(-24deg);
+  transform-origin:bottom right*/
 }
 
 .mainbar .note-tab::after {
@@ -78,8 +80,8 @@
   border-right-width:1px;
   border-right-style:solid;
   border-left-width:0;
-  transform:skewX(24deg);
-  transform-origin:bottom left
+  /*transform:skewX(24deg);
+  transform-origin:bottom left*/
 }
 
 .mainbar .note-tab.active {
@@ -872,16 +874,16 @@
 }
 
 .theme-dark .mainbar .note-tab {
-  border-color:hsla(0,0%,100%,.12);
-  background-color:rgba(127,127,127,.24)
+  /*background-color:rgba(127,127,127,.1)*/
 }
 
 .theme-dark .mainbar .note-tab:hover {
-  background-color:rgba(127,127,127,.32)
+  background-color:rgba(127,127,127,.4)
 }
 
 .theme-dark .mainbar .note-tab.active {
-  background-color:hsla(0,0%,100%,.04)
+  /*background-color:hsla(0,0%,100%,.04);*/
+  border-color:#fff
 }
 
 .theme-dark .mainbar .chip {
@@ -930,16 +932,16 @@
 }
 
 .theme-light .mainbar .note-tab {
-  border-color:rgba(0,0,0,.12);
   background-color:silver
 }
 
 .theme-light .mainbar .note-tab:hover {
-  background-color:rgba(127,127,127,.11)
+  background-color:rgba(127, 127, 127, 0.9)
 }
 
 .theme-light .mainbar .note-tab.active {
-  background-color:hsl(0,0%,99.46%)
+  background-color:hsl(0,0%,99.46%);
+  border-color:#000
 }
 
 .theme-light .mainbar .chip {
