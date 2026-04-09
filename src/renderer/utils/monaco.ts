@@ -7,6 +7,7 @@ import {Command, EditorCommand} from 'monaco-editor/esm/vs/editor/browser/editor
 import {EditorContextKeys} from 'monaco-editor/esm/vs/editor/common/editorContextKeys.js';
 import * as LanguageMarkdown from 'monaco-editor/esm/vs/basic-languages/markdown/markdown.js';
 import * as path from 'path';
+import {is} from '@common/electron_util_shim';
 import Config from '@common/config';
 import CodeFenceSuggestions from '@common/code_fence_suggestions';
 import Emoji from '@common/emoji';
@@ -52,6 +53,7 @@ const Monaco = {
     renderIndentGuides: false,
     roundedSelection: false,
     overtypeCursorStyle: 'line',
+    scrollOnMiddleClick: false,
     scrollbar: {
       useShadows: false,
       horizontalScrollbarSize: 12,
@@ -274,7 +276,8 @@ const Monaco = {
 
   getEditorOptions ( editor?: MonacoEditor ): monaco.editor.IEditorOptions {
 
-    const disableSuggestions = Config.monaco.editorOptions.disableSuggestions;
+    const disableSuggestions = Config.monaco.editorOptions.disableSuggestions,
+          disableMiddleClickPaste = is.linux && Config.input.disableMiddleClickPaste;
 
     return _.merge ( {}, Monaco.editorOptions, {
       lineNumbers: Monaco.getLineNumbersOption ( editor ),
@@ -284,6 +287,7 @@ const Monaco = {
         strings: true
       },
       quickSuggestionsDelay: 10,
+      selectionClipboard: !disableMiddleClickPaste,
       suggestOnTriggerCharacters: !disableSuggestions,
       wordBasedSuggestions: disableSuggestions ? 'off' : 'currentDocument'
     });

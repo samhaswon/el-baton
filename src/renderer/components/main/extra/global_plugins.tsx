@@ -132,6 +132,14 @@ class GlobalPlugins extends Component<{ container: IMain, config: import ( '@com
 
   }
 
+  __isMonacoTarget = ( target: EventTarget | null ) => {
+
+    if ( !( target instanceof Element ) ) return false;
+
+    return !!$( target ).closest ( '.monaco-editor' ).length;
+
+  }
+
   __blockPrimarySelectionPaste = ( event: Event ) => {
 
     event.preventDefault ();
@@ -149,9 +157,11 @@ class GlobalPlugins extends Component<{ container: IMain, config: import ( '@com
     const mouseEvent = event as MouseEvent,
           inputEvent = event as InputEvent,
           button = typeof mouseEvent.button === 'number' ? mouseEvent.button : ( typeof mouseEvent.which === 'number' ? mouseEvent.which - 1 : undefined ),
-          isEditable = this.__isEditableTarget ( event.target );
+          isEditable = this.__isEditableTarget ( event.target ),
+          isMonaco = this.__isMonacoTarget ( event.target );
 
     if ( !isEditable ) return;
+    if ( isMonaco ) return;
 
     if ( event.type === 'beforeinput' ) {
       const inputType = String ( inputEvent.inputType || '' );

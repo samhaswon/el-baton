@@ -240,15 +240,18 @@
     - possibly with an upper bound or most recently opened constraint.
     - Should be done asynchronously at app startup. 
     - Markov chain?
-- [ ] Scrolling a video element from the preview causes the source to ghost in a temporary position.
-    - Test note: global Matthew 7 notes
-    - Probably just need to account for the height of the video.
+- [ ] Scrolling issues:
+    - [ ] Scrolling a video element from the preview causes the source to ghost in a temporary position.
+        - Test note: global Matthew 7 notes
+        - Probably just need to account for the height of the video.
+    - [ ] Closed details tags scroll as if they're open, which can cause the preview to jump to the end quickly.
 - [ ] When typing a path, folders and files should be suggested that exist from what has already been typed.
 - [ ] Paths to files should support spaces in filenames.
-- [ ] Disabling middle-click paste should enable middle-click to make multiple cursors for selection.
+- [X] Disabling middle-click paste should enable middle-click to make multiple cursors for selection.
     - If a user clicks in a position with the middle mouse button and drags down, another cursor should be created there that follows the original horizontally.
 - [ ] Some emojis aren't replaced correctly.
     - E.g., :mermaid: does not become 🧜‍♀️ as shown in the dialogue boxes.
+    - Emojis also don't render if they don't start the line.
 
 ## Mobile App
 
