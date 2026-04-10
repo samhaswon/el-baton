@@ -2053,6 +2053,10 @@ h1,.xxlarge {
   line-height:1.5 !important
 }
 
+.layout-content.editor {
+  contain: layout style paint;
+}
+
 .embed {
   display:block;
   height:0;

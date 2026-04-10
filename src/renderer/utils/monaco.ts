@@ -36,7 +36,8 @@ const Monaco = {
     hideCursorInOverviewRuler: true,
     highlightActiveIndentGuide: false,
     hover: {
-      enabled: false
+      enabled: false,
+      sticky: false,
     },
     iconsInSuggestions: false,
     lightbulb: {
@@ -64,6 +65,9 @@ const Monaco = {
     scrollBeyondLastColumn: 0,
     scrollBeyondLastLine: true,
     snippetSuggestions: 'none',
+    stickyScroll: {
+      enabled: false,
+    },
     wordWrap: Settings.get ( 'monaco.editorOptions.wordWrap' ),
     wordWrapColumn: 1000000,
     wordWrapMinified: false,
