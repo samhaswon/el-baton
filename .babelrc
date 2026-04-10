@@ -1,5 +1,13 @@
 {
   "ignore": [
     "./src/renderer/template/dist"
-  ]
+  ],
+  "env": {
+    "development": {
+      "compact": false
+    },
+    "production": {
+      "compact": true
+    }
+  }
 }

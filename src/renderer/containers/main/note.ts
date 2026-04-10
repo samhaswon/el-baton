@@ -10,6 +10,7 @@ import {decode} from 'html-entities';
 import {Container, autosuspend} from 'overstated';
 import * as path from 'path';
 import Config from '@common/config';
+import Settings from '@common/settings';
 import Attachments from '@renderer/utils/attachments';
 import File from '@renderer/utils/file';
 import Markdown from '@renderer/utils/markdown';
@@ -764,6 +765,8 @@ class Note extends Container<NoteState, MainCTX> {
     if ( note === notePrev && !this.ctx.multiEditor.isEditing () ) return;
 
     await this.setState ({ note });
+
+    Settings.set ( 'editor.activeTab', note?.filePath );
 
     await this.ctx.tag.setFromNote ( note );
 

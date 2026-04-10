@@ -4,6 +4,7 @@
 import * as _ from 'lodash';
 import {ipcRenderer as ipc} from 'electron';
 import {Container, autosuspend} from 'overstated';
+import Settings from '@common/settings';
 import AppConfig from './app_config';
 import Attachment from './attachment';
 import Attachments from './attachments';
@@ -162,6 +163,17 @@ class Main extends Container<MainState, MainCTX> {
 
     await this.ctx.tag.update ();
     await this.ctx.search.update ();
+
+    if ( !this.ctx.note.get () ) {
+      const activeFilePath = Settings.get ( 'editor.activeTab' ) as string | undefined,
+            visibleNotes = this.ctx.search.getNotes (),
+            allNotes = Object.values ( this.ctx.notes.get () ),
+            note = ( activeFilePath && ( visibleNotes.find ( note => note.filePath === activeFilePath ) || allNotes.find ( note => note.filePath === activeFilePath ) ) ) || visibleNotes[0] || allNotes[0];
+
+      if ( note ) {
+        await this.ctx.note.set ( note );
+      }
+    }
 
     await this.ctx.loading.set ( false );
 

@@ -26,6 +26,7 @@ const Settings = new Store ({
   defaults: {
     cwd: undefined,
     editor: {
+      activeTab: undefined,
       editing: true,
       openTabs: [],
       split: true

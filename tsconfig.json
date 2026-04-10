@@ -32,7 +32,8 @@
       "@renderer/*": ["renderer/*"],
       "@root/*": ["../*"],
       "@static/*": ["renderer/template/runtime/*"],
-      "electron-util": ["common/electron_util_shim"]
+      "electron-util": ["common/electron_util_shim"],
+      "overstated": ["renderer/lib/overstated"]
     }
   },
   "exclude": [
