@@ -23,7 +23,6 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
   _sourceSyncFrame = 0;
   _previewSyncFrame = 0;
   _anchorsFrame = 0;
-  _settledSyncFrame = 0;
   _previewToggleNode: HTMLDivElement | null = null;
   _sourceAnchorCacheContent?: string;
   _sourceAnchorCache: SourceAnchor[] = [];
@@ -39,6 +38,8 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
   _lastPreviewScrollTop = NaN;
   _lastSourceSyncAt = 0;
   _lastPreviewSyncAt = 0;
+  _lastSourceScrollEvent?: { scrollTop: number, scrollHeight: number };
+  _sourceViewportHeight = 0;
 
   state = {
     content: undefined as string | undefined
@@ -82,7 +83,6 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     window.cancelAnimationFrame ( this._sourceSyncFrame );
     window.cancelAnimationFrame ( this._previewSyncFrame );
     window.cancelAnimationFrame ( this._anchorsFrame );
-    window.cancelAnimationFrame ( this._settledSyncFrame );
 
   }
 
@@ -107,7 +107,39 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
           viewportHeight = layoutInfo ? layoutInfo.height : 0,
           maxScrollTop = Math.max ( 0, scrollHeight - viewportHeight );
 
+    if ( viewportHeight > 0 ) {
+      this._sourceViewportHeight = viewportHeight;
+    }
+
     return { monaco, scrollTop, maxScrollTop, lineCount, lineHeight, sourceUnits, sourceMaxUnits };
+
+  }
+
+  __getSourceFastMetrics = () => {
+
+    const monaco = this.props.getMonaco (),
+          scrollEvent = this._lastSourceScrollEvent;
+
+    if ( !monaco || !scrollEvent ) return;
+
+    const model = monaco.getModel (),
+          lineCount = model ? model.getLineCount () : 1,
+          sourceMaxUnits = Math.max ( 1, lineCount - 1 ),
+          viewportHeight = this._sourceViewportHeight,
+          maxScrollTop = Math.max ( 0, scrollEvent.scrollHeight - viewportHeight ),
+          sourceUnits = this.__toRatio ( scrollEvent.scrollTop, maxScrollTop ) * sourceMaxUnits;
+
+    if ( !viewportHeight ) return;
+
+    return {
+      monaco,
+      scrollTop: scrollEvent.scrollTop,
+      maxScrollTop,
+      lineCount,
+      lineHeight: 0,
+      sourceUnits,
+      sourceMaxUnits
+    };
 
   }
 
@@ -1023,7 +1055,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     if ( !force && now < this._ignoreSourceScrollUntil ) return;
 
-    const source = this.__getSourceMetrics (),
+    const source = force ? this.__getSourceMetrics () : ( this.__getSourceFastMetrics () || this.__getSourceMetrics () ),
           preview = this.__getPreviewMetrics ();
 
     if ( !source || !preview ) return;
@@ -1033,8 +1065,9 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     // While typing, keep preview steady unless the editor scrollbar actually moved.
     if ( !force && source.monaco.hasTextFocus () && sourceScrollDelta < 1 ) return;
 
-    const shouldUsePartialWindow = !!( this._isPreviewPartial && this._currentPartialWindow ),
-          shouldUseLinear = ( this._isPreviewPartial && !shouldUsePartialWindow ) || this._isPreviewRendering,
+    const shouldUseFastPath = !force && !!this._lastSourceScrollEvent,
+          shouldUsePartialWindow = !!( this._isPreviewPartial && this._currentPartialWindow ),
+          shouldUseLinear = shouldUseFastPath || ( this._isPreviewPartial && !shouldUsePartialWindow ) || this._isPreviewRendering,
           anchors = shouldUseLinear ? undefined : this.__getAnchors ( source, preview );
 
     let nextScrollTop = shouldUsePartialWindow
@@ -1080,19 +1113,9 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     const shouldUseLinear = this._isPreviewPartial || this._isPreviewRendering,
           anchors = shouldUseLinear ? undefined : this.__getAnchors ( source, preview );
 
-    let targetUnits = shouldUseLinear
+    const targetUnits = shouldUseLinear
       ? this.__mapPreviewToSourceLinear ( source, preview )
       : this.__mapPreviewToSource ( source, preview, anchors );
-
-    if ( !shouldUseLinear && anchors && anchors.length <= 1200 ) {
-      const nearestAnchor = this.__findNearestAnchorByPreview ( anchors, preview.scrollTop ),
-            crossedAnchor = this.__findCrossedAnchorByPreview ( anchors, this._lastPreviewScrollTop, preview.scrollTop );
-      if ( nearestAnchor ) {
-        targetUnits = nearestAnchor.source;
-      } else if ( crossedAnchor && Math.abs ( crossedAnchor.source - targetUnits ) < 2 ) {
-        targetUnits = crossedAnchor.source;
-      }
-    }
 
     const
           nextLine = _.clamp ( 1 + Math.floor ( targetUnits ), 1, source.lineCount ),
@@ -1131,6 +1154,19 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
   }
 
+  __handleSourceScroll = ( event?: { scrollTop?: number, scrollHeight?: number } ) => {
+
+    if ( _.isNumber ( event?.scrollTop ) && _.isNumber ( event?.scrollHeight ) ) {
+      this._lastSourceScrollEvent = {
+        scrollTop: event!.scrollTop!,
+        scrollHeight: event!.scrollHeight!
+      };
+    }
+
+    this.__scheduleSourceSync ();
+
+  }
+
   __schedulePreviewSync = () => {
 
     if ( !this.props.splitViewSyncEnabled ) return;
@@ -1148,22 +1184,6 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
   }
 
-  __scheduleSettledSourceSync = () => {
-
-    if ( !this.props.splitViewSyncEnabled ) return;
-
-    if ( this._settledSyncFrame ) return;
-
-    this._settledSyncFrame = window.requestAnimationFrame ( () => {
-      this._settledSyncFrame = window.requestAnimationFrame ( () => {
-        this._settledSyncFrame = 0;
-        this.__scheduleAnchorsRebuild ();
-        this.__syncFromSource ( true );
-      });
-    });
-
-  }
-
   __previewRendered = ( _event, renderMeta? ) => {
 
     this._isPreviewRendering = false;
@@ -1176,10 +1196,6 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     }
 
     this.__scheduleAnchorsRebuild ( renderMeta );
-
-    if ( renderMeta && renderMeta.kind === 'full-deferred' ) {
-      this.__scheduleSettledSourceSync ();
-    }
 
   }
 
@@ -1238,7 +1254,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     return (
       <Layout className="split-editor" direction="horizontal" resizable={true} optimizeUpdates={true} isFocus={isFocus} isZen={isZen} hasSidebar={hasSidebar}>
-        <Editor onChange={this.__change} onUpdate={this.__change} onScroll={splitViewSyncEnabled ? this.__scheduleSourceSync : undefined} />
+        <Editor onChange={this.__change} onUpdate={this.__change} onScroll={splitViewSyncEnabled ? this.__handleSourceScroll : undefined} />
         <Preview content={content} onAnchorNavigate={this.__previewAnchorNavigate} onScroll={splitViewSyncEnabled ? this.__schedulePreviewSync : undefined} previewRef={this._previewRef} enableWorker={false} largeRenderMode="after-initial" syncScroll={splitViewSyncEnabled} />
       </Layout>
     );

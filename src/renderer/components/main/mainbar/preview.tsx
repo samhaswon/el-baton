@@ -458,12 +458,13 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
   }, [getMonaco] );
 
   const getDebounceDelay = React.useCallback ( () => {
+    if ( syncScroll ) return 0;
     if ( !schedulingEditorFocused ) return 0;
     if ( effectiveBatteryRenderDelay <= 0 ) return 0;
     const base = content.length >= MEDIUM_PREVIEW_RENDER_THRESHOLD ? 180 : 80,
           variable = Math.min ( 180, Math.floor ( content.length / 800 ) );
     return Math.max ( TYPING_DEBOUNCE_MIN, Math.min ( TYPING_DEBOUNCE_MAX + effectiveBatteryRenderDelay, base + variable + effectiveBatteryRenderDelay ) );
-  }, [content.length, effectiveBatteryRenderDelay, schedulingEditorFocused] );
+  }, [content.length, effectiveBatteryRenderDelay, schedulingEditorFocused, syncScroll] );
 
   React.useEffect ( () => {
     cancelWorkerRender ();
