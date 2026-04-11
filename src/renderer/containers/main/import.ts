@@ -3,8 +3,8 @@
 
 import Dialog from 'electron-dialog';
 import {Container, autosuspend} from 'overstated';
+import {createHash} from 'crypto';
 import * as path from 'path';
-import * as sha1 from 'sha1';
 import Config from '@common/config';
 import File from '@renderer/utils/file';
 import Metadata from '@renderer/utils/metadata';
@@ -34,7 +34,7 @@ class Import extends Container<ImportState, MainCTX> {
 
   _getImportTag ( str: string ): string {
 
-    const importId = sha1 ( str ).slice ( 0, 4 ),
+    const importId = createHash ( 'sha1' ).update ( str ).digest ( 'hex' ).slice ( 0, 4 ),
           importTag = `Import-${importId}`;
 
     return importTag;
