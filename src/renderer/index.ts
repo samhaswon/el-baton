@@ -51,7 +51,7 @@ bootstrap ().catch ( showBootstrapError );
 
 /* HOT MODULE REPLACEMENT */
 
-const hotModule = module as NodeModule & {
+const hotModule = module as NodeJS.Module & {
   hot?: {
     accept: ( dependency: string, callback: () => void ) => void;
   };
