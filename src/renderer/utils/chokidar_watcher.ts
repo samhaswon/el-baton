@@ -1,7 +1,11 @@
 /* IMPORT */
 
 import chokidar from 'chokidar';
-import type {ChokidarOptions, FSWatcher} from 'chokidar';
+
+/* TYPES */
+
+type ChokidarOptions = Parameters<typeof chokidar.watch>[1];
+type FSWatcher = ReturnType<typeof chokidar.watch>;
 
 /* TYPES */
 
