@@ -45,6 +45,11 @@ const config = {
       'electron-util': path.resolve ( __dirname, 'src/common/electron_util_shim.ts' ),
       'overstated': path.resolve ( __dirname, 'src/renderer/lib/overstated.ts' )
     },
+    extensionAlias: {
+      '.js': [ '.js', '.ts', '.tsx' ],
+      '.mjs': [ '.mjs', '.mts' ],
+      '.cjs': [ '.cjs', '.cts' ]
+    },
     extensions: [ '.ts', '.tsx', '.js', '.json' ],
     plugins: [
       new TSConfigPathsPlugin ()
@@ -75,7 +80,7 @@ const config = {
             presets: [
               babelPresetEnv,
               '@babel/preset-react',
-              '@babel/preset-typescript'
+              [ '@babel/preset-typescript', { allowDeclareFields: true } ]
             ],
             plugins: reactCompilerPlugins
           }

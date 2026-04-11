@@ -4,7 +4,7 @@
 import * as _ from 'lodash';
 import {BrowserWindowConstructorOptions, Event, ipcMain as ipc, BrowserWindow, Menu, MenuItemConstructorOptions, shell} from 'electron';
 import {is} from '@common/electron_util_shim';
-import * as windowStateKeeper from 'electron-window-state';
+import windowStateKeeper from 'electron-window-state';
 import * as fs from 'fs';
 import * as path from 'path';
 import pkg from '@root/package.json';

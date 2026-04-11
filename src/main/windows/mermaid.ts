@@ -3,7 +3,7 @@
 
 import {BrowserWindowConstructorOptions, Menu, MenuItemConstructorOptions} from 'electron';
 import {is} from '@common/electron_util_shim';
-import * as windowStateKeeper from 'electron-window-state';
+import windowStateKeeper from 'electron-window-state';
 import pkg from '@root/package.json';
 import Environment from '@common/environment';
 import UMenu from '@main/utils/menu';

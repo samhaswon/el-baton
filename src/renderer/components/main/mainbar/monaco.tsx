@@ -1270,6 +1270,7 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
     this._spellcheckWorkerInitAttempted = true;
 
     try {
+      // @ts-expect-error Webpack rewrites this worker URL at build time.
       const worker = new Worker ( new URL ( '../../../workers/spellcheck_worker.ts', import.meta.url ) );
 
       worker.onmessage = event => {

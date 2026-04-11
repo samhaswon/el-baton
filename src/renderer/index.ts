@@ -39,8 +39,8 @@ const showBootstrapError = ( error: unknown ) => {
 
 const bootstrap = async () => {
 
-  const {default: debugging} = await import ( './debugging' );
-  const {default: render} = await import ( './render' );
+  const debugging = ( ( await import ( './debugging.js' ) ).default as unknown ) as () => Promise<void> | void;
+  const render = ( ( await import ( './render.js' ) ).default as unknown ) as () => Promise<void> | void;
 
   await debugging ();
   await render ();
@@ -59,8 +59,8 @@ const hotModule = module as NodeJS.Module & {
 
 if ( hotModule.hot ) {
 
-  hotModule.hot.accept ( './render', () => {
-    require ( './render' ).default ();
+  hotModule.hot.accept ( './render.js', () => {
+    require ( './render.js' ).default ();
   });
 
 }

@@ -33,6 +33,11 @@ const shared = {
     fallback: {
       fsevents: false
     },
+    extensionAlias: {
+      '.js': ['.js', '.ts', '.tsx'],
+      '.mjs': ['.mjs', '.mts'],
+      '.cjs': ['.cjs', '.cts']
+    },
     extensions: [ '.ts', '.tsx', '.js', '.json' ],
     plugins: [
       new TSConfigPathsPlugin ()
@@ -63,7 +68,7 @@ const shared = {
             presets: [
               babelPresetEnv,
               '@babel/preset-react',
-              '@babel/preset-typescript'
+              [ '@babel/preset-typescript', { allowDeclareFields: true } ]
             ],
             // React Compiler must run first in the Babel plugin pipeline.
             plugins: reactCompilerPlugins
@@ -81,7 +86,7 @@ const shared = {
             presets: [
               babelPresetEnv,
               '@babel/preset-react',
-              '@babel/preset-typescript'
+              [ '@babel/preset-typescript', { allowDeclareFields: true } ]
             ]
           }
         }

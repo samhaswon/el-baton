@@ -2,7 +2,7 @@
 /* IMPORT */
 
 import {BrowserWindowConstructorOptions} from 'electron';
-import * as windowStateKeeper from 'electron-window-state';
+import windowStateKeeper from 'electron-window-state';
 import Route from './route';
 
 /* CWD */

@@ -523,7 +523,7 @@ export const connect = ( options: ConnectOptions ) => {
       static contextType = STORES_CONTEXT;
       static displayName = `connect(${WrappedComponent.displayName || WrappedComponent.name || 'Component'})`;
 
-      context!: StoreRegistry | null;
+      declare context: StoreRegistry | null;
 
       private stores: Container[];
       private subscribedStores: Container[] = [];

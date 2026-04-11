@@ -2,7 +2,7 @@
 /* IMPORT */
 
 import {BrowserWindowConstructorOptions, Menu, MenuItemConstructorOptions} from 'electron';
-import * as windowStateKeeper from 'electron-window-state';
+import windowStateKeeper from 'electron-window-state';
 import pkg from '@root/package.json';
 import UMenu from '@main/utils/menu';
 import Route from './route';

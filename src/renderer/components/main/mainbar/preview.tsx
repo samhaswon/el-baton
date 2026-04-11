@@ -165,6 +165,7 @@ const Preview = ({ content, onScroll, onWheel, onAnchorNavigate, previewRef, isE
     workerInitStartedRef.current = true;
 
     try {
+      // @ts-expect-error Webpack rewrites this worker URL at build time.
       const worker = new Worker ( new URL ( '../../../workers/markdown_worker.ts', import.meta.url ) );
 
       worker.onmessage = event => {
