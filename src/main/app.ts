@@ -3,6 +3,7 @@
 
 import {app, ipcMain as ipc, Event, IpcMainEvent, Menu, MenuItemConstructorOptions, powerMonitor, shell} from 'electron';
 import {autoUpdater as updater} from 'electron-updater';
+import installExtension, {REACT_DEVELOPER_TOOLS} from 'electron-devtools-installer';
 import {enforceMacOSAppLocation, is} from '@common/electron_util_shim';
 import * as fs from 'fs';
 import pkg from '@root/package.json';
@@ -69,6 +70,16 @@ class App {
   async initDebug () {
 
     if ( !Environment.isDevelopment ) return;
+
+    try {
+      const extension = await installExtension ( REACT_DEVELOPER_TOOLS );
+      console.info ( '[debug] Installed React DevTools extension', {
+        extensionId: extension.id,
+        extensionName: extension.name
+      });
+    } catch ( error ) {
+      console.warn ( '[debug] Failed to install React DevTools extension', error );
+    }
 
   }
 
@@ -163,12 +174,12 @@ class App {
 
   }
 
-  __ready = () => {
+  __ready = async () => {
 
     enforceMacOSAppLocation ();
 
     this.initPowerMonitor ();
-    this.initDebug ();
+    await this.initDebug ();
 
     this.load ();
 
