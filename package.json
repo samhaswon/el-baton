@@ -278,6 +278,7 @@
     "electron": "^41.0.0",
     "electron-builder": "^26.8.1",
     "electron-builder-squirrel-windows": "^26.8.1",
+    "electron-devtools-installer": "^4.0.0",
     "execa": "^9.6.1",
     "gemoji": "^8.1.0",
     "html-webpack-plugin": "^5.6.4",

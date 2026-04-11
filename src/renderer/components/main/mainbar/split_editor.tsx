@@ -40,6 +40,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
   _lastPreviewSyncAt = 0;
   _lastSourceScrollEvent?: { scrollTop: number, scrollHeight: number };
   _sourceViewportHeight = 0;
+  _blockSourceMouseMoveUntil = 0;
 
   state = {
     content: undefined as string | undefined
@@ -111,7 +112,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       this._sourceViewportHeight = viewportHeight;
     }
 
-    return { monaco, scrollTop, maxScrollTop, lineCount, lineHeight, sourceUnits, sourceMaxUnits };
+    return { monaco, scrollTop, maxScrollTop, viewportHeight, lineCount, lineHeight, sourceUnits, sourceMaxUnits };
 
   }
 
@@ -135,6 +136,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       monaco,
       scrollTop: scrollEvent.scrollTop,
       maxScrollTop,
+      viewportHeight,
       lineCount,
       lineHeight: 0,
       sourceUnits,
@@ -1042,6 +1044,18 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
   }
 
+  __normalizeWheelDelta = ( event: WheelEvent, lineHeight: number, viewportHeight: number ) => {
+
+    const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+      ? Math.max ( 1, lineHeight || 20 )
+      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+      ? Math.max ( 1, viewportHeight || lineHeight || 20 )
+      : 1;
+
+    return event.deltaY * unit;
+
+  }
+
   __syncFromSource = ( force: boolean = false ) => {
 
     if ( !this.props.splitViewSyncEnabled ) return;
@@ -1079,7 +1093,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     this._lastSourceScrollTop = source.scrollTop;
     this._lastSourceUnits = source.sourceUnits;
 
-    if ( Math.abs ( preview.scrollTop - nextScrollTop ) < 2 ) return;
+    if ( Math.abs ( preview.scrollTop - nextScrollTop ) < 1 ) return;
 
     this._ignorePreviewScrollUntil = now + 120;
     preview.node.scrollTop = nextScrollTop;
@@ -1128,6 +1142,45 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     this._ignoreSourceScrollUntil = now + 120;
     source.monaco.setScrollTop ( nextScrollTop );
+
+  }
+
+  __handleSourceWheel = ( event: WheelEvent ) => {
+
+    if ( !this.props.splitViewSyncEnabled ) return;
+    if ( event.defaultPrevented ) return;
+    if ( event.ctrlKey || event.metaKey || event.altKey ) return;
+    if ( Math.abs ( event.deltaY ) <= Math.abs ( event.deltaX ) ) return;
+
+    const source = this.__getSourceMetrics ();
+
+    if ( !source ) return;
+
+    const deltaY = this.__normalizeWheelDelta ( event, source.lineHeight, source.viewportHeight ),
+          nextScrollTop = _.clamp ( source.scrollTop + deltaY, 0, source.maxScrollTop );
+
+    if ( Math.abs ( nextScrollTop - source.scrollTop ) < 0.5 ) return;
+
+    event.preventDefault ();
+    this._blockSourceMouseMoveUntil = Date.now () + 140;
+
+    this._lastSourceScrollEvent = {
+      scrollTop: nextScrollTop,
+      scrollHeight: source.maxScrollTop + source.viewportHeight
+    };
+
+    source.monaco.setScrollTop ( nextScrollTop );
+
+  }
+
+  __handleSourceMouseMoveCapture = ( event: MouseEvent ) => {
+
+    if ( Date.now () >= this._blockSourceMouseMoveUntil ) return;
+
+    event.stopPropagation ();
+    if ( event.stopImmediatePropagation ) {
+      event.stopImmediatePropagation ();
+    }
 
   }
 
@@ -1254,7 +1307,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     return (
       <Layout className="split-editor" direction="horizontal" resizable={true} optimizeUpdates={true} isFocus={isFocus} isZen={isZen} hasSidebar={hasSidebar}>
-        <Editor onChange={this.__change} onUpdate={this.__change} onScroll={splitViewSyncEnabled ? this.__handleSourceScroll : undefined} />
+        <Editor onChange={this.__change} onUpdate={this.__change} onScroll={splitViewSyncEnabled ? this.__handleSourceScroll : undefined} onWheel={splitViewSyncEnabled ? this.__handleSourceWheel : undefined} onMouseMoveCapture={splitViewSyncEnabled ? this.__handleSourceMouseMoveCapture : undefined} />
         <Preview content={content} onAnchorNavigate={this.__previewAnchorNavigate} onScroll={splitViewSyncEnabled ? this.__schedulePreviewSync : undefined} previewRef={this._previewRef} enableWorker={false} largeRenderMode="after-initial" syncScroll={splitViewSyncEnabled} />
       </Layout>
     );

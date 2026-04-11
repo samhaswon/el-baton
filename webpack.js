@@ -14,6 +14,10 @@ const babelPresetEnv = [ '@babel/preset-env', {
   }
 } ];
 
+const reactCompilerPlugins = [
+  'babel-plugin-react-compiler'
+];
+
 /* PLUGINS */
 
 function PluginSkeletonOptimization ( compiler ) { // Loading heavy resources after the skeleton
@@ -72,7 +76,8 @@ const config = {
               babelPresetEnv,
               '@babel/preset-react',
               '@babel/preset-typescript'
-            ]
+            ],
+            plugins: reactCompilerPlugins
           }
         }
       }

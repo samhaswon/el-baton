@@ -17,20 +17,9 @@ const babelPresetEnv = [ '@babel/preset-env', {
   }
 } ];
 
-let reactCompilerPlugins = [];
-
-try {
-  require.resolve ( 'babel-plugin-react-compiler' );
-  require.resolve ( 'react-compiler-runtime' );
-  reactCompilerPlugins = [[
-    'babel-plugin-react-compiler',
-    {
-      target: '18'
-    }
-  ]];
-} catch ( error ) {
-  console.warn ( '[webpack] React Compiler packages not installed; skipping compiler transforms for renderer sources.' );
-}
+const reactCompilerPlugins = [
+  'babel-plugin-react-compiler'
+];
 
 const shared = {
   mode: isDevelopment ? 'development' : 'production',

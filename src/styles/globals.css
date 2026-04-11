@@ -2054,7 +2054,7 @@ h1,.xxlarge {
 }
 
 .layout-content.editor {
-  contain: layout style paint;
+  contain: size;
 }
 
 .embed {

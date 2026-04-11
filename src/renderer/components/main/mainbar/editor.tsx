@@ -8,7 +8,7 @@ import Monaco from './monaco';
 
 /* EDITOR */
 
-class Editor extends React.Component<{ onChange: Function, onUpdate: Function, onScroll?: Function, filePath: string, content: string, theme: string, disableSuggestions: boolean, autosave: Function, getMonaco: Function, setMonaco: Function, hasFocus: Function, forget: Function, focus: Function, save: Function, restore: Function, reset: Function }, {}> {
+class Editor extends React.Component<{ onChange: Function, onUpdate: Function, onScroll?: Function, onWheel?: Function, onMouseMoveCapture?: Function, filePath: string, content: string, theme: string, disableSuggestions: boolean, autosave: Function, getMonaco: Function, setMonaco: Function, hasFocus: Function, forget: Function, focus: Function, save: Function, restore: Function, reset: Function }, {}> {
 
   _wasWindowBlurred: boolean = false;
 
@@ -126,6 +126,8 @@ class Editor extends React.Component<{ onChange: Function, onUpdate: Function, o
         onChange={this.__change}
         onUpdate={this.__update}
         onScroll={this.__scroll}
+        onWheel={this.props.onWheel}
+        onMouseMoveCapture={this.props.onMouseMoveCapture}
       />
     );
 
@@ -137,7 +139,7 @@ class Editor extends React.Component<{ onChange: Function, onUpdate: Function, o
 
 export default connect ({
   container: Main,
-  selector: ({ container, onChange, onUpdate, onScroll }) => {
+  selector: ({ container, onChange, onUpdate, onScroll, onWheel, onMouseMoveCapture }) => {
 
     const note = container.note.get (),
           appConfig = container.appConfig.get (),
@@ -147,6 +149,8 @@ export default connect ({
       onChange,
       onUpdate,
       onScroll,
+      onWheel,
+      onMouseMoveCapture,
       filePath: note.filePath,
       content: container.note.getPlainContent ( note ),
       theme: container.theme.get (),

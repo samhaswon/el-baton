@@ -99,7 +99,7 @@ const getCodeFenceLanguages = ( content: string ): string[] => {
 
 /* MONACO */
 
-class Monaco extends React.Component<{ filePath: string, language: string, theme: string, value: string, editorOptions?: monaco.editor.IEditorOptions, modelOptions?: monaco.editor.ITextModelUpdateOptions, className?: string, editorWillMount?: Function, editorDidMount?: Function, editorWillUnmount?: Function, editorDidUnmount?: Function, editorWillChange?: Function, onBlur?: Function, onFocus?: Function, onChange?: Function, onUpdate?: Function, onScroll?: Function, container: IMain }, {}> {
+class Monaco extends React.Component<{ filePath: string, language: string, theme: string, value: string, editorOptions?: monaco.editor.IEditorOptions, modelOptions?: monaco.editor.ITextModelUpdateOptions, className?: string, editorWillMount?: Function, editorDidMount?: Function, editorWillUnmount?: Function, editorDidUnmount?: Function, editorWillChange?: Function, onBlur?: Function, onFocus?: Function, onChange?: Function, onUpdate?: Function, onScroll?: Function, onWheel?: EventListener, onMouseMoveCapture?: EventListener, container: IMain }, {}> {
 
   static SPELLCHECK_MAX_CONTENT_LENGTH = 40000;
   static SPELLCHECK_VISIBLE_LINE_BUFFER = 50;
@@ -220,7 +220,9 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
   editorDidMount ( editor: MonacoEditor ) {
 
-    const {editorDidMount, editorDidUnmount, onBlur, onFocus, onScroll} = this.props;
+    const {editorDidMount, editorDidUnmount, onBlur, onFocus, onScroll, onWheel, onMouseMoveCapture} = this.props;
+    const domNode = editor.getDomNode ();
+    const wrapperNode = this.ref.current;
 
     ( editor as any ).addCommand ( monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {
       this.props.container.search.focus ();
@@ -288,6 +290,20 @@ class Monaco extends React.Component<{ filePath: string, language: string, theme
 
       editor.onDidDispose ( editorDidUnmount as any ); //TSC
 
+    }
+
+    if ( domNode && onWheel ) {
+      domNode.addEventListener ( 'wheel', onWheel, { passive: false } );
+      editor.onDidDispose ( () => {
+        domNode.removeEventListener ( 'wheel', onWheel );
+      });
+    }
+
+    if ( wrapperNode && onMouseMoveCapture ) {
+      wrapperNode.addEventListener ( 'mousemove', onMouseMoveCapture, true );
+      editor.onDidDispose ( () => {
+        wrapperNode.removeEventListener ( 'mousemove', onMouseMoveCapture, true );
+      });
     }
 
     editor.onDidChangeModelContent ( event => {

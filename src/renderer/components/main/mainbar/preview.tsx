@@ -95,7 +95,7 @@ const patchPreviewContent = ( target: HTMLElement, nextHtml: string ) => {
   target.insertBefore ( fragment, anchor );
 };
 
-const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocused, getMonaco, sourceFilePath, disableScriptSanitization, batteryRenderDelayMs = 0, enableWorker = true, largeRenderMode = 'always', syncScroll = false, previewTheme = 'default' }) => {
+const Preview = ({ content, onScroll, onWheel, onAnchorNavigate, previewRef, isEditorFocused, getMonaco, sourceFilePath, disableScriptSanitization, batteryRenderDelayMs = 0, enableWorker = true, largeRenderMode = 'always', syncScroll = false, previewTheme = 'default' }) => {
   const effectiveContent = content,
         isLargeDocument = content.length >= Config.preview.largeDocumentThreshold,
         largeNoteFullRenderDelay = _.clamp ( Number ( Config.preview.largeNoteFullRenderDelay ) || DEFAULT_LARGE_NOTE_FULL_RENDER_DELAY, 0, 5000 ),
@@ -614,7 +614,7 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
   const previewClassName = `layout-content preview${isLargeDocument ? ' preview-large-document' : ''}${syncScroll ? ' preview-sync-scroll' : ''}`;
 
   return (
-    <div ref={resolvedPreviewRef} className={previewClassName} onClick={onClick} onScroll={onScroll}>
+    <div ref={resolvedPreviewRef} className={previewClassName} onClick={onClick} onScroll={onScroll} onWheel={onWheel}>
       {showLoading ? <div className="preview-loading-state">Loading preview...</div> : null}
       <div ref={previewContentRef} className="preview-content"></div>
     </div>
@@ -625,11 +625,12 @@ const Preview = ({ content, onScroll, onAnchorNavigate, previewRef, isEditorFocu
 
 export default connect ({
   container: Main,
-  selector: ({ container, content, onScroll, onAnchorNavigate, previewRef, enableWorker, largeRenderMode, syncScroll }) => ({
+  selector: ({ container, content, onScroll, onWheel, onAnchorNavigate, previewRef, enableWorker, largeRenderMode, syncScroll }) => ({
     content: content || container.note.getPlainContent (),
     disableScriptSanitization: container.appConfig.get ().preview.disableScriptSanitization,
     batteryRenderDelayMs: container.window.getBatteryRenderDelayMs (),
     onScroll,
+    onWheel,
     onAnchorNavigate,
     previewRef,
     enableWorker,
