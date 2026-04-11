@@ -3,7 +3,7 @@ name: Nightly Publish
 on:
   push:
     tags:
-      - "nightly-*"
+      - "*-nightly*"
 
 permissions:
   contents: write
