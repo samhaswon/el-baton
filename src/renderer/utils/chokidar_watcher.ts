@@ -1,6 +1,7 @@
 /* IMPORT */
 
-import chokidar, {WatchOptions, FSWatcher} from 'chokidar';
+import chokidar from 'chokidar';
+import type {ChokidarOptions, FSWatcher} from 'chokidar';
 
 /* TYPES */
 
@@ -15,7 +16,7 @@ type EventHandlers = {
 
 const RENAME_WINDOW = 175;
 
-const watcher = ( watchPath: string, options: WatchOptions = {}, handlers: EventHandlers = {} ): FSWatcher => {
+const watcher = ( watchPath: string, options: ChokidarOptions = {}, handlers: EventHandlers = {} ): FSWatcher => {
 
   const pendingUnlinks = new Map<string, NodeJS.Timeout> ();
 

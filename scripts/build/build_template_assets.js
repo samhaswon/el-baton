@@ -2,7 +2,6 @@
 
 const fs = require ( 'fs' );
 const path = require ( 'path' );
-const chokidar = require ( 'chokidar' );
 
 const rootPath = path.join ( __dirname, '..', '..' );
 const stylesPath = path.join ( rootPath, 'src', 'styles' );
@@ -108,9 +107,11 @@ const build = () => {
 
 };
 
-const watch = () => {
+const watch = async () => {
 
   build ();
+
+  const {default: chokidar} = await import ( 'chokidar' );
 
   console.log ( `[template:assets] Watching ${toPosixPath ( stylesPath )}` );
   console.log ( `[template:assets] Watching ${toPosixPath ( templateBasePath )}` );
@@ -118,10 +119,10 @@ const watch = () => {
   console.log ( `[template:assets] Watching ${toPosixPath ( resourcesIconPath )}` );
 
   chokidar.watch ([
-    path.join ( stylesPath, '**', '*.css' ),
-    path.join ( templateBasePath, 'images', '**', '*' ),
-    path.join ( templateBasePath, 'javascript', '**', '*' ),
-    path.join ( templateGeneratedPath, '**', '*' ),
+    stylesPath,
+    path.join ( templateBasePath, 'images' ),
+    path.join ( templateBasePath, 'javascript' ),
+    templateGeneratedPath,
     path.join ( resourcesIconPath, 'icon.png' ),
     path.join ( resourcesIconPath, 'icon.ico' )
   ], {
@@ -133,7 +134,10 @@ const watch = () => {
 };
 
 if ( process.argv.includes ( '--watch' ) ) {
-  watch ();
+  watch ().catch ( error => {
+    console.error ( error );
+    process.exitCode = 1;
+  });
 } else {
   build ();
 }

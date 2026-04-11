@@ -3,12 +3,12 @@
 
 import * as _ from 'lodash';
 import * as React from 'react';
-import * as isShallowEqual from 'is-shallow-equal';
 import {connect} from 'overstated';
 import Main from '@renderer/containers/main';
 import Item from '@renderer/components/main/quick_panel/item';
 import List from '@renderer/components/main/structures/list';
 import Popover from '../popovers/popover';
+import {isShallowEqual} from '@renderer/lib/shallow_equal';
 
 /* QUICK PANEL */
 

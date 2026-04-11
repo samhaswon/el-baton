@@ -2,11 +2,11 @@
 /* IMPORT */
 
 import * as _ from 'lodash';
-import * as isShallowEqual from 'is-shallow-equal';
 import * as React from 'react';
 import {createElement} from 'react';
 import {List} from 'react-window';
 import type {ListImperativeAPI, RowComponentProps} from 'react-window';
+import {isShallowEqual} from '@renderer/lib/shallow_equal';
 
 /* TREE */
 
