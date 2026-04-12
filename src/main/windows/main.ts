@@ -24,6 +24,7 @@ class Main extends Route {
   _prevContextFlags: ContextFlags | false = false;
   _prevUpdateCheckTimestamp: number = 0;
   _isRendererAvailable: boolean = true;
+  _didReloadForReactDevTools: boolean = false;
 
   /* CONSTRUCTOR */
 
@@ -886,7 +887,29 @@ class Main extends Route {
 
     super.load ();
 
+    if ( Environment.isDevelopment && !this._didReloadForReactDevTools ) {
+      this.win.webContents.once ( 'did-finish-load', this.__reloadForReactDevTools );
+    }
+
     setTimeout ( this.__didFinishLoad, 500 ); //TODO: Ideally the timeout should be 0, for for that we need to minimize the amount of work happening before the skeleton can be rendered
+
+  }
+
+  __reloadForReactDevTools = () => {
+
+    if ( !Environment.isDevelopment ) return;
+    if ( this._didReloadForReactDevTools ) return;
+    if ( !this.win || this.win.isDestroyed () ) return;
+
+    this._didReloadForReactDevTools = true;
+
+    setTimeout ( () => {
+
+      if ( !this.win || this.win.isDestroyed () ) return;
+
+      this.win.webContents.reload ();
+
+    }, 250 );
 
   }
 
