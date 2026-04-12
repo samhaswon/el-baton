@@ -238,10 +238,10 @@
     - Could be related to how we replace the whole preview every time.
 - [X] Allow on-battery mode to be turned off when on battery.
 - [X] Code fence language suggestions should only appear on the opening part of a fence, not a closing part.
-- [ ] Drop usage of overstated (unmaintained now).
+- [X] Drop usage of overstated (unmaintained now).
 - [ ] Seed autocomplete from other notes
     - possibly with an upper bound or most recently opened constraint.
-    - Should be done asynchronously at app startup. 
+    - Should be done asynchronously at app startup in such a way as to not block app loading. 
     - Markov chain?
 - [ ] Scrolling issues:
     - [ ] Scrolling a video element from the preview causes the source to ghost in a temporary position.
@@ -258,7 +258,7 @@
 - [ ] Dictate button (microphone icon)
     - Web Speech API?
     - Wherever the cursor is placed, emit the dictation output there.
-    - Long pauses should ideally skip to a new output line (down 2 source lines)
+    - Long pauses (configurable) should ideally skip to a new output line (down 2 source lines)
 
 ## Mobile App
 
