@@ -188,7 +188,7 @@
     "cmark-gfm": "^0.9.0",
     "crc-32": "^1.2.2",
     "critically": "^2.0.1",
-    "diff": "^8.0.3",
+    "diff": "^9.0.0",
     "dompurify": "^3.3.2",
     "electron-context-menu": "^4.1.2",
     "electron-dialog": "^2.0.0",
