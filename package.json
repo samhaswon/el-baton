@@ -68,7 +68,6 @@
     "copyright": "Copyright © 2018-present Fabio Spampinato, 2026-present Samuel Howard",
     "afterAllArtifactBuild": "scripts/build/hook_after_build.js",
     "afterPack": "scripts/build/hook_after_pack.js",
-    "disableDefaultIgnoredFiles": true,
     "extraMetadata": {
       "main": "main.js"
     },
