@@ -81,21 +81,6 @@
         "filter": [
           "**/*"
         ]
-      },
-      {
-        "from": "node_modules",
-        "to": "node_modules",
-        "filter": [
-          "**/*",
-          "!**/*.md",
-          "!**/*.markdown",
-          "!**/*.map",
-          "!**/*.ts",
-          "!**/{test,tests,__tests__,powered-test,example,examples,docs,doc,coverage}/**/*",
-          "!**/{.github,.circleci}/**/*",
-          "!cmark-gfm/{prebuilds,script,src,vendor,node-addon-api}/**/*",
-          "!cmark-gfm/build/Release/node-addon-api/**/*"
-        ]
       }
     ],
     "directories": {
