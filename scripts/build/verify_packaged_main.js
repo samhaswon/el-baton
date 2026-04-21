@@ -31,6 +31,8 @@ const getArchiveEntries = archivePath => new Set (
   asar.listPackage ( archivePath, { isPack: false } ).map ( normalizeArchivePath )
 );
 
+const hasArchiveEntry = ({ entries, filePath }) => entries.has ( normalizeArchivePath ( filePath ) );
+
 const assertArchiveEntry = ({ archivePath, entries, filePath, label = filePath, fallbackPaths = [] }) => {
 
   const normalized = normalizeArchivePath ( filePath );
@@ -95,3 +97,7 @@ function verifyPackagedMain ( contextOrAppOutDir ) {
 /* EXPORT */
 
 module.exports = verifyPackagedMain;
+module.exports.getArchivePath = getArchivePath;
+module.exports.getArchiveEntries = getArchiveEntries;
+module.exports.hasArchiveEntry = hasArchiveEntry;
+module.exports.normalizeArchivePath = normalizeArchivePath;
