@@ -6,10 +6,10 @@ const verifyPackagedMain = require ( './verify_packaged_main' );
 
 /* AFTER PACK */
 
-async function afterPack ({ targets, appOutDir }) {
+async function afterPack ( context ) {
 
-  await fixLinuxSandbox ( targets, appOutDir );
-  verifyPackagedMain ( appOutDir );
+  await fixLinuxSandbox ( context.targets, context.appOutDir );
+  verifyPackagedMain ( context );
 
 }
 

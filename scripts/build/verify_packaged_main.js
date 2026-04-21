@@ -6,12 +6,15 @@ const asar = require ( '@electron/asar' );
 
 /* HELPERS */
 
-const getArchivePath = appOutDir => {
+const getArchivePath = contextOrAppOutDir => {
 
-  const candidates = [
-    path.join ( appOutDir, 'resources', 'app.asar' ),
-    path.join ( appOutDir, 'Contents', 'Resources', 'app.asar' )
-  ];
+  const appOutDir = typeof contextOrAppOutDir === 'string' ? contextOrAppOutDir : contextOrAppOutDir.appOutDir,
+        resourcesDir = typeof contextOrAppOutDir === 'string' ? null : contextOrAppOutDir.packager.getResourcesDir ( appOutDir ),
+        candidates = [
+          resourcesDir ? path.join ( resourcesDir, 'app.asar' ) : null,
+          path.join ( appOutDir, 'resources', 'app.asar' ),
+          path.join ( appOutDir, 'Contents', 'Resources', 'app.asar' )
+        ].filter ( Boolean );
 
   for ( let index = 0, l = candidates.length; index < l; index++ ) {
     const archivePath = candidates[index];
@@ -26,9 +29,9 @@ const normalizeArchivePath = value => value.replace ( /\\/g, '/' );
 
 /* VERIFY PACKAGED MAIN */
 
-function verifyPackagedMain ( appOutDir ) {
+function verifyPackagedMain ( contextOrAppOutDir ) {
 
-  const archivePath = getArchivePath ( appOutDir ),
+  const archivePath = getArchivePath ( contextOrAppOutDir ),
         packageRaw = asar.extractFile ( archivePath, 'package.json' ).toString ( 'utf8' ),
         packageJSON = JSON.parse ( packageRaw ),
         rawMain = packageJSON.main;
