@@ -11,6 +11,11 @@ const getSourceDistDir = context => (
   path.join ( path.resolve ( context.packager?.projectDir || process.cwd () ), 'dist' )
 );
 
+const hasCompiledDist = distDir => (
+  fs.existsSync ( path.join ( distDir, 'main', 'main.js' ) ) &&
+  fs.existsSync ( path.join ( distDir, 'renderer', 'index.html' ) )
+);
+
 const runNpmScript = ({ projectDir, script }) => {
 
   const command = process.platform === 'win32' ? 'npm.cmd' : 'npm',
@@ -29,19 +34,41 @@ const runNpmScript = ({ projectDir, script }) => {
 
 };
 
-const ensureCompiledDist = ({ projectDir, sourceDistDir }) => {
+const restoreCompiledDistFromSnapshot = ({ sourceDistDir, snapshotDistDir }) => {
+
+  if ( !hasCompiledDist ( snapshotDistDir ) ) return false;
+
+  fs.mkdirSync ( sourceDistDir, { recursive: true } );
+  fs.cpSync ( snapshotDistDir, sourceDistDir, {
+    force: true,
+    recursive: true
+  });
+
+  return true;
+
+};
+
+const ensureCompiledDist = ({ projectDir, sourceDistDir, snapshotDistDir }) => {
 
   const compiledMainPath = path.join ( sourceDistDir, 'main', 'main.js' ),
         compiledRendererPath = path.join ( sourceDistDir, 'renderer', 'index.html' ),
         missingMain = !fs.existsSync ( compiledMainPath ),
         missingRenderer = !fs.existsSync ( compiledRendererPath );
 
-  if ( missingMain ) {
+  if ( missingMain || missingRenderer ) {
+    const restored = restoreCompiledDistFromSnapshot ({ sourceDistDir, snapshotDistDir });
+
+    if ( restored ) {
+      console.warn ( `[build:before-pack] Restored compiled dist from snapshot "${snapshotDistDir}"` );
+    }
+  }
+
+  if ( !fs.existsSync ( compiledMainPath ) ) {
     console.warn ( `[build:before-pack] Missing "${compiledMainPath}", rebuilding main bundle` );
     runNpmScript ({ projectDir, script: 'bundle:main' });
   }
 
-  if ( missingRenderer ) {
+  if ( !fs.existsSync ( compiledRendererPath ) ) {
     console.warn ( `[build:before-pack] Missing "${compiledRendererPath}", rebuilding renderer bundle` );
     runNpmScript ({ projectDir, script: 'bundle:renderer' });
   }
@@ -64,9 +91,9 @@ function beforePack ( context ) {
         sourceDistDir = getSourceDistDir ( context ),
         snapshotDistDir = getPackagedDistSnapshotDir ( context );
 
-  ensureCompiledDist ({ projectDir, sourceDistDir });
+  ensureCompiledDist ({ projectDir, sourceDistDir, snapshotDistDir });
 
-  fs.rmSync ( path.dirname ( snapshotDistDir ), {
+  fs.rmSync ( snapshotDistDir, {
     force: true,
     recursive: true
   });
