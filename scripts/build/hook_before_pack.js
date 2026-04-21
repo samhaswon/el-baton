@@ -3,7 +3,7 @@
 const cp = require ( 'child_process' );
 const fs = require ( 'fs' );
 const path = require ( 'path' );
-const {getPackagedDistSnapshotDir} = require ( './packaged_dist_paths' );
+const {getCompiledDistSnapshotDir, getPackagedDistSnapshotDir} = require ( './packaged_dist_paths' );
 
 /* HELPERS */
 
@@ -34,21 +34,27 @@ const runNpmScript = ({ projectDir, script }) => {
 
 };
 
-const restoreCompiledDistFromSnapshot = ({ sourceDistDir, snapshotDistDir }) => {
+const restoreCompiledDistFromSnapshot = ({ sourceDistDir, snapshotDistDirs }) => {
 
-  if ( !hasCompiledDist ( snapshotDistDir ) ) return false;
+  for ( let index = 0, l = snapshotDistDirs.length; index < l; index++ ) {
+    const snapshotDistDir = snapshotDistDirs[index];
 
-  fs.mkdirSync ( sourceDistDir, { recursive: true } );
-  fs.cpSync ( snapshotDistDir, sourceDistDir, {
-    force: true,
-    recursive: true
-  });
+    if ( !hasCompiledDist ( snapshotDistDir ) ) continue;
 
-  return true;
+    fs.mkdirSync ( sourceDistDir, { recursive: true } );
+    fs.cpSync ( snapshotDistDir, sourceDistDir, {
+      force: true,
+      recursive: true
+    });
+
+    return snapshotDistDir;
+  }
+
+  return '';
 
 };
 
-const ensureCompiledDist = ({ projectDir, sourceDistDir, snapshotDistDir }) => {
+const ensureCompiledDist = ({ projectDir, sourceDistDir, snapshotDistDir, compiledSnapshotDistDir }) => {
 
   const compiledMainPath = path.join ( sourceDistDir, 'main', 'main.js' ),
         compiledRendererPath = path.join ( sourceDistDir, 'renderer', 'index.html' ),
@@ -56,10 +62,13 @@ const ensureCompiledDist = ({ projectDir, sourceDistDir, snapshotDistDir }) => {
         missingRenderer = !fs.existsSync ( compiledRendererPath );
 
   if ( missingMain || missingRenderer ) {
-    const restored = restoreCompiledDistFromSnapshot ({ sourceDistDir, snapshotDistDir });
+    const restoredFrom = restoreCompiledDistFromSnapshot ({
+      sourceDistDir,
+      snapshotDistDirs: [ snapshotDistDir, compiledSnapshotDistDir ]
+    });
 
-    if ( restored ) {
-      console.warn ( `[build:before-pack] Restored compiled dist from snapshot "${snapshotDistDir}"` );
+    if ( restoredFrom ) {
+      console.warn ( `[build:before-pack] Restored compiled dist from snapshot "${restoredFrom}"` );
     }
   }
 
@@ -89,9 +98,10 @@ function beforePack ( context ) {
 
   const projectDir = path.resolve ( context.packager?.projectDir || process.cwd () ),
         sourceDistDir = getSourceDistDir ( context ),
-        snapshotDistDir = getPackagedDistSnapshotDir ( context );
+        snapshotDistDir = getPackagedDistSnapshotDir ( context ),
+        compiledSnapshotDistDir = getCompiledDistSnapshotDir ( projectDir );
 
-  ensureCompiledDist ({ projectDir, sourceDistDir, snapshotDistDir });
+  ensureCompiledDist ({ projectDir, sourceDistDir, snapshotDistDir, compiledSnapshotDistDir });
 
   fs.rmSync ( snapshotDistDir, {
     force: true,

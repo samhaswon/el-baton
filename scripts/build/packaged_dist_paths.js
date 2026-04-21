@@ -4,6 +4,10 @@ const path = require ( 'path' );
 
 /* HELPERS */
 
+const getCompiledDistSnapshotDir = projectDir => (
+  path.join ( path.resolve ( projectDir ), '.tmp', 'compiled-dist-source', 'dist' )
+);
+
 const getPackagedDistSnapshotDir = context => {
 
   const projectDir = path.resolve ( context.packager?.projectDir || process.cwd () ),
@@ -16,5 +20,6 @@ const getPackagedDistSnapshotDir = context => {
 /* EXPORT */
 
 module.exports = {
+  getCompiledDistSnapshotDir,
   getPackagedDistSnapshotDir
 };
