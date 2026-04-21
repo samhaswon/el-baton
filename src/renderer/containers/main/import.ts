@@ -124,15 +124,15 @@ class Import extends Container<ImportState, MainCTX> {
 
   select = async () => {
 
-    const filePaths = this.dialog ();
+    const filePaths = await this.dialog ();
 
     return this.import ( filePaths );
 
   }
 
-  dialog = (): string[] => {
+  dialog = async (): Promise<string[]> => {
 
-    const filePaths = remote.dialog.showOpenDialogSync ({
+    const {canceled, filePaths} = await remote.dialog.showOpenDialog ({
       title: 'Import Notes',
       buttonLabel: 'Import',
       filters: [
@@ -143,7 +143,7 @@ class Import extends Container<ImportState, MainCTX> {
       properties: ['openFile', 'multiSelections']
     });
 
-    return filePaths || [];
+    return canceled ? [] : filePaths;
 
   }
 

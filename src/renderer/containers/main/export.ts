@@ -196,7 +196,7 @@ class Export extends Container<ExportState, MainCTX> {
 
     if ( !renderer || !extension ) return Dialog.alert ( 'Invalid export configuration' );
 
-    const basePath = this.dialog ();
+    const basePath = await this.dialog ();
 
     if ( !basePath ) return;
 
@@ -257,18 +257,18 @@ class Export extends Container<ExportState, MainCTX> {
 
   }
 
-  dialog = () => {
+  dialog = async (): Promise<string | undefined> => {
 
-    const folderPaths = remote.dialog.showOpenDialogSync ({
+    const {canceled, filePaths} = await remote.dialog.showOpenDialog ({
       title: 'Export Notes',
       buttonLabel : 'Export',
       properties: ['openDirectory', 'createDirectory'],
       defaultPath: os.homedir ()
     });
 
-    if ( !folderPaths || !folderPaths.length ) return;
+    if ( canceled || !filePaths.length ) return;
 
-    return folderPaths[0];
+    return filePaths[0];
 
   }
 

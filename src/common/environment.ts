@@ -6,7 +6,7 @@ const Environment = {
   isDevelopment: ( process.env.NODE_ENV !== 'production' ),
   wds: { // Webpack Development Server
     protocol: 'http',
-    hostname: 'localhost',
+    hostname: process.env.ELECTRON_WEBPACK_WDS_HOST || 'localhost',
     port: process.env.ELECTRON_WEBPACK_WDS_PORT
   }
 };
