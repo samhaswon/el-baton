@@ -62,7 +62,7 @@
     "dev:windows": "cross-env EL_BATON_SKIP_ICON_REGEN=1 EL_BATON_SKIP_ICON_FONT_BUILD=1 npm run monaco && cross-env EL_BATON_SKIP_ICON_REGEN=1 EL_BATON_SKIP_ICON_FONT_BUILD=1 npm run template:assets && concurrently -k -n template:assets:watch,dev:main,dev:renderer,dev:electron \"node ./scripts/build/build_template_assets.js --watch\" \"npm run dev:windows:main\" \"npm run dev:windows:renderer\" \"npm run dev:windows:electron\"",
     "prod": "npm run compile:release && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir && open releases/mac/*.app"
   },
-  "main": "dist/main/main.js",
+  "main": "main.js",
   "build": {
     "appId": "com.elbaton.app",
     "copyright": "Copyright © 2018-present Fabio Spampinato, 2026-present Samuel Howard",
@@ -70,7 +70,7 @@
     "afterPack": "scripts/build/hook_after_pack.js",
     "disableDefaultIgnoredFiles": true,
     "extraMetadata": {
-      "main": "dist/main/main.js"
+      "main": "main.js"
     },
     "files": [
       "main.js",
