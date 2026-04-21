@@ -260,6 +260,7 @@
     - Wherever the cursor is placed, emit the dictation output there.
     - Long pauses (configurable) should ideally skip to a new output line (down 2 source lines)
 - [ ] Allow note tabs to be reordered.
+- [ ] Mermaid errors still sometimes overflow
 
 ## Mobile App
 
