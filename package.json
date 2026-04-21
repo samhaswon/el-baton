@@ -2,7 +2,7 @@
   "name": "el-baton",
   "productName": "El Baton",
   "description": "Conduct your knowledge.",
-  "version": "0.0.0-nightly11",
+  "version": "0.0.0-nightly12",
   "scripts": {
     "clean:env": "rm -rf node_modules package-lock.json",
     "clean:deps": "npx del-cli \"node_modules/**/{README,LICENSE,license,.travis.yml,tsconfig.json,*.{md,MD,map,png,ts}}\" \"node_modules/monaco-editor/{dev,min}\" \"!node_modules/**/*.d.ts\"",
@@ -76,6 +76,14 @@
       "main.js",
       "dist/**/*",
       "node_modules/**/*",
+      "!node_modules/**/*.md",
+      "!node_modules/**/*.markdown",
+      "!node_modules/**/*.map",
+      "!node_modules/**/*.ts",
+      "!node_modules/**/{test,tests,__tests__,powered-test,example,examples,docs,doc,coverage}/**/*",
+      "!node_modules/**/{.github,.circleci}/**/*",
+      "!node_modules/cmark-gfm/{prebuilds,script,src,vendor,node-addon-api}/**/*",
+      "!node_modules/cmark-gfm/build/Release/node-addon-api/**/*",
       "package.json"
     ],
     "directories": {

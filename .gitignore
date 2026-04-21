@@ -38,6 +38,7 @@ bower_components
 node_modules
 dist
 releases
+releases-test/
 extracted/
 .tmp/
 src/renderer/template/generated/*
