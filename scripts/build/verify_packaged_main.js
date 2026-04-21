@@ -27,6 +27,17 @@ const getArchivePath = contextOrAppOutDir => {
 
 const normalizeArchivePath = value => value.replace ( /\\/g, '/' );
 
+const assertArchiveEntry = ( archivePath, filePath, label = filePath ) => {
+
+  try {
+    asar.statFile ( archivePath, filePath, true );
+  } catch ( error ) {
+    const message = error instanceof Error ? error.message : String ( error );
+    throw new Error ( `[build:verify-packaged-main] Missing ${label} in "${archivePath}": ${message}` );
+  }
+
+};
+
 /* VERIFY PACKAGED MAIN */
 
 function verifyPackagedMain ( contextOrAppOutDir ) {
@@ -46,11 +57,10 @@ function verifyPackagedMain ( contextOrAppOutDir ) {
 
   const main = normalizeArchivePath ( rawMain.trim () );
 
-  try {
-    asar.statFile ( archivePath, main, true );
-  } catch ( error ) {
-    const message = error instanceof Error ? error.message : String ( error );
-    throw new Error ( `[build:verify-packaged-main] Packaged main "${main}" was not found in "${archivePath}": ${message}` );
+  assertArchiveEntry ( archivePath, main, `packaged main "${main}"` );
+
+  if ( main === 'main.js' ) {
+    assertArchiveEntry ( archivePath, 'dist/main/main.js', 'compiled main bundle "dist/main/main.js"' );
   }
 
 }
