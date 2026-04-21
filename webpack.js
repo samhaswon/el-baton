@@ -7,6 +7,7 @@ const TerserPlugin = require ( 'terser-webpack-plugin' ),
       webpack = require ( 'webpack' );
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
+const mermaidDistPath = path.resolve ( __dirname, 'node_modules', 'mermaid', 'dist' );
 
 const babelPresetEnv = [ '@babel/preset-env', {
   targets: {
@@ -59,7 +60,7 @@ const config = {
     rules: [
       {
         test: /\.m?js$/,
-        include: /node_modules\/mermaid\/dist/,
+        include: mermaidDistPath,
         use: {
           loader: 'babel-loader',
           options: {

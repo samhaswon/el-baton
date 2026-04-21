@@ -10,6 +10,7 @@ const isDevelopment = process.env.NODE_ENV !== 'production';
 const electronTarget = process.env.NOTABLE_ELECTRON_TARGET || '30.0';
 const rendererSourcePath = path.resolve ( __dirname, 'src/renderer' );
 const sourcePath = path.resolve ( __dirname, 'src' );
+const mermaidDistPath = path.resolve ( __dirname, 'node_modules', 'mermaid', 'dist' );
 
 const babelPresetEnv = [ '@babel/preset-env', {
   targets: {
@@ -47,7 +48,7 @@ const shared = {
     rules: [
       {
         test: /\.m?js$/,
-        include: /node_modules\/mermaid\/dist/,
+        include: mermaidDistPath,
         use: {
           loader: 'babel-loader',
           options: {
