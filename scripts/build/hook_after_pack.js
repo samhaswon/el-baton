@@ -2,7 +2,6 @@
 /* IMPORT */
 
 const fixLinuxSandbox = require ( './fix_linux_sandbox' );
-const copyPackagedDist = require ( './copy_packaged_dist' );
 const verifyPackagedMain = require ( './verify_packaged_main' );
 
 /* AFTER PACK */
@@ -10,7 +9,6 @@ const verifyPackagedMain = require ( './verify_packaged_main' );
 async function afterPack ( context ) {
 
   await fixLinuxSandbox ( context.targets, context.appOutDir );
-  copyPackagedDist ( context );
   verifyPackagedMain ( context );
 
 }

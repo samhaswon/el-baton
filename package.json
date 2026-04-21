@@ -74,17 +74,29 @@
     },
     "files": [
       "main.js",
-      "dist/**/*",
-      "node_modules/**/*",
-      "!node_modules/**/*.md",
-      "!node_modules/**/*.markdown",
-      "!node_modules/**/*.map",
-      "!node_modules/**/*.ts",
-      "!node_modules/**/{test,tests,__tests__,powered-test,example,examples,docs,doc,coverage}/**/*",
-      "!node_modules/**/{.github,.circleci}/**/*",
-      "!node_modules/cmark-gfm/{prebuilds,script,src,vendor,node-addon-api}/**/*",
-      "!node_modules/cmark-gfm/build/Release/node-addon-api/**/*",
-      "package.json"
+      "package.json",
+      {
+        "from": "dist",
+        "to": "dist",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "node_modules",
+        "to": "node_modules",
+        "filter": [
+          "**/*",
+          "!**/*.md",
+          "!**/*.markdown",
+          "!**/*.map",
+          "!**/*.ts",
+          "!**/{test,tests,__tests__,powered-test,example,examples,docs,doc,coverage}/**/*",
+          "!**/{.github,.circleci}/**/*",
+          "!cmark-gfm/{prebuilds,script,src,vendor,node-addon-api}/**/*",
+          "!cmark-gfm/build/Release/node-addon-api/**/*"
+        ]
+      }
     ],
     "directories": {
       "output": "releases"
