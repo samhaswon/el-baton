@@ -67,6 +67,7 @@
     "appId": "com.elbaton.app",
     "copyright": "Copyright © 2018-present Fabio Spampinato, 2026-present Samuel Howard",
     "afterAllArtifactBuild": "scripts/build/hook_after_build.js",
+    "beforePack": "scripts/build/hook_before_pack.js",
     "afterPack": "scripts/build/hook_after_pack.js",
     "extraMetadata": {
       "main": "main.js"

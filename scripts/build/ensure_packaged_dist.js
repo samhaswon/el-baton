@@ -2,6 +2,7 @@
 
 const fs = require ( 'fs' );
 const path = require ( 'path' );
+const {getPackagedDistSnapshotDir} = require ( './packaged_dist_paths' );
 const verifyPackagedMain = require ( './verify_packaged_main' );
 
 /* HELPERS */
@@ -39,6 +40,7 @@ const hasCompiledMainInResources = resourcesDir => (
 const getSearchRoots = context => {
 
   const candidates = [
+    getPackagedDistSnapshotDir ( context ),
     process.cwd (),
     context.packager?.projectDir,
     context.packager?.appDir
@@ -92,7 +94,7 @@ const findSourceDistDirectory = context => {
 
   for ( let index = 0, l = searchRoots.length; index < l; index++ ) {
     const root = searchRoots[index],
-          directCandidate = path.join ( root, 'dist' );
+          directCandidate = path.basename ( root ) === 'dist' ? root : path.join ( root, 'dist' );
 
     attemptedPaths.push ( directCandidate );
 
