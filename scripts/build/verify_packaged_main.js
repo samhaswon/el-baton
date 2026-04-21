@@ -25,16 +25,27 @@ const getArchivePath = contextOrAppOutDir => {
 
 };
 
-const normalizeArchivePath = value => value.replace ( /\\/g, '/' );
+const normalizeArchivePath = value => value.replace ( /\\/g, '/' ).replace ( /^\/+/, '' );
 
-const assertArchiveEntry = ( archivePath, filePath, label = filePath ) => {
+const getArchiveEntries = archivePath => new Set (
+  asar.listPackage ( archivePath, { isPack: false } ).map ( normalizeArchivePath )
+);
 
-  try {
-    asar.statFile ( archivePath, filePath, true );
-  } catch ( error ) {
-    const message = error instanceof Error ? error.message : String ( error );
-    throw new Error ( `[build:verify-packaged-main] Missing ${label} in "${archivePath}": ${message}` );
+const assertArchiveEntry = ({ archivePath, entries, filePath, label = filePath, fallbackPaths = [] }) => {
+
+  const normalized = normalizeArchivePath ( filePath );
+
+  if ( entries.has ( normalized ) ) return;
+
+  for ( let index = 0, l = fallbackPaths.length; index < l; index++ ) {
+    if ( fs.existsSync ( fallbackPaths[index] ) ) return;
   }
+
+  const basename = path.basename ( normalized ),
+        similarEntries = Array.from ( entries ).filter ( entry => entry.endsWith ( basename ) ).slice ( 0, 8 ),
+        similarSuffix = similarEntries.length ? ` Similar archive entries: ${similarEntries.join ( ', ' ) }.` : '';
+
+  throw new Error ( `[build:verify-packaged-main] Missing ${label} in "${archivePath}".${similarSuffix}` );
 
 };
 
@@ -43,6 +54,8 @@ const assertArchiveEntry = ( archivePath, filePath, label = filePath ) => {
 function verifyPackagedMain ( contextOrAppOutDir ) {
 
   const archivePath = getArchivePath ( contextOrAppOutDir ),
+        resourcesDir = path.dirname ( archivePath ),
+        entries = getArchiveEntries ( archivePath ),
         packageRaw = asar.extractFile ( archivePath, 'package.json' ).toString ( 'utf8' ),
         packageJSON = JSON.parse ( packageRaw ),
         rawMain = packageJSON.main;
@@ -57,10 +70,24 @@ function verifyPackagedMain ( contextOrAppOutDir ) {
 
   const main = normalizeArchivePath ( rawMain.trim () );
 
-  assertArchiveEntry ( archivePath, main, `packaged main "${main}"` );
+  assertArchiveEntry ({
+    archivePath,
+    entries,
+    filePath: main,
+    label: `packaged main "${main}"`
+  });
 
   if ( main === 'main.js' ) {
-    assertArchiveEntry ( archivePath, 'dist/main/main.js', 'compiled main bundle "dist/main/main.js"' );
+    assertArchiveEntry ({
+      archivePath,
+      entries,
+      filePath: 'dist/main/main.js',
+      label: 'compiled main bundle "dist/main/main.js"',
+      fallbackPaths: [
+        path.join ( resourcesDir, 'app.asar.unpacked', 'dist', 'main', 'main.js' ),
+        path.join ( resourcesDir, 'dist', 'main', 'main.js' )
+      ]
+    });
   }
 
 }
