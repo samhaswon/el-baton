@@ -7,12 +7,12 @@ import {ipcRenderer as ipc} from 'electron';
 import Dialog from 'electron-dialog';
 import * as mime from 'mime-types';
 import * as os from 'os';
-import {createHash} from 'crypto';
 import {Container, autosuspend} from 'overstated';
 import * as path from 'path';
 import File from '@renderer/utils/file';
 import Markdown from '@renderer/utils/markdown';
 import Path from '@renderer/utils/path';
+import Config from '@common/config';
 
 /* EXPORT */
 
@@ -86,6 +86,81 @@ class Export extends Container<ExportState, MainCTX> {
 
   }
 
+  _getCriticalHtml = async ( html: string ): Promise<string> => {
+
+    try {
+
+      return ( await critically ({ html }) ).html;
+
+    } catch ( error ) {
+
+      console.warn ( 'Failed to inline critical CSS for export, continuing with full stylesheet instead:', error );
+
+      return html;
+
+    }
+
+  }
+
+  _renderMermaidsForExport = async ( content: string, theme: 'default' | 'dark' = 'default' ): Promise<string> => {
+
+    if ( !content.includes ( 'class="mermaid"' ) ) return content;
+
+    const wrapper = document.createElement ( 'div' );
+
+    wrapper.innerHTML = content;
+
+    const nodes = Array.from ( wrapper.querySelectorAll ( '.mermaid' ) );
+
+    if ( !nodes.length ) return content;
+
+    const module = await import ( 'mermaid/dist/mermaid.esm.mjs' );
+    const mermaid = ( module as any ).default || module;
+
+    if ( mermaid.initialize ) {
+      mermaid.initialize ( _.merge ({}, Config.mermaid, {
+        startOnLoad: false,
+        theme,
+        themeVariables: {
+          background: 'transparent'
+        }
+      }) );
+    }
+
+    for ( const node of nodes ) {
+
+      const sourceNode = node.querySelector ( '.mermaid-source' );
+
+      if ( !sourceNode?.textContent ) continue;
+
+      const source = decodeURIComponent ( sourceNode.textContent );
+      const externalButton = node.querySelector ( '.mermaid-open-external' );
+
+      try {
+
+        const result = await mermaid.render ( _.uniqueId ( 'export-mermaid-' ), source );
+        const svg = _.isString ( result ) ? result : result.svg;
+
+        node.innerHTML = '';
+
+        if ( externalButton ) node.appendChild ( externalButton );
+
+        node.insertAdjacentHTML ( 'beforeend', svg );
+
+      } catch ( error ) {
+
+        const message = error instanceof Error ? error.message : String ( error );
+
+        console.error ( `[mermaid export] ${message}` );
+
+      }
+
+    }
+
+    return wrapper.innerHTML;
+
+  }
+
   /* RENDERERS */
 
   renderers = {
@@ -99,8 +174,16 @@ class Export extends Container<ExportState, MainCTX> {
         `${__static}/css/notable.css`
       ]);
 
+      const exportTheme = 'light';
+
+      Markdown.setRuntimeConfig ({
+        mermaidTheme: 'default'
+      });
+
       let content = Markdown.render ( note.plainContent, Infinity, notePath ),
           metadata: string[] = [];
+
+      content = await this._renderMermaidsForExport ( content, 'default' );
 
       if ( options.metadata ) {
         metadata.push (
@@ -132,7 +215,7 @@ class Export extends Container<ExportState, MainCTX> {
               </style>
             `}
           </head>
-          <body class="theme-light">
+          <body class="theme-${exportTheme}">
             <div class="preview">
               ${content}
             </div>
@@ -141,7 +224,7 @@ class Export extends Container<ExportState, MainCTX> {
       `;
 
       if ( options.critical ) {
-        html = ( await critically ({ html }) ).html;
+        html = await this._getCriticalHtml ( html );
       }
 
       if ( options.base64 ) { // Images
@@ -180,9 +263,41 @@ class Export extends Container<ExportState, MainCTX> {
 
     pdf: async ( note: NoteObj, dst: string ) => {
 
-      const html = await this.renderers.html ( note, dst, { base64: true, metadata: false, critical: true, favicon: false, scrollable: false } );
+      const html = await this.renderers.html ( note, dst, { base64: true, metadata: false, critical: false, favicon: false, scrollable: false } );
+      const tmpHtmlPath = path.join ( os.tmpdir (), `el-baton-export-${Date.now ()}-${Math.random ().toString ( 36 ).slice ( 2 )}.html` );
+      let shouldCleanup = true;
 
-      ipc.send ( 'print-pdf', { html, dst } );
+      try {
+
+        await File.write ( tmpHtmlPath, html );
+        await ipc.invoke ( 'print-pdf', { src: tmpHtmlPath, dst } );
+
+      } catch ( error ) {
+
+        const message = error instanceof Error ? error.message : String ( error );
+
+        if ( /No handler registered for 'print-pdf'/i.test ( message ) ) {
+
+          ipc.send ( 'print-pdf', { src: tmpHtmlPath, dst } );
+          shouldCleanup = false;
+
+          setTimeout (() => {
+            File.unlink ( tmpHtmlPath );
+          }, 5 * 60 * 1000 );
+
+          return;
+
+        }
+
+        throw error;
+
+      } finally {
+
+        if ( shouldCleanup ) {
+          await File.unlink ( tmpHtmlPath );
+        }
+
+      }
 
     }
 
@@ -200,13 +315,10 @@ class Export extends Container<ExportState, MainCTX> {
 
     if ( !basePath ) return;
 
-    const exportId = createHash ( 'sha1' ).update ( Date.now ().toString () ).digest ( 'hex' ).slice ( 0, 4 ),
-          exportName = `El Baton - Export ${exportId}`,
-          {filePath: exportPath} = await Path.getAllowedPath ( basePath, exportName ),
-          notesPath = exportPath,
-          attachmentsPath = path.join ( exportPath, 'attachments' );
+    const notesPath = basePath,
+          attachmentsPath = path.join ( basePath, 'attachments' );
 
-    notes.forEach ( async note => {
+    await Promise.all ( notes.map ( async note => {
 
       /* CONTENT */
 
@@ -216,14 +328,14 @@ class Export extends Container<ExportState, MainCTX> {
             content = await renderer ( note, notePath );
 
       if ( content ) {
-        File.write ( notePath, content );
+        await File.write ( notePath, content );
       }
 
       /* ATTACHMENTS */
 
       const attachments = this.ctx.note.getAttachments ( note );
 
-      attachments.forEach ( async fileName => {
+      await Promise.all ( attachments.map ( async fileName => {
 
         const attachment = this.ctx.attachment.get ( fileName );
 
@@ -231,11 +343,11 @@ class Export extends Container<ExportState, MainCTX> {
 
         const {filePath: attachmentPath} = await Path.getAllowedPath ( attachmentsPath, fileName );
 
-        File.copy ( attachment.filePath, attachmentPath );
+        await File.copy ( attachment.filePath, attachmentPath );
 
-      });
+      }));
 
-    });
+    }));
 
   }
 
