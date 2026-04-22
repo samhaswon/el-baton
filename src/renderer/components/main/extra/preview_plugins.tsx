@@ -128,7 +128,7 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
 
     if ( !this._mermaidInitPromise ) {
 
-      this._mermaidInitPromise = import ( '@root/node_modules/mermaid/dist/mermaid.esm.mjs' ).then ( ( module ) => {
+      this._mermaidInitPromise = import ( 'mermaid/dist/mermaid.esm.mjs' ).then ( ( module ) => {
         const mermaid = ( module as any ).default || module;
         if ( mermaid.initialize ) {
           mermaid.initialize ( _.merge ({}, Config.mermaid, {
