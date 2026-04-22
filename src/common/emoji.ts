@@ -152,6 +152,7 @@ const SHORTCODES: Record<string, string> = {
   memo: '📝',
   microphone: '🎤',
   microscope: '🔬',
+  mermaid: '🧜‍♀️',
   money_mouth_face: '🤑',
   moneybag: '💰',
   moon: '🌙',

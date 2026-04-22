@@ -252,7 +252,7 @@
 - [X] Paths to files should support spaces in filenames.
 - [X] Disabling middle-click paste should enable middle-click to make multiple cursors for selection.
     - If a user clicks in a position with the middle mouse button and drags down, another cursor should be created there that follows the original horizontally.
-- [ ] Some emojis aren't replaced correctly.
+- [X] Some emojis aren't replaced correctly.
     - E.g., :mermaid: does not become 🧜‍♀️ as shown in the dialogue boxes.
     - Emojis also don't render if they don't start the line.
 - [ ] Dictate button (microphone icon)

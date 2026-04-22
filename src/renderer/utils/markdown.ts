@@ -207,7 +207,7 @@ const Markdown = {
     let output = Markdown.preprocessMath ( str );
 
     output = MarkdownRenderHelpers.replaceMacroPlaceholders ( output );
-    output = Markdown.applyTransforms ( output, Markdown.extensions.emoji () as MarkdownTransformRule[], 'language' );
+    output = Emoji.replaceShortcodes ( output, ( index, content ) => Markdown.extensions.utilities.isInsideCode ( content, index, true ) );
 
     // Language-stage transforms that are parser-dependent should run before cmark.
     output = Markdown.applyTransforms ( output, Markdown.extensions.resolveRelativeLinks ( sourceFilePath ) as MarkdownTransformRule[], 'language' );
