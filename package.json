@@ -217,7 +217,7 @@
     },
     "tmp": "0.2.4",
     "@xmldom/xmldom": "^0.8.11",
-    "mime-types": "2.1.35",
+    "mime-types": "3.0.2",
     "cmark-gfm": {
       "node-addon-api": "^8.6.0"
     }
@@ -271,7 +271,7 @@
     "is-absolute-url": "^5.0.0",
     "js-yaml": "^4.1.1",
     "laxy": "^1.0.0",
-    "mime-types": "2.1.35",
+    "mime-types": "3.0.2",
     "mini-css-extract-plugin": "^2.10.1",
     "playwright": "^1.59.1",
     "pify": "^4.0.1",
