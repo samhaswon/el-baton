@@ -274,7 +274,7 @@
     "mime-types": "2.1.35",
     "mini-css-extract-plugin": "^2.10.1",
     "playwright": "^1.59.1",
-    "pify": "^4.0.1",
+    "pify": "^6.1.0",
     "prop-types": "^15.8.1",
     "react-component-identity": "^1.0.1",
     "react-component-renderless": "^1.0.2",
