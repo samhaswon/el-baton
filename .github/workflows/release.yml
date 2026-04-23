@@ -13,7 +13,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  create_release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Create release for this tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG_NAME" \
+            --notes ""
+
   publish:
+    needs: create_release
     name: Publish ${{ matrix.os }} / ${{ matrix.arch }}
     runs-on: ${{ matrix.runs_on }}
     timeout-minutes: 120
