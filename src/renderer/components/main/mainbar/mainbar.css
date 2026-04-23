@@ -88,6 +88,14 @@
   z-index:2
 }
 
+.mainbar .note-tab.drag-over-before {
+  box-shadow:inset 3px 0 0 currentColor
+}
+
+.mainbar .note-tab.drag-over-after {
+  box-shadow:inset -3px 0 0 currentColor
+}
+
 .mainbar .note-tab.add {
   padding:0 10px;
   margin-bottom:0 !important

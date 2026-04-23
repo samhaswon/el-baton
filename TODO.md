@@ -259,8 +259,9 @@
     - Web Speech API?
     - Wherever the cursor is placed, emit the dictation output there.
     - Long pauses (configurable) should ideally skip to a new output line (down 2 source lines)
-- [ ] Allow note tabs to be reordered.
-- [ ] When a new note is created, including with the shortcut and menu item:
+- [X] Allow note tabs to be reordered.
+    - Click and drag to a new position
+- [X] When a new note is created, including with the shortcut and menu item:
     - it does not consistently appear in a tab
     - Tags are not consistently applied to that note, sometimes a copy of that note.
 - [ ] Mermaid errors still sometimes overflow

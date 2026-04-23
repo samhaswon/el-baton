@@ -1084,7 +1084,11 @@ class Search extends Container<SearchState, MainCTX> {
 
   getNoteIndex = ( note: NoteObj ): number => {
 
-    return this.state.notes.indexOf ( note );
+    const index = this.state.notes.indexOf ( note );
+
+    if ( index >= 0 ) return index;
+
+    return this.state.notes.findIndex ( candidate => candidate.filePath === note.filePath );
 
   }
 

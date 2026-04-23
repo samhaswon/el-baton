@@ -10,6 +10,7 @@ import {decode} from 'html-entities';
 import {Container, autosuspend} from 'overstated';
 import * as path from 'path';
 import Config from '@common/config';
+import {ensureOpenTab, removeOpenTab, replaceOpenTab} from '@common/editor_tabs';
 import Settings from '@common/settings';
 import Attachments from '@renderer/utils/attachments';
 import File from '@renderer/utils/file';
@@ -30,6 +31,9 @@ class Note extends Container<NoteState, MainCTX> {
   autosuspend = {
     methods: /^(?!_|middleware|(?:(?:get|is|has)(?![a-z0-9]))|read|sanitize|scrollTo)/
   };
+  _creationPromise?: Promise<void>;
+  _creationCooldownUntil = 0;
+  _mutationPromise: Promise<void> = Promise.resolve ();
 
   /* STATE */
 
@@ -61,59 +65,135 @@ class Note extends Container<NoteState, MainCTX> {
 
   }
 
+  _withCreationLock = ( creator: () => Promise<void> ): Promise<void> => {
+
+    if ( this._creationPromise ) return this._creationPromise;
+    if ( Date.now () < this._creationCooldownUntil ) return Promise.resolve ();
+
+    this._creationPromise = ( async () => {
+
+      try {
+
+        await creator ();
+
+      } finally {
+
+        this._creationPromise = undefined;
+        this._creationCooldownUntil = Date.now () + 250;
+
+      }
+
+    }) ();
+
+    return this._creationPromise;
+
+  }
+
+  _queueMutation = async <T> ( mutation: () => Promise<T> ): Promise<T> => {
+
+    const previous = this._mutationPromise;
+
+    let release!: () => void;
+
+    this._mutationPromise = new Promise<void> ( resolve => {
+      release = resolve;
+    });
+
+    await previous;
+
+    try {
+
+      return await mutation ();
+
+    } finally {
+
+      release ();
+
+    }
+
+  }
+
+  _getOpenTabs = (): string[] => {
+
+    return ensureOpenTab ( Settings.get ( 'editor.openTabs' ) || [] );
+
+  }
+
+  _getWritableNote = ( note?: NoteObj ): NoteObj | undefined => {
+
+    if ( note ) {
+      const current = this.get ( note.filePath );
+
+      if ( current ) return current;
+    }
+
+    return this.state.note;
+
+  }
+
+  _setOpenTabs = ( openTabs: string[] ) => {
+
+    Settings.set ( 'editor.openTabs', ensureOpenTab ( openTabs ) );
+
+  }
+
   /* API */
 
   new = async ( title: string = 'Untitled' ) => {
 
-    const {ext, path: notesPath} = Config.notes;
+    return this._withCreationLock ( async () => {
 
-    if ( !notesPath ) return;
+      const {ext, path: notesPath} = Config.notes;
 
-    const {filePath, fileName} = await Path.getAllowedPath ( notesPath, `${title}${ext}` ),
-          searchQuery = this.ctx.search.getQuery (),
-          searchNotes = this.ctx.search.getNotes (),
-          name = searchQuery && !searchNotes.length ? searchQuery : path.parse ( fileName ).name,
-          tag = this.ctx.tag.get (),
-          metadata: Partial<NoteMetadataObj> = { title: name };
+      if ( !notesPath ) return;
 
-    if ( tag && tag.path !== ALL && tag.path !== TAGS && tag.path !== UNTAGGED && tag.path !== TRASH ) { // Trying to put the new note in the current tag
+      const {filePath, fileName} = await Path.getAllowedPath ( notesPath, `${title}${ext}` ),
+            searchQuery = this.ctx.search.getQuery (),
+            searchNotes = this.ctx.search.getNotes (),
+            name = searchQuery && !searchNotes.length ? searchQuery : path.parse ( fileName ).name,
+            tag = this.ctx.tag.get (),
+            metadata: Partial<NoteMetadataObj> = { title: name };
 
-      if ( tag.path === FAVORITES ) {
+      if ( tag && tag.path !== ALL && tag.path !== TAGS && tag.path !== UNTAGGED && tag.path !== TRASH ) { // Trying to put the new note in the current tag
 
-        metadata.favorited = true;
+        if ( tag.path === FAVORITES ) {
 
-      } else {
+          metadata.favorited = true;
 
-        metadata.tags = [tag.path];
+        } else {
+
+          metadata.tags = [tag.path];
+
+        }
 
       }
 
-    }
+      const plainContent = `# ${name}`,
+            content = Metadata.set ( plainContent, metadata ),
+            checksum = CRC32.str ( filePath ),
+            note = await this.sanitize ({ content, filePath, checksum, plainContent, metadata });
 
-    const plainContent = `# ${name}`,
-          content = Metadata.set ( plainContent, metadata ),
-          checksum = CRC32.str ( filePath ),
-          note = await this.sanitize ({ content, filePath, checksum, plainContent, metadata });
+      await this.add ( note );
 
-    await this.add ( note );
+      let noteAdded = this.get ( filePath );
 
-    let noteAdded = this.get ( filePath );
+      await this.write ( note );
 
-    await this.write ( note );
+      if ( !noteAdded ) {
 
-    if ( !noteAdded ) {
+        noteAdded = await this.getWait ( filePath );
 
-      noteAdded = await this.getWait ( filePath );
+      }
 
-    }
+      if ( noteAdded ) { // It's possible that it was never found
 
-    if ( noteAdded ) { // It's possible that it was never found
+        await this.set ( noteAdded, true );
 
-      await this.set ( noteAdded, true );
+        await this.ctx.editor.toggleEditing ( true );
 
-      await this.ctx.editor.toggleEditing ( true );
+      }
 
-    }
+    });
 
   }
 
@@ -136,50 +216,54 @@ class Note extends Container<NoteState, MainCTX> {
 
   duplicate = async ( note: NoteObj | undefined = this.state.note, resetTemplate: boolean = false ) => {
 
-    if ( !note ) return;
+    return this._withCreationLock ( async () => {
 
-    const notesPath = Config.notes.path;
+      if ( !note ) return;
 
-    if ( !notesPath ) return;
+      const notesPath = Config.notes.path;
 
-    const duplicateNote = _.cloneDeep ( note ),
-          baseName = path.basename ( note.filePath ),
-          {filePath} = await Path.getAllowedPath ( notesPath, baseName );
+      if ( !notesPath ) return;
 
-    duplicateNote.filePath = filePath;
-    duplicateNote.checksum = CRC32.str ( filePath );
-    duplicateNote.metadata.title = this._inferTitleFromFilePath ( filePath );
+      const duplicateNote = _.cloneDeep ( note ),
+            baseName = path.basename ( note.filePath ),
+            {filePath} = await Path.getAllowedPath ( notesPath, baseName );
 
-    if ( resetTemplate ) {
+      duplicateNote.filePath = filePath;
+      duplicateNote.checksum = CRC32.str ( filePath );
+      duplicateNote.metadata.title = this._inferTitleFromFilePath ( filePath );
 
-      duplicateNote.metadata.favorited = false;
-      duplicateNote.metadata.pinned = false;
+      if ( resetTemplate ) {
 
-      const tagsTemplates = this.getTags ( duplicateNote, TEMPLATES );
+        duplicateNote.metadata.favorited = false;
+        duplicateNote.metadata.pinned = false;
 
-      duplicateNote.metadata.tags = _.without ( duplicateNote.metadata.tags, ...tagsTemplates );
+        const tagsTemplates = this.getTags ( duplicateNote, TEMPLATES );
 
-    }
+        duplicateNote.metadata.tags = _.without ( duplicateNote.metadata.tags, ...tagsTemplates );
 
-    await this.add ( duplicateNote );
+      }
 
-    let noteAdded = this.get ( filePath );
+      await this.add ( duplicateNote );
 
-    await this.write ( duplicateNote );
+      let noteAdded = this.get ( filePath );
 
-    if ( !noteAdded ) {
+      await this.write ( duplicateNote );
 
-      noteAdded = await this.getWait ( filePath );
+      if ( !noteAdded ) {
 
-    }
+        noteAdded = await this.getWait ( filePath );
 
-    if ( noteAdded ) { // It's possible that it was never found
+      }
 
-      await this.set ( noteAdded, true );
+      if ( noteAdded ) { // It's possible that it was never found
 
-      await this.ctx.editor.toggleEditing ( true );
+        await this.set ( noteAdded, true );
 
-    }
+        await this.ctx.editor.toggleEditing ( true );
+
+      }
+
+    });
 
   }
 
@@ -199,6 +283,8 @@ class Note extends Container<NoteState, MainCTX> {
           notes = _.clone ( this.ctx.notes.get () );
 
     delete notes[note.filePath];
+
+    this._setOpenTabs ( removeOpenTab ( this._getOpenTabs (), note.filePath ) );
 
     await this.ctx.notes.set ( notes );
 
@@ -456,21 +542,27 @@ class Note extends Container<NoteState, MainCTX> {
 
   replaceTags = async ( note: NoteObj | undefined = this.state.note, tags: string[] ) => {
 
-    if ( !note ) return;
+    return this._queueMutation ( async () => {
 
-    if ( _.isEqual ( note.metadata.tags, tags ) ) return;
+      note = this._getWritableNote ( note );
 
-    const nextNote = _.cloneDeep ( note );
+      if ( !note ) return;
 
-    nextNote.metadata.tags = this.sanitizeTags ( tags );
+      if ( _.isEqual ( note.metadata.tags, tags ) ) return;
 
-    await this.write ( nextNote );
+      const nextNote = _.cloneDeep ( note );
 
-    await this.ctx.tags.update ({ add: [nextNote], remove: [note] });
+      nextNote.metadata.tags = this.sanitizeTags ( tags );
 
-    if ( this.ctx.multiEditor.isSkippable () ) return;
+      await this.write ( nextNote );
 
-    await this.ctx.tag.update ();
+      await this.ctx.tags.update ({ add: [nextNote], remove: [note] });
+
+      if ( this.ctx.multiEditor.isSkippable () ) return;
+
+      await this.ctx.tag.update ();
+
+    });
 
   }
 
@@ -578,7 +670,7 @@ class Note extends Container<NoteState, MainCTX> {
 
     if ( !data ) return;
 
-    const note = this.get ( data.filePath );
+    const note = this.get ( data.filePath ) || this._getWritableNote ();
 
     if ( !note ) return;
 
@@ -588,38 +680,44 @@ class Note extends Container<NoteState, MainCTX> {
 
   save = async ( note: NoteObj | undefined = this.state.note, plainContent: string, modified: Date = new Date (), force: boolean = false ) => {
 
-    if ( !note ) return;
+    return this._queueMutation ( async () => {
 
-    if ( !force && note.plainContent === plainContent ) return;
+      note = note || this.state.note;
 
-    if ( !this.get ( note.filePath ) ) return; // The note got deleted in the mean time
+      if ( !note ) return;
 
-    const nextNote = _.cloneDeep ( note ),
-          titleLinePrev = Utils.getFirstUnemptyLine ( note.plainContent ),
-          titleLineNext = Utils.getFirstUnemptyLine ( plainContent ),
-          title = ( titleLinePrev !== titleLineNext ) ? this._inferTitleFromLine ( titleLineNext ) : note.metadata.title,
-          didTitleChange = ( title !== note.metadata.title ),
-          shouldAutoRename = !this.ctx.appConfig.get ().notes.disableAutomaticRenaming;
+      if ( !force && note.plainContent === plainContent ) return;
 
-    nextNote.plainContent = plainContent;
-    nextNote.metadata.modified = modified;
-    nextNote.metadata.title = title;
+      if ( !this.get ( note.filePath ) ) return; // The note got deleted in the mean time
 
-    if ( didTitleChange && shouldAutoRename ) {
+      const nextNote = _.cloneDeep ( note ),
+            titleLinePrev = Utils.getFirstUnemptyLine ( note.plainContent ),
+            titleLineNext = Utils.getFirstUnemptyLine ( plainContent ),
+            title = ( titleLinePrev !== titleLineNext ) ? this._inferTitleFromLine ( titleLineNext ) : note.metadata.title,
+            didTitleChange = ( title !== note.metadata.title ),
+            shouldAutoRename = !this.ctx.appConfig.get ().notes.disableAutomaticRenaming;
 
-      await this.replace ( note, nextNote ); // In order to immediately update the structures, this avoids some problems when editing a file very quickly
+      nextNote.plainContent = plainContent;
+      nextNote.metadata.modified = modified;
+      nextNote.metadata.title = title;
 
-      const ext = path.extname ( note.filePath ) || Config.notes.ext,
-            {filePath} = await Path.getAllowedPath ( path.dirname ( nextNote.filePath ), `${title}${ext}` );
+      if ( didTitleChange && shouldAutoRename ) {
 
-      nextNote.filePath = filePath;
-      nextNote.checksum = CRC32.str ( filePath );
+        await this.replace ( note, nextNote ); // In order to immediately update the structures, this avoids some problems when editing a file very quickly
 
-      await this.replace ( note, nextNote );
+        const ext = path.extname ( note.filePath ) || Config.notes.ext,
+              {filePath} = await Path.getAllowedPath ( path.dirname ( nextNote.filePath ), `${title}${ext}` );
 
-    }
+        nextNote.filePath = filePath;
+        nextNote.checksum = CRC32.str ( filePath );
 
-    await this.write ( nextNote, modified );
+        await this.replace ( note, nextNote );
+
+      }
+
+      await this.write ( nextNote, modified );
+
+    });
 
   }
 
@@ -768,6 +866,10 @@ class Note extends Container<NoteState, MainCTX> {
 
     Settings.set ( 'editor.activeTab', note?.filePath );
 
+    if ( note?.filePath ) {
+      this._setOpenTabs ( ensureOpenTab ( this._getOpenTabs (), note.filePath ) );
+    }
+
     await this.ctx.tag.setFromNote ( note );
 
     if ( clearSelection ) {
@@ -814,7 +916,16 @@ class Note extends Container<NoteState, MainCTX> {
 
     notes[nextNote.filePath] = nextNote;
 
+    this._setOpenTabs ( replaceOpenTab ( this._getOpenTabs (), note.filePath, nextNote.filePath ) );
+
     await this.ctx.notes.set ( notes );
+
+    if ( isActiveNote ) {
+
+      await this.setState ({ note: nextNote });
+      Settings.set ( 'editor.activeTab', nextNote.filePath );
+
+    }
 
     await this.ctx.tags.update ({ add: [nextNote], remove: [note] });
 
@@ -842,7 +953,17 @@ class Note extends Container<NoteState, MainCTX> {
     const notes = this.ctx.search.getNotes (),
           note = this.state.note;
 
-    if ( note && notes.includes ( note ) ) return;
+    if ( note ) {
+
+      const canonicalNote = notes.find ( candidate => candidate.filePath === note.filePath );
+
+      if ( canonicalNote ) {
+        if ( canonicalNote === note ) return;
+
+        return this.setState ({ note: canonicalNote });
+      }
+
+    }
 
     const index = prevIndex && prevIndex >= 0 ? Math.min ( notes.length - 1, prevIndex ) : 0,
           noteNext = notes[index];
