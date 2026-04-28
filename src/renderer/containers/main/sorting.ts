@@ -14,6 +14,10 @@ class Sorting extends Container<SortingState, MainCTX> {
 
   /* STATE */
 
+  autosuspend = {
+    methodsExclude: /^sort$/
+  };
+
   state = {
     by: Config.sorting.by,
     type: Config.sorting.type

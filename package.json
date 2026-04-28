@@ -2,7 +2,7 @@
   "name": "el-baton",
   "productName": "El Baton",
   "description": "Conduct your knowledge.",
-  "version": "0.0.0-nightly20",
+  "version": "0.0.0-nightly21",
   "scripts": {
     "clean:env": "rm -rf node_modules package-lock.json",
     "clean:deps": "npx del-cli \"node_modules/**/{README,LICENSE,license,.travis.yml,tsconfig.json,*.{md,MD,map,png,ts}}\" \"node_modules/monaco-editor/{dev,min}\" \"!node_modules/**/*.d.ts\"",
@@ -50,6 +50,7 @@
     "test:katex-ranges": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/katex_ranges.test.ts src/common/katex_ranges.ts && node --test .tmp/tests/scripts/tests/katex_ranges.test.js",
     "test:code-fence-suggestions": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/code_fence_suggestions.test.ts src/common/code_fence_suggestions.ts && node --test .tmp/tests/scripts/tests/code_fence_suggestions.test.js",
     "test:natural-sort": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/natural_sort.test.ts src/common/natural_sort.ts && node --test .tmp/tests/scripts/tests/natural_sort.test.js",
+    "test:overstated": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --jsx react --outDir .tmp/tests scripts/tests/overstated_autosuspend.test.ts src/renderer/lib/overstated.ts && node --test .tmp/tests/scripts/tests/overstated_autosuspend.test.js",
     "test:plantuml": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/plantuml.test.ts src/common/plantuml.ts && node --test .tmp/tests/scripts/tests/plantuml.test.js",
     "test:plantuml-cache": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/plantuml_cache.test.ts src/common/plantuml_sqlite_cache.ts && node --test .tmp/tests/scripts/tests/plantuml_cache.test.js",
     "test:ui": "npm run compile:release && node scripts/tests/ui_smoke.test.js",
