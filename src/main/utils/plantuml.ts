@@ -20,7 +20,8 @@ type PlantUMLCachedPayload = {
 
 type PlantUMLEncoded = {
   encoded: string,
-  externalUrl: string
+  externalUrl: string,
+  renderUrl: string
 };
 
 /* PLANTUML */
@@ -87,9 +88,10 @@ const PlantUMLService = {
   _buildRemoteEndpoint ( source: string, serverUrl: string ): PlantUMLEncoded {
 
     const encoded = this._getEncoder ().encode ( source ),
-          externalUrl = PlantUML.buildRemoteSvgUrl ( serverUrl, encoded );
+          externalUrl = PlantUML.buildRemoteSvgUrl ( serverUrl, encoded ),
+          renderUrl = PlantUML.buildRemoteRenderUrl ( serverUrl );
 
-    return { encoded, externalUrl };
+    return { encoded, externalUrl, renderUrl };
 
   },
 
@@ -209,13 +211,28 @@ const PlantUMLService = {
 
     try {
 
-      const response = await fetch ( endpoint.externalUrl, {
+      let response = await fetch ( endpoint.renderUrl, {
         signal: controller.signal,
+        method: 'POST',
         headers: {
-          accept: 'image/svg+xml,text/plain;q=0.9,*/*;q=0.1'
-        }
-      } ),
-            content = await response.text ();
+          accept: 'image/svg+xml,text/plain;q=0.9,*/*;q=0.1',
+          'content-type': 'text/plain; charset=utf-8'
+        },
+        body: source
+      } );
+
+      let content = await response.text ();
+
+      if ( ( !response.ok || !/<svg[\s>]/i.test ( content ) ) && endpoint.renderUrl !== endpoint.externalUrl ) {
+        response = await fetch ( endpoint.externalUrl, {
+          signal: controller.signal,
+          headers: {
+            accept: 'image/svg+xml,text/plain;q=0.9,*/*;q=0.1'
+          }
+        } );
+
+        content = await response.text ();
+      }
 
       if ( !response.ok ) {
         return {

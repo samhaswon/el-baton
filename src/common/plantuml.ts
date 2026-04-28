@@ -157,6 +157,34 @@ const PlantUML = {
 
   },
 
+  buildRemoteRenderUrl ( serverUrl: string ): string {
+
+    let url: URL;
+
+    try {
+      url = new URL ( serverUrl );
+    } catch ( error ) {
+      return `${serverUrl.replace ( /\/+$/g, '' )}/svg`;
+    }
+
+    const normalizedPath = url.pathname.replace ( /\/+/g, '/' ).replace ( /\/+$/g, '' ) || '',
+          svgWithPayloadMatch = normalizedPath.match ( /^(.*)\/svg\/[^/]+$/i );
+
+    if ( /\/svg$/i.test ( normalizedPath ) ) {
+      url.pathname = normalizedPath || '/svg';
+    } else if ( svgWithPayloadMatch ) {
+      url.pathname = `${svgWithPayloadMatch[1] || ''}/svg` || '/svg';
+    } else {
+      url.pathname = `${normalizedPath}/svg` || '/svg';
+    }
+
+    url.search = '';
+    url.hash = '';
+
+    return url.toString ();
+
+  },
+
   clampCacheEntries ( value: unknown ): number {
 
     const parsed = Number ( value );
