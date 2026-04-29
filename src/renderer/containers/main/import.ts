@@ -7,14 +7,34 @@ import {createHash} from 'crypto';
 import * as path from 'path';
 import Config from '@common/config';
 import File from '@renderer/utils/file';
+import EnexImport, {DumperNote} from '@renderer/utils/enex_import';
 import Metadata from '@renderer/utils/metadata';
 import Path from '@renderer/utils/path';
 
+/* TYPES */
+
+type DumperModule = {
+  default: {
+    dump: ( options: {
+      source: string | string[],
+      dump: ( note: DumperNote ) => Promise<void> | void
+    } ) => Promise<void>
+  }
+};
+
 /* IMPORT LAZY */
 
-const laxy = require ( 'laxy' ),
-      remote = require ( '@electron/remote' ),
-      EnexDump = laxy ( () => require ( 'enex-dump' ) )();
+const remote = require ( '@electron/remote' );
+
+let dumperPromise: Promise<DumperModule> | undefined;
+
+const getDumper = (): Promise<DumperModule> => {
+
+  dumperPromise ||= import ( '@notable/dumper' ) as Promise<DumperModule>;
+
+  return dumperPromise;
+
+};
 
 /* IMPORT */
 
@@ -43,15 +63,20 @@ class Import extends Container<ImportState, MainCTX> {
 
   _importEnex = async ( filePath: string ) => {
 
-    const importTag = this._getImportTag ( filePath );
+    const importTag = this._getImportTag ( filePath ),
+          notesPath = Config.notes.path,
+          attachmentsPath = Config.attachments.path,
+          {default: Dumper} = await getDumper ();
 
-    await EnexDump ({
-      path: {
-        src: [filePath],
-        dst: Config.cwd
-      },
-      dump: {
-        tags: [importTag]
+    if ( !notesPath || !attachmentsPath ) return;
+
+    await Dumper.dump ({
+      source: filePath,
+      dump: async note => {
+        await EnexImport.dumpNote ( note, importTag, {
+          notesPath,
+          attachmentsPath
+        } );
       }
     });
 

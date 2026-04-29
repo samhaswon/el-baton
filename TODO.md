@@ -265,8 +265,9 @@
     - it does not consistently appear in a tab
     - Tags are not consistently applied to that note, sometimes a copy of that note.
 - [ ] Mermaid errors still sometimes overflow
-- [ ] Replace enex-dump with https://github.com/notable/dumper
+- [X] Replace enex-dump with https://github.com/notable/dumper
     - Test the old version, replicate behavior on the new.
+- [ ] Disable spell check in code blocks and math blocks.
 
 ## Mobile App
 
