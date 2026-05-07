@@ -221,6 +221,22 @@ test ( 'mermaid error: escapes the message and returns inline preview markup', (
 
 });
 
+test ( 'mermaid rendered error: detects Mermaid error SVGs', () => {
+
+  const svg = '<svg><g><path class="error-icon"></path><text class="error-text">Syntax error in text</text><text class="error-text">mermaid version 11.14.0</text></g></svg>';
+
+  assert.equal ( MarkdownRenderHelpers.getMermaidRenderedErrorMessage ( svg ), 'Syntax error in text' );
+
+});
+
+test ( 'mermaid rendered error: ignores normal SVGs', () => {
+
+  const svg = '<svg><text>Diagram label</text></svg>';
+
+  assert.equal ( MarkdownRenderHelpers.getMermaidRenderedErrorMessage ( svg ), undefined );
+
+});
+
 test ( 'mermaid external control: injects button into each mermaid container', () => {
 
   const input = '<div class="mermaid"></div><div class="mermaid"></div>',

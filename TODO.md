@@ -264,10 +264,11 @@
 - [X] When a new note is created, including with the shortcut and menu item:
     - it does not consistently appear in a tab
     - Tags are not consistently applied to that note, sometimes a copy of that note.
-- [ ] Mermaid errors still sometimes overflow
+- [X] Mermaid errors still sometimes overflow
+    - The expected error is still inline, but the error popup thing still appears below the UI
 - [X] Replace enex-dump with https://github.com/notable/dumper
     - Test the old version, replicate behavior on the new.
-- [ ] Disable spell check in code blocks and math blocks.
+- [ ] Disable spell check in code blocks and math blocks and autofill within math blocks with the addition of all supported KaTeX functions.
 
 ## Mobile App
 

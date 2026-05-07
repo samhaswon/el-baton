@@ -119,6 +119,7 @@ const Config = {
     errorColor: '#F44336'
   },
   mermaid: { //URL: https://github.com/knsv/mermaid/blob/7d3578b31aeea3bc9bbc618dcda57d82574eaffb/src/mermaidAPI.js#L51
+    suppressErrorRendering: true,
     gantt: {
       barHeight: 25,
       fontSize: 14

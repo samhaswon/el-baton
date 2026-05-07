@@ -252,7 +252,14 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
         try {
           const result = await mermaid.render ( id, source ),
                 svg = _.isString ( result ) ? result : result.svg,
+                renderedErrorMessage = MarkdownRenderHelpers.getMermaidRenderedErrorMessage ( svg ),
                 $external = $node.children ( '.mermaid-open-external' ).detach ();
+
+          if ( renderedErrorMessage ) {
+            console.error ( `[mermaid] ${renderedErrorMessage}` );
+            $node.html ( MarkdownRenderHelpers.renderMermaidError ( renderedErrorMessage ) );
+            continue;
+          }
 
           this.__setMermaidCache ( source, svg );
 

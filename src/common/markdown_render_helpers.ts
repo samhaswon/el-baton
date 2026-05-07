@@ -269,6 +269,18 @@ const MarkdownRenderHelpers = {
 
   },
 
+  getMermaidRenderedErrorMessage ( svg: string ): string | undefined {
+
+    if ( !/<(?:svg|g|path|text)\b/i.test ( svg ) ) return;
+    if ( !/\bclass=["'][^"']*\berror-(?:icon|text)\b/i.test ( svg ) ) return;
+
+    const textMatches = Array.from ( svg.matchAll ( /<text\b[^>]*\bclass=["'][^"']*\berror-text\b[^>]*>([^<]*)<\/text>/gi ) ),
+          message = textMatches.map ( match => decode ( match[1] ).trim () ).find ( text => text && !/^mermaid version\b/i.test ( text ) );
+
+    return message || 'Syntax error in text';
+
+  },
+
   injectMermaidOpenExternal ( html: string ): string {
 
     return html.replace ( /<div class="mermaid">/g, '<div class="mermaid"><div class="mermaid-open-external" title="Open in Separate Window"><i class="icon small">open_in_new</i></div>' );

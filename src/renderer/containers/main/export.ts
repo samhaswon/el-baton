@@ -9,10 +9,11 @@ import * as mime from 'mime-types';
 import * as os from 'os';
 import {Container, autosuspend} from 'overstated';
 import * as path from 'path';
+import MarkdownRenderHelpers from '@common/markdown_render_helpers';
+import Config from '@common/config';
 import File from '@renderer/utils/file';
 import Markdown from '@renderer/utils/markdown';
 import Path from '@renderer/utils/path';
-import Config from '@common/config';
 
 /* EXPORT */
 
@@ -140,6 +141,13 @@ class Export extends Container<ExportState, MainCTX> {
 
         const result = await mermaid.render ( _.uniqueId ( 'export-mermaid-' ), source );
         const svg = _.isString ( result ) ? result : result.svg;
+        const renderedErrorMessage = MarkdownRenderHelpers.getMermaidRenderedErrorMessage ( svg );
+
+        if ( renderedErrorMessage ) {
+          console.error ( `[mermaid export] ${renderedErrorMessage}` );
+          node.innerHTML = MarkdownRenderHelpers.renderMermaidError ( renderedErrorMessage );
+          continue;
+        }
 
         node.innerHTML = '';
 
