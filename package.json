@@ -294,7 +294,7 @@
     "react-window": "^2.2.7",
     "showdown": "^2.1.0",
     "style-loader": "^4.0.0",
-    "terser-webpack-plugin": "^5.4.0",
+    "terser-webpack-plugin": "^5.6.0",
     "tiny-glob": "^0.2.9",
     "tsconfig-paths-webpack-plugin": "^4.2.0",
     "typescript": "^6.0.2",
