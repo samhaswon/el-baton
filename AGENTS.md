@@ -14,6 +14,22 @@ README screenshots are generated with `npm run screenshots:demo -- --compile` fo
 
 ## Common Issue Fixes
 
-- If a view body is unexpectedly collapsed to zero height, check whether it uses the global `layout-content` class. That class sets `height: 0` in `src/styles/globals.css`.
 - If the view is a custom full-height pane and does not need the shared `layout-content` behavior, remove the `layout-content` class from that node and use a dedicated class instead. This was the correct fix for the settings page (`settings-view-body`).
 - If the shared class must remain, explicitly override its height on the specific view, the same way other full-height panes do elsewhere in the app.
+
+## Code Style
+
+Write secure code. 
+Beautiful is better than ugly.
+Explicit is better than implicit.
+Simple is better than complex.
+Complex is better than complicated.
+Flat is better than nested.
+Sparse is better than dense.
+Readability counts.
+Special cases aren't special enough to break the rules.
+Although practicality beats purity.
+Errors should never pass silently.
+Unless explicitly silenced.
+In the face of ambiguity, refuse the temptation to guess.
+There should be one, and preferably only one, obvious way to do it.
