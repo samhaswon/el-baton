@@ -233,3 +233,66 @@ test ( 'listPathSuggestions: suggests token roots for partial token prefixes', (
   ]);
 
 });
+
+test ( 'listPathSuggestions: sorts directories before files and matches prefixes case-insensitively', () => {
+
+  const tempRoot = fs.mkdtempSync ( path.join ( os.tmpdir (), 'elbaton-markdown-path-' ) );
+
+  try {
+    const tempNotesPath = path.join ( tempRoot, 'notes' ),
+          tempAttachmentsPath = path.join ( tempRoot, 'attachments' ),
+          sourceFilePath = path.join ( tempNotesPath, 'lesson.md' );
+
+    fs.mkdirSync ( path.join ( tempNotesPath, 'Alpha 10' ), { recursive: true } );
+    fs.mkdirSync ( path.join ( tempNotesPath, 'alpha 2' ), { recursive: true } );
+    fs.mkdirSync ( tempAttachmentsPath, { recursive: true } );
+    fs.writeFileSync ( path.join ( tempNotesPath, 'Alpha 1.md' ), '' );
+    fs.writeFileSync ( path.join ( tempNotesPath, 'alpha 20.md' ), '' );
+
+    const suggestions = MarkdownPath.listPathSuggestions ( 'ALPHA ', {
+      cwd: tempRoot,
+      notesPath: tempNotesPath,
+      attachmentsPath: tempAttachmentsPath,
+      attachmentsToken: '@attachment',
+      notesToken: '@note',
+      sourceFilePath
+    });
+
+    assert.deepEqual ( suggestions, [
+      { path: 'alpha 2/', isDirectory: true },
+      { path: 'Alpha 10/', isDirectory: true },
+      { path: 'Alpha 1.md', isDirectory: false },
+      { path: 'alpha 20.md', isDirectory: false }
+    ]);
+  } finally {
+    fs.rmSync ( tempRoot, { recursive: true, force: true } );
+  }
+
+});
+
+test ( 'listPathSuggestions: returns no suggestions for traversal outside token roots', () => {
+
+  const tempRoot = fs.mkdtempSync ( path.join ( os.tmpdir (), 'elbaton-markdown-path-' ) );
+
+  try {
+    const tempNotesPath = path.join ( tempRoot, 'notes' ),
+          tempAttachmentsPath = path.join ( tempRoot, 'attachments' );
+
+    fs.mkdirSync ( tempNotesPath, { recursive: true } );
+    fs.mkdirSync ( tempAttachmentsPath, { recursive: true } );
+
+    const suggestions = MarkdownPath.listPathSuggestions ( '@attachment/../notes/', {
+      cwd: tempRoot,
+      notesPath: tempNotesPath,
+      attachmentsPath: tempAttachmentsPath,
+      attachmentsToken: '@attachment',
+      notesToken: '@note',
+      sourceFilePath: path.join ( tempNotesPath, 'lesson.md' )
+    });
+
+    assert.deepEqual ( suggestions, [] );
+  } finally {
+    fs.rmSync ( tempRoot, { recursive: true, force: true } );
+  }
+
+});

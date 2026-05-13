@@ -268,7 +268,10 @@
     - The expected error is still inline, but the error popup thing still appears below the UI
 - [X] Replace enex-dump with https://github.com/notable/dumper
     - Test the old version, replicate behavior on the new.
-- [ ] Disable spell check in code blocks and math blocks and autofill within math blocks with the addition of all supported KaTeX functions.
+- [ ] KaTeX: 
+    - Disable spell check in code blocks and math blocks and inline math
+    - Autofill within math blocks and inline math with the addition of all supported KaTeX functions
+    - Disable underscore auto completion in math blocks and inline math
 
 ## Mobile App
 
@@ -280,7 +283,7 @@
 
 - [ ] Implement a presentation mode similar to whatever Pandoc has.
     - https://pandoc.org/MANUAL.html#slide-shows
-- [ ] (V)LLM integration
+- [ ] VLM/LLM integration
 - [ ] Replace as much rendering logic as possible and sensible with native code.
 - [ ] Custom CSS/JS
 - [ ] Plugins

@@ -65,3 +65,45 @@ test ( 'markdown tables: finds the full table block for body rows and ignores fe
   assert.equal ( fencedBlock, undefined );
 
 });
+
+test ( 'markdown tables: preserves indentation and escaped pipe content while formatting', () => {
+
+  const input = '  | name | value |\n  | --- | --- |\n  | A\\|B | 12 |',
+        output = MarkdownTable.formatBlock ( input );
+
+  assert.equal (
+    output,
+    '  | name | value |\n  | ---- | ----- |\n  | A\\|B | 12    |'
+  );
+
+});
+
+test ( 'markdown tables: leaves invalid candidate blocks unchanged', () => {
+
+  const missingDelimiter = 'a|b\none|two',
+        brokenBody = 'a|b\n-|-\none|two\nnot a row';
+
+  assert.equal ( MarkdownTable.formatBlock ( missingDelimiter ), missingDelimiter );
+  assert.equal ( MarkdownTable.formatBlock ( brokenBody ), brokenBody );
+
+});
+
+test ( 'markdown tables: matches closing fences only when marker and length are compatible', () => {
+
+  const lines = [
+    '````md',
+    '```',
+    '| still | code |',
+    '| --- | --- |',
+    '````',
+    '| real | table |',
+    '| --- | --- |'
+  ];
+
+  assert.equal ( MarkdownTable.getBlockAtLine ( lines, 3 ), undefined );
+  assert.deepEqual ( MarkdownTable.getBlockAtLine ( lines, 6 ), {
+    startLineNumber: 6,
+    endLineNumber: 7
+  });
+
+});

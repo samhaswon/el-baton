@@ -131,6 +131,16 @@ const ipcCalls: Array<{ channel: string, payload: any }> = [];
     };
   }
 
+  if ( request === '@common/markdown_render_helpers' ) {
+    return {
+      __esModule: true,
+      default: {
+        getMermaidRenderedErrorMessage: () => undefined,
+        renderMermaidError: ( message: string ) => `<p>${message}</p>`
+      }
+    };
+  }
+
   return originalLoad.call ( this, request, parent, isMain );
 
 };
