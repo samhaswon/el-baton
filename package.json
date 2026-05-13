@@ -206,21 +206,20 @@
     "fsevents": "^2.3.3"
   },
   "overrides": {
-    "caporal": "0.7.0",
     "term-size": {
       "execa": {
         "cross-spawn": "6.0.6"
       }
     },
-    "electron-util": "0.11.0",
     "package-json": {
       "got": "^11.8.6"
     },
     "cli-table2": {
-      "lodash": "^4.17.21"
+      "lodash": "^4.18.1"
     },
-    "tmp": "0.2.4",
-    "@xmldom/xmldom": "^0.8.11",
+    "tmp": "0.2.5",
+    "@xmldom/xmldom": "^0.9.10",
+    "dompurify": "^3.4.2",
     "cmark-gfm": {
       "node-addon-api": "^8.6.0"
     }
