@@ -14,6 +14,10 @@ const Storage = { //TODO: This shouldn't be here
 
   /* HELPERS */
 
+  /**
+   * Wraps a filesystem action so callers can tell whether storage work is still
+   * pending.
+   */
   _wrapAction ( action: Function ) {
 
     return async function wrappedAction ( ...args: any[] ) {
@@ -27,6 +31,9 @@ const Storage = { //TODO: This shouldn't be here
 
   /* API */
 
+  /**
+   * Returns whether all tracked filesystem actions have settled.
+   */
   isIdle () {
 
     return !Storage.operations;
@@ -45,6 +52,10 @@ const File = {
 
   /* HELPERS */
 
+  /**
+   * Creates a missing parent directory and retries write-like operations that
+   * failed because their destination did not exist.
+   */
   _handleError: async ( e: NodeJS.ErrnoException, filePath: string, method: Function, args: any[] ) => {
 
     if ( e.code === 'ENOENT' ) {
@@ -59,6 +70,9 @@ const File = {
 
   /* API */
 
+  /**
+   * Checks whether a file or directory exists.
+   */
   exists: Storage._wrapAction ( async ( filePath: string ): Promise<boolean> => {
 
     try {
@@ -75,6 +89,10 @@ const File = {
 
   }),
 
+  /**
+   * Reads filesystem metadata, returning `undefined` when the path cannot be
+   * statted.
+   */
   stat: Storage._wrapAction ( async ( filePath: string ): Promise<fs.Stats | undefined> => {
 
     try {
@@ -85,6 +103,9 @@ const File = {
 
   }),
 
+  /**
+   * Reads a text file, returning `undefined` when it cannot be read.
+   */
   read: Storage._wrapAction ( async ( filePath: string, encoding: BufferEncoding = 'utf8' ): Promise<string | undefined> => {
 
     try {
@@ -95,6 +116,9 @@ const File = {
 
   }),
 
+  /**
+   * Copies a file, creating the destination directory if necessary.
+   */
   copy: Storage._wrapAction ( async ( srcPath: string, dstPath: string ) => {
 
     try {
@@ -109,6 +133,9 @@ const File = {
 
   }),
 
+  /**
+   * Renames or moves a file, creating the destination directory if necessary.
+   */
   rename: Storage._wrapAction ( async ( oldPath: string, newPath: string ) => {
 
     try {
@@ -123,6 +150,9 @@ const File = {
 
   }),
 
+  /**
+   * Writes a text file, creating the parent directory if necessary.
+   */
   write: Storage._wrapAction ( async ( filePath: string, content: string ) => {
 
     try {
@@ -137,6 +167,9 @@ const File = {
 
   }),
 
+  /**
+   * Deletes a path when it exists and ignores missing-path failures.
+   */
   unlink: Storage._wrapAction ( async ( filePath: string ) => {
 
     try {

@@ -21,6 +21,9 @@ const Todo = {
     todoDone: /^(\s*)([*+-]\s+\[[xX]\]\s*)(.*)$/
   },
 
+  /**
+   * Applies the first matching line rewrite rule to each selected line.
+   */
   toggleRules ( editor: MonacoEditor, ...rules: [RegExp, string][] ): boolean {
 
     const model = editor.getModel ();
@@ -60,6 +63,9 @@ const Todo = {
 
   },
 
+  /**
+   * Toggles selected lines between plain text and incomplete task items.
+   */
   toggleTodo ( editor: MonacoEditor ): boolean {
 
     const {bullet} = Todo.symbols,
@@ -74,6 +80,10 @@ const Todo = {
 
   },
 
+  /**
+   * Toggles selected lines between plain text, incomplete task items, and done
+   * task items.
+   */
   toggleTodoDone ( editor: MonacoEditor ): boolean {
 
     const {bullet, done} = Todo.symbols,

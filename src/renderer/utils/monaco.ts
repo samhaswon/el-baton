@@ -250,6 +250,10 @@ const Monaco = {
 
   } as { [name: string]: monaco.editor.IStandaloneThemeData },
 
+  /**
+   * Initializes Monaco's environment, themes, tokenizer customizations, and
+   * completion providers once.
+   */
   init: _.once ( () => {
 
     Monaco.initEnvironment ();
@@ -259,6 +263,10 @@ const Monaco = {
 
   }),
 
+  /**
+   * Returns the effective line-number mode from global config or persisted
+   * settings.
+   */
   getConfiguredLineNumbersMode (): import ( '@common/global_config' ).MonacoLineNumbersMode {
 
     const configured = Config.monaco.editorOptions.lineNumbers || Settings.get ( 'monaco.editorOptions.lineNumbers' ),
@@ -270,6 +278,9 @@ const Monaco = {
 
   },
 
+  /**
+   * Converts the app line-number mode to the Monaco editor option.
+   */
   getLineNumbersOption ( editor?: MonacoEditor ): monaco.editor.IEditorOptions['lineNumbers'] {
 
     const mode = Monaco.getConfiguredLineNumbersMode ();
@@ -282,6 +293,9 @@ const Monaco = {
 
   },
 
+  /**
+   * Builds Monaco editor options from defaults and runtime configuration.
+   */
   getEditorOptions ( editor?: MonacoEditor ): monaco.editor.IEditorOptions {
 
     const disableSuggestions = Config.monaco.editorOptions.disableSuggestions,
@@ -302,6 +316,9 @@ const Monaco = {
 
   },
 
+  /**
+   * Builds Monaco model options from runtime configuration.
+   */
   getModelOptions (): monaco.editor.ITextModelUpdateOptions {
 
     const tabSize = Config.monaco.editorOptions.tabSize;
@@ -313,6 +330,9 @@ const Monaco = {
 
   },
 
+  /**
+   * Returns the app-owned file path attached to a Monaco model.
+   */
   getModelFilePath ( model: monaco.editor.ITextModel ): string | undefined {
 
     const customFilePath = ( model as any ).filePath;
@@ -321,6 +341,9 @@ const Monaco = {
 
   },
 
+  /**
+   * Extracts a pending markdown or HTML link path query before the cursor.
+   */
   getMarkdownPathCompletionContext ( beforeCursor: string ): { query: string } | undefined {
 
     const markdownMatch = beforeCursor.match ( /(?:^|[^`])!?\[[^\]\n]*\]\(([^)\n]*)$/ ),
@@ -333,6 +356,9 @@ const Monaco = {
 
   },
 
+  /**
+   * Returns path completion suggestions for markdown links in the active note.
+   */
   getMarkdownPathSuggestions ( query: string, sourceFilePath?: string ) {
 
     const cwd = Config.cwd,
@@ -351,6 +377,9 @@ const Monaco = {
 
   },
 
+  /**
+   * Configures Monaco's worker loading path for file and HTTP renderer modes.
+   */
   initEnvironment () {
 
     self['MonacoEnvironment'] = {
@@ -365,6 +394,9 @@ const Monaco = {
 
   },
 
+  /**
+   * Registers app-specific Monaco commands and keybindings.
+   */
   initKeybindings () {
 
     Object.keys ( Monaco.keybindings ).forEach ( id => {
@@ -396,6 +428,9 @@ const Monaco = {
 
   },
 
+  /**
+   * Registers bundled Monaco themes.
+   */
   initThemes () {
 
     Object.keys ( Monaco.themes ).forEach ( name => {
@@ -406,6 +441,10 @@ const Monaco = {
 
   },
 
+  /**
+   * Extends Monaco's markdown tokenizer with app-specific math and diagram
+   * highlighting.
+   */
   initTokenizers () {
 
     const tokenizer = LanguageMarkdown.language.tokenizer as any;
@@ -525,6 +564,9 @@ const Monaco = {
 
   },
 
+  /**
+   * Registers markdown completions for emoji, code fences, and app path links.
+   */
   initCompletions () {
 
     monaco.languages.registerCompletionItemProvider ( 'markdown', {
@@ -614,6 +656,10 @@ const Monaco = {
 
   },
 
+  /**
+   * Patches Monaco command registration to disable or remap conflicting
+   * defaults.
+   */
   patchKeybindings () {
 
     const _register = Command.prototype.register;

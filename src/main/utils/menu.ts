@@ -8,6 +8,10 @@ import {MenuItemConstructorOptions} from 'electron';
 
 const Menu = {
 
+  /**
+   * Deep-filters Electron menu templates, removing entries marked
+   * `visible: false`.
+   */
   filterTemplate ( template: MenuItemConstructorOptions[] ): MenuItemConstructorOptions[] { // Removes items with `visible == false`
 
     return _.cloneDeepWith ( template, val => {

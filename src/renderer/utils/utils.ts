@@ -15,6 +15,9 @@ const Utils = {
 
   pathSepRe: /(?:\/|\\)+/g,
 
+  /**
+   * Wraps a method so calls are queued into a batch object.
+   */
   batchify<Args extends unknown[]> ( batch: BatchLike, fn: BatchableMethod<Args> ) {
 
     return function ( ...args: Args ) {
@@ -23,12 +26,18 @@ const Utils = {
 
   },
 
+  /**
+   * Encodes a filesystem path for file URLs after normalizing separators.
+   */
   encodeFilePath ( filePath: string ): string {
 
     return encodeURI ( filePath.replace ( Utils.pathSepRe, '/' ) );
 
   },
 
+  /**
+   * Returns the first non-empty line in a string.
+   */
   getFirstUnemptyLine ( str: string ): string | null {
 
     const match = str.match ( /^.*?\S.*$/m );
@@ -37,6 +46,9 @@ const Utils = {
 
   },
 
+  /**
+   * Normalizes path separators for the current platform.
+   */
   normalizeFilePaths ( filePaths: string[] ): string[] {
 
     if ( os.platform () !== 'win32' ) return filePaths;
@@ -45,6 +57,10 @@ const Utils = {
 
   },
 
+  /**
+   * Resolves once matching elements appear in the DOM, or `undefined` after a
+   * bounded number of animation frames.
+   */
   qsaWait ( selector: string, context?: HTMLElement ): Promise<Cash | undefined> { // Return the found elements as soon as they appear in the DOM
 
     let iteration = 0;

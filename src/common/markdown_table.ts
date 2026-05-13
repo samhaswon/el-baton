@@ -7,6 +7,10 @@ export type MarkdownTableBlock = { startLineNumber: number, endLineNumber: numbe
 
 const MarkdownTable = {
 
+  /**
+   * Returns whether a line contains a pipe that should be treated as a table
+   * delimiter rather than an escaped literal.
+   */
   hasUnescapedPipe ( line: string ): boolean {
 
     for ( let index = 0, length = line.length; index < length; index++ ) {
@@ -19,6 +23,9 @@ const MarkdownTable = {
 
   },
 
+  /**
+   * Detects markdown code fence delimiters and returns their marker details.
+   */
   isFenceLine ( line: string ): false | { marker: string, size: number } {
 
     const match = line.match ( /^\s*(`{3,}|~{3,})/ );
@@ -32,6 +39,9 @@ const MarkdownTable = {
 
   },
 
+  /**
+   * Returns whether the requested line is inside a fenced code block.
+   */
   isInsideFence ( lines: string[], lineIndex: number ): boolean {
 
     let fence: false | { marker: string, size: number } = false;
@@ -52,6 +62,9 @@ const MarkdownTable = {
 
   },
 
+  /**
+   * Checks whether a line can participate in a markdown table block.
+   */
   isTableCandidateLine ( lines: string[], lineIndex: number ): boolean {
 
     if ( lineIndex < 0 || lineIndex >= lines.length ) return false;
@@ -66,6 +79,10 @@ const MarkdownTable = {
 
   },
 
+  /**
+   * Splits a markdown table row into cells while respecting escaped pipes and
+   * optional leading/trailing table pipes.
+   */
   splitRow ( line: string ): string[] | undefined {
 
     if ( !MarkdownTable.hasUnescapedPipe ( line ) ) return;
@@ -109,6 +126,9 @@ const MarkdownTable = {
 
   },
 
+  /**
+   * Parses a delimiter-row cell into the column alignment it represents.
+   */
   getAlignment ( cell: string ): MarkdownTableAlignment | undefined {
 
     const value = cell.trim ();
@@ -126,12 +146,18 @@ const MarkdownTable = {
 
   },
 
+  /**
+   * Returns whether a parsed row is a valid markdown table delimiter row.
+   */
   isDelimiterRow ( row: string[] | undefined ): row is string[] {
 
     return !!row && !!row.length && row.every ( cell => !!MarkdownTable.getAlignment ( cell ) );
 
   },
 
+  /**
+   * Pads or truncates parsed rows so every row has the same column count.
+   */
   normalizeRows ( rows: string[][], columnCount: number ): string[][] {
 
     return rows.map ( row => {
@@ -146,6 +172,9 @@ const MarkdownTable = {
 
   },
 
+  /**
+   * Finds the table block that contains a one-based editor line number.
+   */
   getBlockAtLine ( lines: string[], lineNumber: number ): MarkdownTableBlock | undefined {
 
     const lineIndex = lineNumber - 1;
@@ -185,6 +214,9 @@ const MarkdownTable = {
 
   },
 
+  /**
+   * Pads a cell value to the requested display width according to its alignment.
+   */
   getPaddedCell ( value: string, width: number, alignment: MarkdownTableAlignment ): string {
 
     const padding = Math.max ( 0, width - value.length );
@@ -204,6 +236,9 @@ const MarkdownTable = {
 
   },
 
+  /**
+   * Builds a markdown delimiter cell for a formatted column.
+   */
   getDelimiterCell ( width: number, alignment: MarkdownTableAlignment ): string {
 
     const finalWidth = Math.max ( 3, width );
@@ -224,6 +259,9 @@ const MarkdownTable = {
 
   },
 
+  /**
+   * Formats a complete markdown table block while preserving the block indent.
+   */
   formatBlock ( markdown: string ): string {
 
     const lines = markdown.split ( '\n' );

@@ -13,6 +13,10 @@ const MarkdownRenderHelpers = {
   },
   escapedDollarPlaceholder: 'MDESCAPEDDOLLARPLACEHOLDER',
 
+  /**
+   * Replaces supported macro wikilinks with placeholders that survive markdown
+   * parsing.
+   */
   replaceMacroPlaceholders ( markdown: string ): string {
 
     return markdown.replace ( /\[\[@(toc|pagebreak)\]\]/gi, ( match, name ) => {
@@ -26,24 +30,36 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Temporarily hides escaped dollars so math parsing cannot consume them.
+   */
   replaceEscapedDollars ( value: string ): string {
 
     return value.replace ( /\\\$/g, MarkdownRenderHelpers.escapedDollarPlaceholder );
 
   },
 
+  /**
+   * Restores escaped-dollar placeholders as literal dollar signs.
+   */
   restoreEscapedDollars ( value: string ): string {
 
     return value.replace ( new RegExp ( MarkdownRenderHelpers.escapedDollarPlaceholder, 'g' ), '$' );
 
   },
 
+  /**
+   * Restores escaped-dollar placeholders inside math content.
+   */
   restoreEscapedDollarsForMath ( value: string ): string {
 
     return value.replace ( new RegExp ( MarkdownRenderHelpers.escapedDollarPlaceholder, 'g' ), '\\$' );
 
   },
 
+  /**
+   * Escapes text for safe insertion into generated HTML.
+   */
   escapeHtml ( text: string ): string {
 
     return text
@@ -55,6 +71,9 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Removes tags and decodes entities from a fragment of generated HTML.
+   */
   stripHtml ( html: string ): string {
 
     return decode (
@@ -66,6 +85,9 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Returns whether an offset is escaped by an odd number of backslashes.
+   */
   isEscapedAt ( value: string, index: number ): boolean {
 
     let slashCount = 0;
@@ -78,6 +100,9 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Finds the closing dollar delimiter for an inline or display math block.
+   */
   findMathClosing ( value: string, start: number, displayMode: boolean ): number {
 
     for ( let i = start; i < value.length; i++ ) {
@@ -99,6 +124,9 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Replaces math-delimited source ranges while preserving non-math dollars.
+   */
   replaceMathDelimiters ( value: string, replace: ( texRaw: string, displayMode: boolean ) => string ): string {
 
     let output = '';
@@ -138,6 +166,9 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Builds a unique heading id from visible heading text.
+   */
   slugifyHeading ( text: string, counts: Record<string, number> ): string {
 
     const base = text
@@ -153,6 +184,9 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Renders a nested table-of-contents block from collected headings.
+   */
   renderMacroTOC ( headings: Array<{ id: string, level: number, text: string }> ): string {
 
     if ( !headings.length ) return '';
@@ -205,6 +239,9 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Adds heading anchors and replaces macro placeholders in rendered HTML.
+   */
   renderMacros ( html: string ): string {
 
     const headings: Array<{ id: string, level: number, text: string }> = [],
@@ -234,6 +271,9 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Replaces stored KaTeX placeholders with the renderer supplied by the caller.
+   */
   renderKatexPlaceholders (
     html: string,
     placeholders: Array<{ tex: string; displayMode: boolean }>,
@@ -251,6 +291,9 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Builds the placeholder HTML used for Mermaid diagrams.
+   */
   renderMermaidBlock ( source: string, cachedSvg?: string ): string {
 
     const payload = encodeURIComponent ( source );
@@ -263,12 +306,18 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Builds a visible Mermaid render error block.
+   */
   renderMermaidError ( message: string ): string {
 
     return `<p class="mermaid-error text-warning">[mermaid error: ${MarkdownRenderHelpers.escapeHtml ( message )}]</p>`;
 
   },
 
+  /**
+   * Extracts Mermaid's rendered syntax error text from an SVG when present.
+   */
   getMermaidRenderedErrorMessage ( svg: string ): string | undefined {
 
     if ( !/<(?:svg|g|path|text)\b/i.test ( svg ) ) return;
@@ -281,12 +330,18 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Injects the external-window control into Mermaid blocks.
+   */
   injectMermaidOpenExternal ( html: string ): string {
 
     return html.replace ( /<div class="mermaid">/g, '<div class="mermaid"><div class="mermaid-open-external" title="Open in Separate Window"><i class="icon small">open_in_new</i></div>' );
 
   },
 
+  /**
+   * Builds the placeholder HTML used for PlantUML diagrams.
+   */
   renderPlantUMLBlock ( source: string, cachedSvg?: string ): string {
 
     const payload = encodeURIComponent ( source );
@@ -299,6 +354,9 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Builds a visible PlantUML render error block with optional help link.
+   */
   renderPlantUMLError ( message: string, origin: 'local' | 'remote' = 'local' ): string {
 
     const escapedMessage = MarkdownRenderHelpers.escapeHtml ( message ),
@@ -309,12 +367,19 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Injects the external-window control into PlantUML blocks.
+   */
   injectPlantUMLOpenExternal ( html: string ): string {
 
     return html.replace ( /<div class="plantuml">/g, '<div class="plantuml"><div class="plantuml-open-external hidden" title="Open External Diagram"><i class="icon small">open_in_new</i></div>' );
 
   },
 
+  /**
+   * Removes high-risk tags, event handlers, and unsafe URL protocols from
+   * rendered HTML.
+   */
   sanitizeUnsafeHtml ( html: string, enabled: boolean = true ): string {
 
     if ( !enabled ) return html;
@@ -368,6 +433,9 @@ const MarkdownRenderHelpers = {
 
   },
 
+  /**
+   * Returns whether a KaTeX expression is large enough to cache.
+   */
   shouldMemoizeKatex ( tex: string, minLength: number = 0 ): boolean {
 
     return tex.trim ().length >= Math.max ( 0, minLength );

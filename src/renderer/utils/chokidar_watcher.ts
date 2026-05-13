@@ -20,6 +20,11 @@ type EventHandlers = {
 
 const RENAME_WINDOW = 175;
 
+/**
+ * Wraps chokidar with a small unlink/add coalescing window so quick filesystem
+ * renames are reported as `rename` events instead of separate delete/create
+ * events.
+ */
 const watcher = ( watchPath: string, options: ChokidarOptions = {}, handlers: EventHandlers = {} ): FSWatcher => {
 
   const pendingUnlinks = new Map<string, NodeJS.Timeout> ();

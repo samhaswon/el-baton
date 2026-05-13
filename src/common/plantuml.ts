@@ -29,6 +29,9 @@ const PlantUML = {
 
   graphvizDownloadUrl: 'https://www.graphviz.org/download/',
 
+  /**
+   * Ensures a PlantUML source has matching `@start...` and `@end...` wrappers.
+   */
   normalizeSource ( rawSource?: string ): string {
 
     const source = String ( rawSource || '' ),
@@ -67,6 +70,9 @@ const PlantUML = {
 
   },
 
+  /**
+   * Detects common local-render failures caused by a missing Graphviz install.
+   */
   isGraphvizMissingError ( rawMessage?: string ): boolean {
 
     const message = String ( rawMessage || '' ).toLowerCase ();
@@ -84,6 +90,9 @@ const PlantUML = {
 
   },
 
+  /**
+   * Rewrites known local dependency errors into user-facing messages.
+   */
   normalizeLocalError ( rawMessage: string ): string {
 
     if ( PlantUML.isGraphvizMissingError ( rawMessage ) ) {
@@ -94,6 +103,9 @@ const PlantUML = {
 
   },
 
+  /**
+   * Returns a help URL for render errors that have an actionable setup step.
+   */
   getErrorHelpUrl ( rawMessage: string, origin: PlantUMLRenderOrigin = 'local' ): string | undefined {
 
     if ( origin !== 'local' ) return;
@@ -104,6 +116,9 @@ const PlantUML = {
 
   },
 
+  /**
+   * Normalizes a user-entered PlantUML server URL to the expected base endpoint.
+   */
   normalizeServerUrl ( rawUrl?: string ): string | undefined {
 
     const value = String ( rawUrl || '' ).trim ();
@@ -129,6 +144,9 @@ const PlantUML = {
 
   },
 
+  /**
+   * Builds the remote SVG URL for an already encoded PlantUML diagram.
+   */
   buildRemoteSvgUrl ( serverUrl: string, encodedDiagram: string ): string {
 
     let url: URL;
@@ -157,6 +175,9 @@ const PlantUML = {
 
   },
 
+  /**
+   * Builds the remote rendering endpoint used for POST-style PlantUML requests.
+   */
   buildRemoteRenderUrl ( serverUrl: string ): string {
 
     let url: URL;
@@ -185,6 +206,9 @@ const PlantUML = {
 
   },
 
+  /**
+   * Clamps configured cache entry counts to the supported range.
+   */
   clampCacheEntries ( value: unknown ): number {
 
     const parsed = Number ( value );
@@ -195,6 +219,9 @@ const PlantUML = {
 
   },
 
+  /**
+   * Clamps configured cache byte limits to the supported range.
+   */
   clampCacheBytes ( value: unknown ): number {
 
     const parsed = Number ( value );
@@ -205,6 +232,9 @@ const PlantUML = {
 
   },
 
+  /**
+   * Clamps configured render timeouts to the supported range.
+   */
   clampTimeoutMs ( value: unknown ): number {
 
     const parsed = Number ( value );

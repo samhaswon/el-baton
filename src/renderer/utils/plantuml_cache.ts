@@ -9,6 +9,9 @@ const cache = new Map<string, PlantUMLRenderResult> ();
 
 const PlantUMLCache = {
 
+  /**
+   * Reads a cached PlantUML result and refreshes its LRU position.
+   */
   get ( key: string ) {
 
     const cached = cache.get ( key );
@@ -22,6 +25,9 @@ const PlantUMLCache = {
 
   },
 
+  /**
+   * Stores a PlantUML result and evicts the oldest entry when the cache is full.
+   */
   set ( key: string, value: PlantUMLRenderResult ) {
 
     cache.set ( key, value );
@@ -34,6 +40,9 @@ const PlantUMLCache = {
 
   },
 
+  /**
+   * Removes all cached PlantUML render results.
+   */
   clear () {
 
     cache.clear ();

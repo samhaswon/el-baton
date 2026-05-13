@@ -7,6 +7,9 @@ import * as _ from 'lodash';
 
 const Attachments = {
 
+  /**
+   * Sorts attachment filenames case-insensitively for stable display.
+   */
   sort ( attachments: string[] ): string[] {
 
     return _.sortBy ( attachments, attachment => attachment.toLowerCase () );

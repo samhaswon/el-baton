@@ -87,11 +87,18 @@ const Markdown = {
     }
   } as any,
 
+  /**
+   * Lazily loads KaTeX and its mhchem extension once per renderer process.
+   */
   initKatex: _.once ( () => {
     Markdown._katex = require ( 'katex' );
     require ( 'katex/dist/contrib/mhchem.min.js' );
   }),
 
+  /**
+   * Renders a TeX string through KaTeX, using a small LRU cache for larger
+   * expressions.
+   */
   renderKatex ( tex: string, displayMode: boolean ): string {
 
     const shouldMemoize = MarkdownRenderHelpers.shouldMemoizeKatex ( tex, Markdown._katexCacheMinTexLength ),
@@ -123,6 +130,9 @@ const Markdown = {
     return rendered;
   },
 
+  /**
+   * Normalizes TeX syntax that KaTeX does not consistently accept in math mode.
+   */
   normalizeTex ( tex: string ): string {
 
     // In KaTeX math mode a bare `~` is not reliably accepted; map it to a thin space.
@@ -130,6 +140,9 @@ const Markdown = {
 
   },
 
+  /**
+   * Updates markdown rendering settings supplied by the renderer at runtime.
+   */
   setRuntimeConfig ( config: Partial<MarkdownRuntimeConfig> = {} ) {
 
     const nextConfig = {
@@ -153,6 +166,9 @@ const Markdown = {
 
   },
 
+  /**
+   * Resolves a markdown-relative target against the current runtime workspace.
+   */
   resolveMarkdownRelativePath ( rawTarget: string, sourceFilePath?: string ): string | undefined {
 
     const {cwd, notesPath} = Markdown._runtimeConfig;
@@ -163,18 +179,27 @@ const Markdown = {
 
   },
 
+  /**
+   * Returns a slash-normalized path relative to a configured token root.
+   */
   toTokenRelativePath ( parentPath: string, childPath: string ): string {
 
     return MarkdownPath.toTokenRelativePath ( parentPath, childPath );
 
   },
 
+  /**
+   * Resolves a token path under a root while preventing root escape.
+   */
   resolveTokenPath ( basePath: string, tokenPath: string ): string | undefined {
 
     return MarkdownPath.resolveTokenPath ( basePath, tokenPath );
 
   },
 
+  /**
+   * Applies markdown transform rules for a specific parser stage.
+   */
   applyTransforms ( input: string, rules: MarkdownTransformRule[], type: 'language' | 'output' ): string {
 
     let output = input;
@@ -192,6 +217,10 @@ const Markdown = {
 
   __yield: () => new Promise<void> ( resolve => globalThis.setTimeout ( resolve, 0 ) ),
 
+  /**
+   * Throws the renderer's markdown abort sentinel when a caller cancels async
+   * rendering.
+   */
   __throwIfAborted ( shouldAbort?: () => boolean ) {
 
     if ( shouldAbort && shouldAbort () ) {
@@ -202,6 +231,9 @@ const Markdown = {
 
   },
 
+  /**
+   * Runs language-stage transforms before handing markdown to cmark.
+   */
   preprocessForCmark ( str: string, sourceFilePath?: string ): string {
 
     let output = Markdown.preprocessMath ( str );
@@ -218,6 +250,9 @@ const Markdown = {
 
   },
 
+  /**
+   * Runs HTML-stage transforms and sanitization after cmark renders markdown.
+   */
   postprocessFromCmark ( html: string, sourceFilePath?: string ): string {
 
     // Preserve legacy extension ordering to reduce regressions.
@@ -250,6 +285,9 @@ const Markdown = {
 
   },
 
+  /**
+   * Renders preview HTML synchronously through cmark and the app extensions.
+   */
   renderPreviewCmark ( str: string, sourceFilePath?: string ): string {
 
     const preprocessed = Markdown.preprocessForCmark ( str, sourceFilePath ),
@@ -259,6 +297,10 @@ const Markdown = {
 
   },
 
+  /**
+   * Renders preview HTML in cancellable chunks so large notes do not monopolize
+   * the renderer thread.
+   */
   renderPreviewCmarkAsync: async ( str: string, sourceFilePath?: string, shouldAbort?: () => boolean ): Promise<string> => {
 
     Markdown.__throwIfAborted ( shouldAbort );
@@ -325,6 +367,9 @@ const Markdown = {
 
   },
 
+  /**
+   * Converts markdown to a plain-text-ish representation for previews/search.
+   */
   renderStripCmark ( str: string ): string {
 
     const transforms = Markdown.extensions.strip () as MarkdownTransformRule[],
@@ -335,12 +380,19 @@ const Markdown = {
 
   },
 
+  /**
+   * Returns whether an error came from an intentionally aborted markdown render.
+   */
   isRenderAbortError ( error: any ): boolean {
 
     return !!error && error.name === Markdown._renderAbortName;
 
   },
 
+  /**
+   * Stashes code spans/fences and math placeholders before markdown parsing so
+   * extension syntax is rendered in the intended order.
+   */
   preprocessMath ( str: string ): string {
 
     const codeChunks: string[] = [],
@@ -444,6 +496,9 @@ const Markdown = {
       codeLanguageRe: /(^|[^\\])(`+)([^\r]*?[^`])\2(?!`)/gm,
       codeOutputRe: /<code[^>]*?>([^]*?)<\/code>/g,
 
+      /**
+       * Checks whether a string index falls inside any match for a regex.
+       */
       isInside ( re: RegExp, str: string, index: number ) { // Checks if the index is inside the ranges matched by the regex in the string
 
         re.lastIndex = 0;
@@ -462,12 +517,19 @@ const Markdown = {
 
       },
 
+      /**
+       * Returns whether an HTML offset is inside an anchor element.
+       */
       isInsideAnchor ( str: string, index: number ) {
 
         return Markdown.extensions.utilities.isInside ( Markdown.extensions.utilities.anchorOutputRe, str, index );
 
       },
 
+      /**
+       * Returns whether an offset is inside code in either markdown source or
+       * rendered HTML, depending on the stage.
+       */
       isInsideCode ( str: string, index: number, language: boolean = false ) {
 
         const re = language ? Markdown.extensions.utilities.codeLanguageRe : Markdown.extensions.utilities.codeOutputRe;
@@ -476,6 +538,9 @@ const Markdown = {
 
       },
 
+      /**
+       * Toggles the nth task-list checkbox in markdown source.
+       */
       toggleCheckbox ( str: string, nth: number, force?: boolean ) {
 
         const {checkboxLanguageRe, checkboxCheckmarkRe, checkboxCheckedRe} = Markdown.extensions.utilities;
@@ -506,6 +571,9 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules for stripping markdown down to readable text.
+     */
     strip () {
 
       return [
@@ -558,6 +626,9 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that syntax-highlight rendered code blocks.
+     */
     highlight () {
 
       return [{
@@ -577,6 +648,9 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that add copy controls to rendered code blocks.
+     */
     copy () {
 
       return [{
@@ -589,6 +663,9 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that convert AsciiMath syntax into TeX.
+     */
     asciimath2tex () {
 
       return [
@@ -623,6 +700,10 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that render TeX placeholders, fences, and inline
+     * delimiters through KaTeX.
+     */
     katex () {
 
       return [
@@ -693,6 +774,10 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that render Mermaid fences from cached SVG when
+     * available.
+     */
     mermaid () {
 
       return [{
@@ -709,6 +794,9 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that add the Mermaid external-open affordance.
+     */
     mermaidOpenExternal () {
 
       return [{
@@ -721,6 +809,10 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that render PlantUML fences from cached SVG when
+     * available.
+     */
     plantuml () {
 
       return [{
@@ -738,6 +830,9 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that add the PlantUML external-open affordance.
+     */
     plantumlOpenExternal () {
 
       return [{
@@ -750,6 +845,9 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that number rendered task-list checkboxes.
+     */
     checkbox () {
 
       let nth = 0;
@@ -774,6 +872,9 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that replace emoji shortcodes in markdown source.
+     */
     emoji () {
 
       return [{
@@ -787,6 +888,9 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that open non-fragment links in a new target.
+     */
     targetBlankLinks () {
 
       return [{
@@ -803,6 +907,10 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that rewrite relative note/attachment links to
+     * app token paths.
+     */
     resolveRelativeLinks ( sourceFilePath?: string ) {
 
       const {
@@ -850,6 +958,10 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that URL-encode special token links before cmark
+     * parses them.
+     */
     encodeSpecialLinks () { // Or they won't be parsed as images/links whatever
 
       return [{
@@ -863,6 +975,10 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that turn attachment token links into local file
+     * links with app metadata.
+     */
     attachment () {
 
       const {attachmentsPath, attachmentsToken: token} = Markdown._runtimeConfig;
@@ -905,6 +1021,10 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that turn note token links into local file links
+     * with app metadata.
+     */
     note () {
 
       const {notesPath, notesToken: token} = Markdown._runtimeConfig;
@@ -947,6 +1067,10 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that turn tag token links into interactive tag
+     * anchors.
+     */
     tag () {
 
       const {tagsToken: token} = Markdown._runtimeConfig;
@@ -972,6 +1096,9 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that treat bare host links as HTTPS links.
+     */
     noProtocolLinks () {
 
       return [{
@@ -988,6 +1115,10 @@ const Markdown = {
 
     },
 
+    /**
+     * Returns transform rules that convert `[[note|title]]` syntax to note
+     * token links.
+     */
     wikilink () {
 
       const {notesExt: ext, notesRe: re, notesToken: token} = Markdown._runtimeConfig;
@@ -1020,12 +1151,19 @@ const Markdown = {
 
   },
 
+  /**
+   * Returns whether a string could contain markdown syntax worth rendering.
+   */
   is: ( str: string ): boolean => { // Checks if `str` _could_ be using some Markdown features, it doesn't tell reliably when it actually is, only when it isn't. Useful for skipping unnecessary renderings
 
     return Markdown.re.test ( str );
 
   },
 
+  /**
+   * Renders markdown preview HTML synchronously after applying an optional
+   * source limit.
+   */
   render: ( str: string, limit: number = Infinity, sourceFilePath?: string ): string => {
 
     if ( !str || !Markdown.is ( str ) ) return `<p>${str}</p>`;
@@ -1036,6 +1174,9 @@ const Markdown = {
 
   },
 
+  /**
+   * Renders markdown preview HTML asynchronously with optional cancellation.
+   */
   renderAsync: async ( str: string, limit: number = Infinity, sourceFilePath?: string, shouldAbort?: () => boolean ): Promise<string> => {
 
     if ( !str || !Markdown.is ( str ) ) return `<p>${str}</p>`;
@@ -1046,6 +1187,9 @@ const Markdown = {
 
   },
 
+  /**
+   * Strips markdown to a compact text representation for labels and search.
+   */
   strip: ( str: string, limit: number = Infinity ): string => {
 
     if ( !str || !Markdown.is ( str ) ) return str;
@@ -1054,6 +1198,9 @@ const Markdown = {
 
   },
 
+  /**
+   * Truncates a string only when the supplied limit is finite and positive.
+   */
   limiter: ( str: string, limit: number = Infinity ): string => {
 
     if ( !_.isFinite ( limit ) || limit <= 0 || str.length <= limit ) return str;

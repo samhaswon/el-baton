@@ -57,6 +57,10 @@ const defaultDependencies: EnexImportDependencies = {
 
 const EnexImport = {
 
+  /**
+   * Writes one parsed ENEX note and its attachments into the configured notes
+   * and attachments folders.
+   */
   async dumpNote ( note: DumperNote, importTag: string, paths: EnexImportPaths, dependencies: EnexImportDependencies = defaultDependencies ): Promise<string> {
 
     const attachmentFileNames = await Promise.all ( note.metadata.attachments.map ( async attachment => {
