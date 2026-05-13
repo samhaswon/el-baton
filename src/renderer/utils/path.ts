@@ -1,9 +1,9 @@
 
 /* IMPORT */
 
-import filenamify from 'filenamify';
 import * as fs from 'fs';
 import * as path from 'path';
+import Filename from '../../common/filename';
 
 /* PATH */
 
@@ -72,7 +72,7 @@ const Path = {
    */
   sanitize ( filePath: string ): string {
 
-    return filenamify ( filePath, { replacement: ' ' } )
+    return Filename.sanitize ( filePath, ' ' )
              .replace ( /#/g, ' ' )
              .trim ();
 

@@ -3,13 +3,13 @@
 
 import * as _ from 'lodash';
 import {decode} from 'html-entities';
-import isAbsoluteUrl from 'is-absolute-url';
 import * as path from 'path';
 import Config from '@common/config';
 import Emoji from '@common/emoji';
 import MarkdownPath from '@common/markdown_path';
 import MarkdownRenderHelpers from '@common/markdown_render_helpers';
 import PlantUML from '@common/plantuml';
+import Url from '@common/url';
 import AsciiMath from './asciimath';
 import Highlighter from './highlighter';
 import MermaidCache from './mermaid_cache';
@@ -1105,7 +1105,7 @@ const Markdown = {
         type: 'output',
         regex: /<a(.*?)href="(.*?)>/g,
         replace ( match, $1, $2 ) {
-          if ( $2.startsWith ( '#' ) || isAbsoluteUrl ( $2, { httpOnly: false } ) ) { // URL fragment or absolute URL
+          if ( $2.startsWith ( '#' ) || Url.isAbsoluteOrProtocolRelative ( $2 ) ) { // URL fragment or absolute URL
             return match;
           } else {
             return `<a${$1}href="https://${$2}>`;
