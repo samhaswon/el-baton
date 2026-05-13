@@ -3,7 +3,6 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as pify from 'pify';
 
 /* STORAGE */
 
@@ -50,7 +49,7 @@ const File = {
 
     if ( e.code === 'ENOENT' ) {
 
-      await pify ( fs.mkdir )( path.dirname ( filePath ), { recursive: true } );
+      await fs.promises.mkdir ( path.dirname ( filePath ), { recursive: true } );
 
       return method ( ...args );
 
@@ -64,7 +63,7 @@ const File = {
 
     try {
 
-      await pify ( fs.access )( filePath, fs.constants.F_OK );
+      await fs.promises.access ( filePath, fs.constants.F_OK );
 
       return true;
 
@@ -80,17 +79,17 @@ const File = {
 
     try {
 
-      return await pify ( fs.stat )( filePath );
+      return await fs.promises.stat ( filePath );
 
     } catch ( e ) {}
 
   }),
 
-  read: Storage._wrapAction ( async ( filePath: string, encoding: string = 'utf8' ): Promise<string | undefined> => {
+  read: Storage._wrapAction ( async ( filePath: string, encoding: BufferEncoding = 'utf8' ): Promise<string | undefined> => {
 
     try {
 
-      return ( await pify ( fs.readFile )( filePath, {encoding} ) ).toString ();
+      return ( await fs.promises.readFile ( filePath, {encoding} ) ).toString ();
 
     } catch ( e ) {}
 
@@ -100,7 +99,7 @@ const File = {
 
     try {
 
-      return await pify ( fs.copyFile )( srcPath, dstPath );
+      return await fs.promises.copyFile ( srcPath, dstPath );
 
     } catch ( e ) {
 
@@ -114,7 +113,7 @@ const File = {
 
     try {
 
-      return await pify ( fs.rename )( oldPath, newPath );
+      return await fs.promises.rename ( oldPath, newPath );
 
     } catch ( e ) {
 
@@ -128,7 +127,7 @@ const File = {
 
     try {
 
-      return await pify ( fs.writeFile )( filePath, content, {} );
+      return await fs.promises.writeFile ( filePath, content, {} );
 
     } catch ( e ) {
 
@@ -142,7 +141,7 @@ const File = {
 
     try {
 
-      return await pify ( fs.unlink )( filePath );
+      return await fs.promises.unlink ( filePath );
 
     } catch ( e ) {}
 

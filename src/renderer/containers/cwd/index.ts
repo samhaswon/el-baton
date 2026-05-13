@@ -7,7 +7,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import {Container, autosuspend} from 'overstated';
 import * as path from 'path';
-import * as pify from 'pify';
 import Config from '@common/config';
 import Settings from '@common/settings';
 import File from '@renderer/utils/file';
@@ -44,9 +43,9 @@ class CWD extends Container<CWDState, CWDCTX> {
 
       const hadTutorial = !!Settings.get ( 'tutorial' );
 
-      await pify ( fs.mkdir )( folderPath, { recursive: true } );
+      await fs.promises.mkdir ( folderPath, { recursive: true } );
 
-      await pify ( fs.access )( folderPath, fs.constants.F_OK );
+      await fs.promises.access ( folderPath, fs.constants.F_OK );
 
       Settings.set ( 'cwd', folderPath );
 
