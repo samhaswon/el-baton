@@ -1,21 +1,20 @@
-
 /* IMPORT */
 
-const path = require ( 'path' );
+const path = require('path')
 
 /* CONFIG */
 
 const config = {
-	mode: 'production',
-	entry: {
-		'monaco.worker': 'monaco-editor/esm/vs/editor/editor.worker.js',
-	},
-	output: {
-		globalObject: 'self',
-		path: path.join ( __dirname, 'src', 'renderer', 'template', 'generated', 'javascript' )
-	}
-};
+  mode: 'production',
+  entry: {
+    'monaco.worker': 'monaco-editor/esm/vs/editor/editor.worker.js'
+  },
+  output: {
+    globalObject: 'self',
+    path: path.join(__dirname, 'src', 'renderer', 'template', 'generated', 'javascript')
+  }
+}
 
 /* EXPORT */
 
-module.exports = config;
+module.exports = config

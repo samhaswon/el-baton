@@ -300,3 +300,4 @@
     - https://github.com/electron/electron/issues/49244
 - [X] Move to built-in `node:sqlite` when the project can be upgraded to a later ~~node~~ Electron version.
     - There appears to be a disconnect between the project and Electron node versions.
+- [ ] Re-enable `VALIDATE_TYPESCRIPT_STANDARD` in CI linting

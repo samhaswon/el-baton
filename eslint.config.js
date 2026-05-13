@@ -1,4 +1,4 @@
-const tseslint = require ( 'typescript-eslint' );
+const tseslint = require('typescript-eslint')
 
 const nodeGlobals = {
   Buffer: 'readonly',
@@ -14,16 +14,16 @@ const nodeGlobals = {
   require: 'readonly',
   setInterval: 'readonly',
   setTimeout: 'readonly'
-};
+}
 
 const browserGlobals = {
   document: 'readonly',
   getComputedStyle: 'readonly',
   HTMLElement: 'readonly',
   window: 'readonly'
-};
+}
 
-module.exports = tseslint.config (
+module.exports = tseslint.config(
   {
     ignores: [
       '.tmp/**',
@@ -36,10 +36,10 @@ module.exports = tseslint.config (
       'src/renderer/template/runtime/**'
     ]
   },
-  ...tseslint.configs.recommended.map ( config => ({
+  ...tseslint.configs.recommended.map(config => ({
     ...config,
     files: ['**/*.{ts,tsx}']
-  }) ),
+  })),
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
@@ -162,4 +162,4 @@ module.exports = tseslint.config (
       globals: browserGlobals
     }
   }
-);
+)

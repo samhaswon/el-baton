@@ -38,6 +38,7 @@
     "profile:markdown-rendering": "node ./scripts/analysis/profile_markdown_rendering.js",
     "screenshots:demo": "node ./scripts/analysis/capture_demo_screenshots.js",
     "lint": "eslint .",
+    "lint:standard": "cross-env XDG_CACHE_HOME=.tmp/standard-cache standard \"*.js\" \"scripts/**/*.js\"",
     "test:emoji": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/emoji.test.ts src/common/emoji.ts && node --test .tmp/tests/scripts/tests/emoji.test.js",
     "test:emoji:github": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/emoji_github.test.ts src/common/emoji.ts && node --test .tmp/tests/scripts/tests/emoji_github.test.js",
     "test:editor-tabs": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/editor_tabs.test.ts src/common/editor_tabs.ts && node --test .tmp/tests/scripts/tests/editor_tabs.test.js",
@@ -224,6 +225,9 @@
       "node-addon-api": "^8.6.0"
     }
   },
+  "ts-standard": {
+    "project": "./tsconfig.eslint.json"
+  },
   "devDependencies": {
     "@babel/core": "^7.29.0",
     "@babel/preset-env": "^7.29.2",
@@ -293,9 +297,11 @@
     "react-router-static": "^1.0.0",
     "react-window": "^2.2.7",
     "showdown": "^2.1.0",
+    "standard": "^17.1.2",
     "style-loader": "^4.0.0",
     "terser-webpack-plugin": "^5.6.0",
     "tiny-glob": "^0.2.9",
+    "ts-standard": "^12.0.2",
     "tsconfig-paths-webpack-plugin": "^4.2.0",
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.59.3",

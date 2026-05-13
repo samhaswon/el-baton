@@ -1,26 +1,23 @@
-
 /* IMPORT */
 
-const fs = require ( 'fs' ),
-      path = require ( 'path' );
+const fs = require('fs')
+const path = require('path')
 
 /* FIX LATEST LINUX */
 
-//TODO: Remove this once the upstream bug has been fixed //URL: https://github.com/electron-userland/electron-builder/issues/3890
+// TODO: Remove this once the upstream bug has been fixed //URL: https://github.com/electron-userland/electron-builder/issues/3890
 
 function fixLatestLinux () {
+  const latestLinuxPath = path.join(process.cwd(), 'releases', 'latest-linux.yml')
 
-  const latestLinuxPath = path.join ( process.cwd (), 'releases', 'latest-linux.yml' );
+  if (!fs.existsSync(latestLinuxPath)) return
 
-  if ( !fs.existsSync ( latestLinuxPath ) ) return;
+  const content = fs.readFileSync(latestLinuxPath, { encoding: 'utf8' })
+  const contentNext = content.replace(/el-baton-(.*?)-x86_64\.AppImage/gi, 'El.Baton.$1.AppImage')
 
-  const content = fs.readFileSync ( latestLinuxPath, { encoding: 'utf8' } ),
-        contentNext = content.replace ( /el-baton-(.*?)-x86_64\.AppImage/gi, 'El.Baton.$1.AppImage' );
-
-  fs.writeFileSync ( latestLinuxPath, contentNext );
-
+  fs.writeFileSync(latestLinuxPath, contentNext)
 }
 
 /* EXPORT */
 
-module.exports = fixLatestLinux;
+module.exports = fixLatestLinux

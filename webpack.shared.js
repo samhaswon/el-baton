@@ -1,35 +1,35 @@
 /* IMPORT */
 
-const path = require ( 'path' );
-const TSConfigPathsPlugin = require ( 'tsconfig-paths-webpack-plugin' );
-const webpack = require ( 'webpack' );
+const path = require('path')
+const TSConfigPathsPlugin = require('tsconfig-paths-webpack-plugin')
+const webpack = require('webpack')
 
 /* SHARED */
 
-const isDevelopment = process.env.NODE_ENV !== 'production';
-const electronTarget = process.env.NOTABLE_ELECTRON_TARGET || '30.0';
-const rendererSourcePath = path.resolve ( __dirname, 'src/renderer' );
-const sourcePath = path.resolve ( __dirname, 'src' );
-const mermaidDistPath = path.resolve ( __dirname, 'node_modules', 'mermaid', 'dist' );
+const isDevelopment = process.env.NODE_ENV !== 'production'
+const electronTarget = process.env.NOTABLE_ELECTRON_TARGET || '30.0'
+const rendererSourcePath = path.resolve(__dirname, 'src/renderer')
+const sourcePath = path.resolve(__dirname, 'src')
+const mermaidDistPath = path.resolve(__dirname, 'node_modules', 'mermaid', 'dist')
 
-const babelPresetEnv = [ '@babel/preset-env', {
+const babelPresetEnv = ['@babel/preset-env', {
   targets: {
     electron: electronTarget
   }
-} ];
+}]
 
 const reactCompilerPlugins = [
   'babel-plugin-react-compiler'
-];
+]
 
 const shared = {
   mode: isDevelopment ? 'development' : 'production',
   resolve: {
     alias: {
-      '@static': path.resolve ( __dirname, 'src/renderer/template/runtime' ),
-      'create-react-context': path.resolve ( __dirname, 'src/common/create_react_context_shim.ts' ),
-      'electron-util': path.resolve ( __dirname, 'src/common/electron_util_shim.ts' ),
-      'overstated': path.resolve ( __dirname, 'src/renderer/lib/overstated.ts' )
+      '@static': path.resolve(__dirname, 'src/renderer/template/runtime'),
+      'create-react-context': path.resolve(__dirname, 'src/common/create_react_context_shim.ts'),
+      'electron-util': path.resolve(__dirname, 'src/common/electron_util_shim.ts'),
+      overstated: path.resolve(__dirname, 'src/renderer/lib/overstated.ts')
     },
     fallback: {
       fsevents: false
@@ -39,9 +39,9 @@ const shared = {
       '.mjs': ['.mjs', '.mts'],
       '.cjs': ['.cjs', '.cts']
     },
-    extensions: [ '.ts', '.tsx', '.js', '.json' ],
+    extensions: ['.ts', '.tsx', '.js', '.json'],
     plugins: [
-      new TSConfigPathsPlugin ()
+      new TSConfigPathsPlugin()
     ]
   },
   module: {
@@ -69,7 +69,7 @@ const shared = {
             presets: [
               babelPresetEnv,
               '@babel/preset-react',
-              [ '@babel/preset-typescript', { allowDeclareFields: true } ]
+              ['@babel/preset-typescript', { allowDeclareFields: true }]
             ],
             // React Compiler must run first in the Babel plugin pipeline.
             plugins: reactCompilerPlugins
@@ -87,7 +87,7 @@ const shared = {
             presets: [
               babelPresetEnv,
               '@babel/preset-react',
-              [ '@babel/preset-typescript', { allowDeclareFields: true } ]
+              ['@babel/preset-typescript', { allowDeclareFields: true }]
             ]
           }
         }
@@ -95,20 +95,20 @@ const shared = {
     ]
   },
   plugins: [
-    new webpack.DefinePlugin ({
-      'Environment.isDevelopment': JSON.stringify ( isDevelopment ),
-      '__static': 'globalThis.__static',
-      '__non_webpack_require__': 'require'
+    new webpack.DefinePlugin({
+      'Environment.isDevelopment': JSON.stringify(isDevelopment),
+      __static: 'globalThis.__static',
+      __non_webpack_require__: 'require'
     }),
-    new webpack.IgnorePlugin ({
+    new webpack.IgnorePlugin({
       resourceRegExp: /^fsevents$/
     })
   ]
-};
+}
 
 /* EXPORT */
 
 module.exports = {
   isDevelopment,
   shared
-};
+}

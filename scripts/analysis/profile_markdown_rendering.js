@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
-const {performance} = require('perf_hooks');
-const {decode} = require('html-entities');
-const cmark = require('cmark-gfm');
-const katex = require('katex');
+const { performance } = require('perf_hooks')
+const { decode } = require('html-entities')
+const cmark = require('cmark-gfm')
+const katex = require('katex')
 
-let Prism;
-let prismLanguages = {};
+let Prism
+let prismLanguages = {}
 
 try {
-  Prism = require('prismjs');
-  prismLanguages = require('prismjs/components.js').languages || {};
+  Prism = require('prismjs')
+  prismLanguages = require('prismjs/components.js').languages || {}
 } catch (error) {
-  Prism = null;
+  Prism = null
 }
 
 const DEFAULT_OPTIONS = {
@@ -22,7 +22,7 @@ const DEFAULT_OPTIONS = {
   mode: 'full', // cmark | cmark+katex | full
   reportEvery: 25,
   continuous: false
-};
+}
 
 const CMARK_OPTIONS = {
   unsafe: true,
@@ -32,7 +32,7 @@ const CMARK_OPTIONS = {
     table: true,
     tasklist: true
   }
-};
+}
 
 const FIXTURE_BASE = String.raw`---
 title: Markdown Profile Fixture
@@ -267,99 +267,99 @@ $$
     <p>Inline formula inside HTML paragraph: $c=\sqrt{a^2+b^2}$</p>
   </div>
 </details>
-`;
+`
 
-function parseArgs(argv) {
-  const options = {...DEFAULT_OPTIONS};
+function parseArgs (argv) {
+  const options = { ...DEFAULT_OPTIONS }
 
   for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    const value = argv[i + 1];
+    const arg = argv[i]
+    const value = argv[i + 1]
 
     if (arg === '--warmup' && value) {
-      options.warmup = Math.max(0, Number(value) || 0);
-      i++;
+      options.warmup = Math.max(0, Number(value) || 0)
+      i++
     } else if (arg === '--iterations' && value) {
-      options.iterations = Math.max(1, Number(value) || 1);
-      i++;
+      options.iterations = Math.max(1, Number(value) || 1)
+      i++
     } else if (arg === '--repeat' && value) {
-      options.repeat = Math.max(1, Number(value) || 1);
-      i++;
+      options.repeat = Math.max(1, Number(value) || 1)
+      i++
     } else if (arg === '--mode' && value) {
-      if (value === 'cmark' || value === 'cmark+katex' || value === 'full') options.mode = value;
-      i++;
+      if (value === 'cmark' || value === 'cmark+katex' || value === 'full') options.mode = value
+      i++
     } else if (arg === '--report-every' && value) {
-      options.reportEvery = Math.max(1, Number(value) || 1);
-      i++;
+      options.reportEvery = Math.max(1, Number(value) || 1)
+      i++
     } else if (arg === '--continuous') {
-      options.continuous = true;
+      options.continuous = true
     } else if (arg === '--help' || arg === '-h') {
-      options.help = true;
+      options.help = true
     }
   }
 
-  return options;
+  return options
 }
 
-function usage() {
-  console.log('Usage: node scripts/analysis/profile_markdown_rendering.js [options]');
-  console.log('');
-  console.log('Options:');
-  console.log('  --mode <name>         cmark | cmark+katex | full (default: full)');
-  console.log('  --warmup <n>          Warmup runs (default: 8)');
-  console.log('  --iterations <n>      Timed runs (default: 120)');
-  console.log('  --repeat <n>          Fixture multiplier (default: 20)');
-  console.log('  --report-every <n>    Progress log cadence (default: 25)');
-  console.log('  --continuous          Run until interrupted (Ctrl+C)');
+function usage () {
+  console.log('Usage: node scripts/analysis/profile_markdown_rendering.js [options]')
+  console.log('')
+  console.log('Options:')
+  console.log('  --mode <name>         cmark | cmark+katex | full (default: full)')
+  console.log('  --warmup <n>          Warmup runs (default: 8)')
+  console.log('  --iterations <n>      Timed runs (default: 120)')
+  console.log('  --repeat <n>          Fixture multiplier (default: 20)')
+  console.log('  --report-every <n>    Progress log cadence (default: 25)')
+  console.log('  --continuous          Run until interrupted (Ctrl+C)')
 }
 
-function buildFixture(repeat) {
-  const chunks = [];
+function buildFixture (repeat) {
+  const chunks = []
   for (let i = 0; i < repeat; i++) {
-    chunks.push(`\n\n<!-- profile section ${i + 1} -->\n`);
-    chunks.push(FIXTURE_BASE);
+    chunks.push(`\n\n<!-- profile section ${i + 1} -->\n`)
+    chunks.push(FIXTURE_BASE)
   }
-  return chunks.join('');
+  return chunks.join('')
 }
 
-function sanitizeLanguage(language) {
-  return String(language || '').trim().toLowerCase();
+function sanitizeLanguage (language) {
+  return String(language || '').trim().toLowerCase()
 }
 
-function inferLanguage(codeAttrs) {
-  const languageMatch = String(codeAttrs || '').match(/language-([^\s"']*)/i);
-  if (languageMatch) return sanitizeLanguage(languageMatch[1]);
+function inferLanguage (codeAttrs) {
+  const languageMatch = String(codeAttrs || '').match(/language-([^\s"']*)/i)
+  if (languageMatch) return sanitizeLanguage(languageMatch[1])
 
-  const altMatch = String(codeAttrs || '').match(/\blang(?:uage)?=["']?([^\s"'/>]+)/i);
-  if (altMatch) return sanitizeLanguage(altMatch[1]);
+  const altMatch = String(codeAttrs || '').match(/\blang(?:uage)?=["']?([^\s"'/>]+)/i)
+  if (altMatch) return sanitizeLanguage(altMatch[1])
 }
 
-function initPrismLanguage(language) {
-  if (!Prism || !language) return false;
-  if (Prism.languages[language]) return true;
+function initPrismLanguage (language) {
+  if (!Prism || !language) return false
+  if (Prism.languages[language]) return true
 
-  const langDef = prismLanguages[language];
-  if (!langDef) return false;
+  const langDef = prismLanguages[language]
+  if (!langDef) return false
 
-  const required = Array.isArray(langDef.require) ? langDef.require : (langDef.require ? [langDef.require] : []);
+  const required = Array.isArray(langDef.require) ? langDef.require : (langDef.require ? [langDef.require] : [])
   for (const dep of required) {
-    if (!initPrismLanguage(dep)) return false;
+    if (!initPrismLanguage(dep)) return false
   }
 
   try {
-    require(`prismjs/components/prism-${language}.min.js`);
-    return !!Prism.languages[language];
+    require(`prismjs/components/prism-${language}.min.js`)
+    return !!Prism.languages[language]
   } catch (error) {
-    return false;
+    return false
   }
 }
 
-function highlightCodeBlocks(html) {
-  if (!Prism) return html;
+function highlightCodeBlocks (html) {
+  if (!Prism) return html
 
   return html.replace(/<pre><code(\s[^>]*?)>([\s\S]*?)<\/code><\/pre>/g, (match, attrs, rawCode) => {
-    const language = inferLanguage(attrs);
-    if (!language) return match;
+    const language = inferLanguage(attrs)
+    if (!language) return match
 
     const aliases = {
       js: 'javascript',
@@ -370,120 +370,120 @@ function highlightCodeBlocks(html) {
       py: 'python',
       tex: 'latex',
       katex: 'latex'
-    };
+    }
 
-    const resolved = aliases[language] || language;
-    if (!initPrismLanguage(resolved)) return match;
+    const resolved = aliases[language] || language
+    if (!initPrismLanguage(resolved)) return match
 
     try {
-      const decoded = decode(rawCode);
-      const highlighted = Prism.highlight(decoded, Prism.languages[resolved], resolved);
-      return `<pre><code${attrs || ''}>${highlighted}</code></pre>`;
+      const decoded = decode(rawCode)
+      const highlighted = Prism.highlight(decoded, Prism.languages[resolved], resolved)
+      return `<pre><code${attrs || ''}>${highlighted}</code></pre>`
     } catch (error) {
-      return match;
+      return match
     }
-  });
+  })
 }
 
-function renderKatexSafe(tex, displayMode) {
+function renderKatexSafe (tex, displayMode) {
   try {
     return katex.renderToString(tex, {
       throwOnError: false,
       strict: 'ignore',
       displayMode
-    });
+    })
   } catch (error) {
-    return displayMode ? `<pre><code>${tex}</code></pre>` : `$${tex}$`;
+    return displayMode ? `<pre><code>${tex}</code></pre>` : `$${tex}$`
   }
 }
 
-function renderKatexBlocks(html) {
+function renderKatexBlocks (html) {
   return html.replace(
     /<pre><code\s[^>]*language-(?:tex|latex|katex)[^>]*>([\s\S]*?)<\/code><\/pre>/gi,
     (match, encoded) => {
-      const tex = decode(encoded).replace(/<br\s*\/?>/gi, '\n').replace(/&nbsp;/gi, ' ');
-      return renderKatexSafe(tex, true);
+      const tex = decode(encoded).replace(/<br\s*\/?>/gi, '\n').replace(/&nbsp;/gi, ' ')
+      return renderKatexSafe(tex, true)
     }
-  );
+  )
 }
 
-function renderKatexInlineAndDisplay(html) {
+function renderKatexInlineAndDisplay (html) {
   const display = html.replace(/(^|[^\\])\$\$([\s\S]+?)\$\$/gm, (match, prefix, tex) => {
-    return `${prefix}${renderKatexSafe(decode(tex), true)}`;
-  });
+    return `${prefix}${renderKatexSafe(decode(tex), true)}`
+  })
 
   return display.replace(/(^|[^\\])\$(?!\$)([^\n$]+?)\$(?!\$)/gm, (match, prefix, tex) => {
-    return `${prefix}${renderKatexSafe(decode(tex), false)}`;
-  });
+    return `${prefix}${renderKatexSafe(decode(tex), false)}`
+  })
 }
 
-function renderMarkdown(markdown, mode) {
-  let html = cmark.renderHtmlSync(markdown, CMARK_OPTIONS);
-  if (mode === 'cmark') return html;
+function renderMarkdown (markdown, mode) {
+  let html = cmark.renderHtmlSync(markdown, CMARK_OPTIONS)
+  if (mode === 'cmark') return html
 
-  html = renderKatexBlocks(html);
-  html = renderKatexInlineAndDisplay(html);
-  if (mode === 'cmark+katex') return html;
+  html = renderKatexBlocks(html)
+  html = renderKatexInlineAndDisplay(html)
+  if (mode === 'cmark+katex') return html
 
-  return highlightCodeBlocks(html);
+  return highlightCodeBlocks(html)
 }
 
-function percentile(values, p) {
-  if (!values.length) return 0;
-  const sorted = values.slice().sort((a, b) => a - b);
-  const index = Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length));
-  return sorted[index];
+function percentile (values, p) {
+  if (!values.length) return 0
+  const sorted = values.slice().sort((a, b) => a - b)
+  const index = Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))
+  return sorted[index]
 }
 
-function run(markdown, options) {
-  for (let i = 0; i < options.warmup; i++) renderMarkdown(markdown, options.mode);
+function run (markdown, options) {
+  for (let i = 0; i < options.warmup; i++) renderMarkdown(markdown, options.mode)
 
-  const samples = [];
-  let count = 0;
+  const samples = []
+  let count = 0
 
   while (options.continuous || count < options.iterations) {
-    count++;
+    count++
 
-    const start = performance.now();
-    renderMarkdown(markdown, options.mode);
-    samples.push(performance.now() - start);
+    const start = performance.now()
+    renderMarkdown(markdown, options.mode)
+    samples.push(performance.now() - start)
 
     if (count % options.reportEvery === 0) {
-      const mean = samples.reduce((sum, v) => sum + v, 0) / samples.length;
-      console.log(`[profile:markdown] progress renders=${count} mean-ms=${mean.toFixed(2)}`);
+      const mean = samples.reduce((sum, v) => sum + v, 0) / samples.length
+      console.log(`[profile:markdown] progress renders=${count} mean-ms=${mean.toFixed(2)}`)
     }
   }
 
-  return samples;
+  return samples
 }
 
-function main() {
-  const options = parseArgs(process.argv.slice(2));
+function main () {
+  const options = parseArgs(process.argv.slice(2))
   if (options.help) {
-    usage();
-    process.exit(0);
+    usage()
+    process.exit(0)
   }
 
   if (!cmark || typeof cmark.renderHtmlSync !== 'function') {
-    console.error('cmark-gfm did not load correctly.');
-    process.exit(1);
+    console.error('cmark-gfm did not load correctly.')
+    process.exit(1)
   }
 
-  const markdown = buildFixture(options.repeat);
-  console.log('[profile:markdown] start');
-  console.log(`[profile:markdown] pid=${process.pid}`);
-  console.log(`[profile:markdown] mode=${options.mode} warmup=${options.warmup} iterations=${options.iterations} repeat=${options.repeat} bytes=${markdown.length}`);
-  console.log(`[profile:markdown] prism=${!!Prism} katex=${!!katex} continuous=${options.continuous}`);
+  const markdown = buildFixture(options.repeat)
+  console.log('[profile:markdown] start')
+  console.log(`[profile:markdown] pid=${process.pid}`)
+  console.log(`[profile:markdown] mode=${options.mode} warmup=${options.warmup} iterations=${options.iterations} repeat=${options.repeat} bytes=${markdown.length}`)
+  console.log(`[profile:markdown] prism=${!!Prism} katex=${!!katex} continuous=${options.continuous}`)
 
-  const samples = run(markdown, options);
-  const total = samples.reduce((sum, v) => sum + v, 0);
-  const mean = samples.length ? total / samples.length : 0;
-  const min = samples.length ? Math.min(...samples) : 0;
-  const max = samples.length ? Math.max(...samples) : 0;
-  const p95 = percentile(samples, 95);
+  const samples = run(markdown, options)
+  const total = samples.reduce((sum, v) => sum + v, 0)
+  const mean = samples.length ? total / samples.length : 0
+  const min = samples.length ? Math.min(...samples) : 0
+  const max = samples.length ? Math.max(...samples) : 0
+  const p95 = percentile(samples, 95)
 
-  console.log('[profile:markdown] done');
-  console.log(`[profile:markdown] renders=${samples.length} mean-ms=${mean.toFixed(2)} p95-ms=${p95.toFixed(2)} min-ms=${min.toFixed(2)} max-ms=${max.toFixed(2)}`);
+  console.log('[profile:markdown] done')
+  console.log(`[profile:markdown] renders=${samples.length} mean-ms=${mean.toFixed(2)} p95-ms=${p95.toFixed(2)} min-ms=${min.toFixed(2)} max-ms=${max.toFixed(2)}`)
 }
 
-main();
+main()
