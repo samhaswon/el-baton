@@ -280,7 +280,7 @@
     "mime-types": "^3.0.2",
     "mini-css-extract-plugin": "^2.10.1",
     "monaco-editor": "^0.55.1",
-    "pify": "^4.0.1",
+    "pify": "^5.0.0",
     "playwright": "^1.60.0",
     "prismjs": "^1.30.0",
     "prop-types": "^15.8.1",
