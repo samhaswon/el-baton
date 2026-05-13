@@ -64,6 +64,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     this._previewToggleNode = this._previewRef.current;
     this._previewToggleNode?.addEventListener ( 'toggle', this.__previewToggle, true );
+    this._previewToggleNode?.addEventListener ( 'click', this.__previewDetailsClick, true );
 
     this.__scheduleAnchorsRebuild ();
     this.__scheduleSourceSync (); // Align from top when entering split mode
@@ -80,6 +81,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     $.$document.off ( 'layoutresizable:resize', this.__layoutResized );
 
     this._previewToggleNode?.removeEventListener ( 'toggle', this.__previewToggle, true );
+    this._previewToggleNode?.removeEventListener ( 'click', this.__previewDetailsClick, true );
     this._previewToggleNode = null;
 
     window.cancelAnimationFrame ( this._sourceSyncFrame );
@@ -1073,7 +1075,27 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     if ( !target || target.tagName.toLowerCase () !== 'details' ) return;
 
-    this.__setSourceDetailsOpen ( target as HTMLDetailsElement );
+    this.__syncPreviewDetailsToggle ( target as HTMLDetailsElement );
+
+  }
+
+  __previewDetailsClick = ( event: Event ) => {
+
+    const target = event.target as HTMLElement | null,
+          summary = target?.closest ( 'summary' ),
+          details = summary?.closest ( 'details' );
+
+    if ( !details || !this._previewRef.current?.contains ( details ) ) return;
+
+    window.requestAnimationFrame ( () => {
+      this.__syncPreviewDetailsToggle ( details as HTMLDetailsElement );
+    });
+
+  }
+
+  __syncPreviewDetailsToggle = ( target: HTMLDetailsElement ) => {
+
+    this.__setSourceDetailsOpen ( target );
 
     this._anchorsCache = undefined;
     this.__scheduleAnchorsRebuild ();

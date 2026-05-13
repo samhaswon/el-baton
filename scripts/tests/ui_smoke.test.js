@@ -39,6 +39,7 @@ const wait = ms => new Promise(resolve => {
 const ariaToBool = value => value === 'true'
 const infoPaneScrollNoteFileName = '00 Info Pane Scroll Test.md'
 const formattingFixtureNoteFileName = '00 Formatting Shortcuts Test.md'
+const markdownPackageFixtureNoteFileName = '00 Markdown Package Paths Test.md'
 
 const rmrf = targetPath => {
   if (fs.existsSync(targetPath)) {
@@ -128,6 +129,100 @@ const writeFormattingFixtureNote = runtimePaths => {
   ].join('\n')
 
   const notePath = path.join(runtimePaths.workspacePath, 'notes', formattingFixtureNoteFileName)
+  fs.writeFileSync(notePath, content, 'utf8')
+}
+
+const writeMarkdownPackageFixtureNote = runtimePaths => {
+  const attachmentTextPath = path.join(runtimePaths.workspacePath, 'attachments', 'ui-fixture.txt')
+  const attachmentSvgPath = path.join(runtimePaths.workspacePath, 'attachments', 'ui-fixture.svg')
+  const workspaceConfigPath = path.join(runtimePaths.workspacePath, 'config.json')
+
+  fs.writeFileSync(attachmentTextPath, 'UI fixture attachment\n', 'utf8')
+  fs.writeFileSync(attachmentSvgPath, '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#2374ab"/></svg>\n', 'utf8')
+  fs.writeFileSync(workspaceConfigPath, JSON.stringify({
+    plantuml: {
+      requestTimeoutMs: 1000,
+      cacheMaxEntries: 20,
+      cacheMaxBytes: 1048576
+    }
+  }, null, 2) + '\n')
+
+  const content = [
+    '# Markdown Package Paths Test',
+    '',
+    '[[@toc]]',
+    '',
+    '## Duplicate Heading',
+    '',
+    'Paragraph with :rocket: emoji, a bare host link <example.com>, and escaped currency \\$5.',
+    '',
+    '## Duplicate Heading',
+    '',
+    '- [ ] unchecked task item',
+    '- [x] checked task item',
+    '',
+    '> quoted line',
+    '> continued quote',
+    '',
+    '| Left | Right |',
+    '| --- | --- |',
+    '| A | B |',
+    '',
+    'Inline math $E=mc^2$ and display math:',
+    '',
+    '$$',
+    '\\int_0^1 x^2 dx',
+    '$$',
+    '',
+    '```katex',
+    '\\frac{a}{b}',
+    '```',
+    '',
+    'AsciiMath inline &&sqrt(4)&& and fenced:',
+    '',
+    '```asciimath',
+    'sum_(i=1)^n i',
+    '```',
+    '',
+    '```js',
+    'const value = 42',
+    'console.log(value)',
+    '```',
+    '',
+    '```mermaid',
+    'flowchart TD',
+    '  A[Start] --> B{Ready?}',
+    '  B -->|yes| C[Done]',
+    '```',
+    '',
+    '```plantuml',
+    '@startuml',
+    'Alice -> Bob: hello',
+    '@enduml',
+    '```',
+    '',
+    '<details><summary>Closed details summary</summary>',
+    '',
+    'Hidden details text',
+    '',
+    '</details>',
+    '',
+    '<details open><summary>Open details summary</summary>',
+    '',
+    'Visible details text',
+    '',
+    '</details>',
+    '',
+    '![fixture svg](@attachment/ui-fixture.svg)',
+    '[Attachment link](@attachment/ui-fixture.txt)',
+    '[[Fixture wikilink|1 Test Note]]',
+    '[Tag Link](@tag/ui-test)',
+    '',
+    '<script>window.__uiSmokeUnsafeScriptRan = true</script>',
+    '<a id="unsafe-link-fixture" href="javascript:alert(1)" onclick="window.__uiSmokeUnsafeClick = true">Unsafe link</a>'
+  ].join('\n')
+
+  const notePath = path.join(runtimePaths.workspacePath, 'notes', markdownPackageFixtureNoteFileName)
   fs.writeFileSync(notePath, content, 'utf8')
 }
 
@@ -268,7 +363,7 @@ const ensureSidebarVisible = async page => {
   await page.waitForSelector('.activitybar', { timeout: 20000 })
 }
 
-const launchApp = async ({ runtimeId, theme = 'dark', withInfoPaneScrollNote = false, withFormattingFixtureNote = false, disableAutomaticRenaming = false }) => {
+const launchApp = async ({ runtimeId, theme = 'dark', withInfoPaneScrollNote = false, withFormattingFixtureNote = false, withMarkdownPackageFixtureNote = false, disableAutomaticRenaming = false }) => {
   const runtimePaths = createRuntimePaths(runtimeId)
 
   prepareRuntimePaths(runtimePaths)
@@ -283,6 +378,11 @@ const launchApp = async ({ runtimeId, theme = 'dark', withInfoPaneScrollNote = f
   if (withFormattingFixtureNote) {
     writeFormattingFixtureNote(runtimePaths)
     extraOpenTabs.push(path.join(runtimePaths.workspacePath, 'notes', formattingFixtureNoteFileName))
+  }
+
+  if (withMarkdownPackageFixtureNote) {
+    writeMarkdownPackageFixtureNote(runtimePaths)
+    extraOpenTabs.push(path.join(runtimePaths.workspacePath, 'notes', markdownPackageFixtureNoteFileName))
   }
 
   writeSettings({ theme, runtimePaths, extraOpenTabs, disableAutomaticRenaming })
@@ -746,6 +846,216 @@ test('ui: note interactions support local search, split view, and quick open', {
   await page.locator('.quick-panel input[placeholder="Open note or attachment..."]').fill('malformer')
   await wait(200)
   assert.ok(await page.locator('.quick-panel .list-item').count() > 0)
+})
+
+test('ui: preview renders markdown dependency and plugin paths', { timeout: 150000 }, async t => {
+  if (shouldSkipForMissingDisplay) {
+    t.skip('UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.')
+  }
+
+  ensurePrerequisites()
+  assertReleaseBundle()
+
+  const launched = await launchAppOrSkip(t, { runtimeId: 'markdown-package-paths', theme: 'dark', withMarkdownPackageFixtureNote: true })
+
+  if (!launched) return
+
+  const { electronApp, page, runtimePaths } = launched
+
+  t.after(async () => {
+    await electronApp.close()
+    rmrf(runtimePaths.runtimeBasePath)
+  })
+
+  await openExplorerNoteByTitle(page, 'Markdown Package Paths Test')
+  await page.waitForSelector('.mainbar-pane-main > .preview', { timeout: 30000 })
+  await page.waitForFunction(() => {
+    const heading = document.querySelector('.preview h1')
+    return heading && heading.textContent && heading.textContent.trim() === 'Markdown Package Paths Test'
+  }, undefined, { timeout: 30000 })
+  await page.waitForSelector('.preview .katex', { timeout: 30000 })
+  await page.waitForSelector('.preview .mermaid svg, .preview .mermaid-error', { timeout: 30000 })
+  await page.waitForSelector('.preview .plantuml svg, .preview .plantuml-error', { timeout: 30000 })
+
+  const previewState = await page.evaluate(() => {
+    const textOf = selector => Array.from(document.querySelectorAll(selector)).map(node => (node.textContent || '').trim())
+    const attrOf = (selector, attribute) => {
+      const node = document.querySelector(selector)
+      return node ? node.getAttribute(attribute) : null
+    }
+
+    const taskInputs = Array.from(document.querySelectorAll('.preview input[type="checkbox"]')).map(input => ({
+      checked: input.checked,
+      nth: input.getAttribute('data-nth')
+    }))
+
+    const closedDetails = Array.from(document.querySelectorAll('.preview details')).find(details => {
+      return (details.querySelector('summary')?.textContent || '').includes('Closed details summary')
+    })
+    const openDetails = Array.from(document.querySelectorAll('.preview details')).find(details => {
+      return (details.querySelector('summary')?.textContent || '').includes('Open details summary')
+    })
+
+    return {
+      headingIds: textOf('.preview h2').map((_text, index) => attrOf(`.preview h2:nth-of-type(${index + 1})`, 'id')).filter(Boolean),
+      tocTexts: textOf('.preview .macro-toc .toc-item'),
+      taskInputs,
+      hasBlockquote: document.querySelectorAll('.preview blockquote').length > 0,
+      tableCellTexts: textOf('.preview table td'),
+      katexCount: document.querySelectorAll('.preview .katex').length,
+      hasCopyButton: document.querySelectorAll('.preview .copy-wrapper .copy[title="Copy code to clipboard"]').length > 0,
+      hasHighlightedJavascript: document.querySelectorAll('.preview code.language-js .token, .preview code.language-javascript .token').length > 0,
+      mermaidRendered: !!document.querySelector('.preview .mermaid svg, .preview .mermaid-error'),
+      plantumlRendered: !!document.querySelector('.preview .plantuml svg, .preview .plantuml-error'),
+      closedDetailsOpen: closedDetails ? closedDetails.open : null,
+      openDetailsOpen: openDetails ? openDetails.open : null,
+      attachmentImageSrc: attrOf('.preview img.attachment[data-filename="ui-fixture.svg"]', 'src'),
+      attachmentLinkHref: attrOf('.preview a.attachment[data-filename="ui-fixture.txt"]', 'href'),
+      noteLinkPath: attrOf('.preview a.note', 'data-filepath'),
+      tagLink: attrOf('.preview a.tag', 'data-tag'),
+      unsafeScriptRan: window.__uiSmokeUnsafeScriptRan === true,
+      unsafeLinkHref: attrOf('#unsafe-link-fixture', 'href'),
+      unsafeLinkOnClick: attrOf('#unsafe-link-fixture', 'onclick'),
+      containsEscapedCurrency: (document.querySelector('.preview')?.textContent || '').includes('$5')
+    }
+  })
+
+  assert.deepEqual(previewState.headingIds, ['duplicate-heading', 'duplicate-heading-2'])
+  assert.deepEqual(previewState.tocTexts, ['Markdown Package Paths Test', 'Duplicate Heading', 'Duplicate Heading'])
+  assert.deepEqual(previewState.taskInputs, [
+    { checked: false, nth: '0' },
+    { checked: true, nth: '1' }
+  ])
+  assert.equal(previewState.hasBlockquote, true)
+  assert.deepEqual(previewState.tableCellTexts, ['A', 'B'])
+  assert.ok(previewState.katexCount >= 4, `Expected inline, display, fenced KaTeX, and AsciiMath to render through KaTeX. Count: ${previewState.katexCount}`)
+  assert.equal(previewState.hasCopyButton, true)
+  assert.equal(previewState.hasHighlightedJavascript, true)
+  assert.equal(previewState.mermaidRendered, true)
+  assert.equal(previewState.plantumlRendered, true)
+  assert.equal(previewState.closedDetailsOpen, false)
+  assert.equal(previewState.openDetailsOpen, true)
+  assert.ok((previewState.attachmentImageSrc || '').startsWith('file://'), `Expected attachment image to resolve to file URL, got ${previewState.attachmentImageSrc}`)
+  assert.ok((previewState.attachmentLinkHref || '').startsWith('file://'), `Expected attachment link to resolve to file URL, got ${previewState.attachmentLinkHref}`)
+  assert.ok((previewState.noteLinkPath || '').endsWith(path.join('notes', '1 Test Note.md')), `Expected wikilink to resolve to note path, got ${previewState.noteLinkPath}`)
+  assert.equal(previewState.tagLink, 'ui-test')
+  assert.equal(previewState.unsafeScriptRan, false)
+  assert.equal(previewState.unsafeLinkHref, null)
+  assert.equal(previewState.unsafeLinkOnClick, null)
+  assert.equal(previewState.containsEscapedCurrency, true)
+
+  await page.locator('.preview input[type="checkbox"][data-nth="0"]').click()
+
+  const fixturePath = path.join(runtimePaths.workspacePath, 'notes', markdownPackageFixtureNoteFileName)
+  const deadline = Date.now() + 10000
+  let source = ''
+
+  while (Date.now() < deadline) {
+    source = fs.readFileSync(fixturePath, 'utf8')
+    if (source.includes('- [x] unchecked task item')) break
+    await wait(120)
+  }
+
+  assert.ok(source.includes('- [x] unchecked task item'), `Expected clicking preview task checkbox to update source markdown.\nSource:\n${source}`)
+
+  const copyButton = page.locator('.preview .copy-wrapper .copy[title="Copy code to clipboard"]').first()
+  await copyButton.click()
+  const clipboardText = await electronApp.evaluate(({ clipboard }) => clipboard.readText())
+  assert.equal(clipboardText.trim(), 'const value = 42\nconsole.log(value)')
+
+  await emitIPC(page, 'quick-panel-toggle', true)
+  await page.waitForSelector('.quick-panel input[placeholder="Open note or attachment..."]', { timeout: 20000 })
+  await page.locator('.quick-panel input[placeholder="Open note or attachment..."]').fill('ui-fixture')
+  await wait(200)
+  assert.ok(await page.locator('.quick-panel .list-item', { hasText: 'ui-fixture.txt' }).count() > 0)
+  assert.ok(await page.locator('.quick-panel .list-item', { hasText: 'ui-fixture.svg' }).count() > 0)
+  await page.keyboard.press('Escape')
+  await page.locator('.quick-panel').waitFor({ state: 'hidden', timeout: 10000 })
+  await wait(120)
+
+  await page.locator('.preview a.note', { hasText: 'Fixture wikilink' }).first().click()
+  await page.waitForFunction(() => {
+    const activeTitle = document.querySelector('.note-tabs .note-tab.active .note-tab-title')
+    return activeTitle && activeTitle.textContent && activeTitle.textContent.trim() === '1 Test Note'
+  }, undefined, { timeout: 10000 })
+})
+
+test('ui: split preview details toggles update source details tags', { timeout: 150000 }, async t => {
+  if (shouldSkipForMissingDisplay) {
+    t.skip('UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.')
+  }
+
+  ensurePrerequisites()
+  assertReleaseBundle()
+
+  const launched = await launchAppOrSkip(t, { runtimeId: 'split-details-sync', theme: 'dark', withMarkdownPackageFixtureNote: true, disableAutomaticRenaming: true })
+
+  if (!launched) return
+
+  const { electronApp, page, runtimePaths } = launched
+
+  t.after(async () => {
+    await electronApp.close()
+    rmrf(runtimePaths.runtimeBasePath)
+  })
+
+  await openExplorerNoteByTitle(page, 'Markdown Package Paths Test')
+  await emitIPC(page, 'note-edit-toggle')
+  await page.waitForSelector('.mainbar-pane-main > .editor', { timeout: 20000 })
+  await emitIPC(page, 'editor-split-toggle')
+  await page.waitForSelector('.mainbar-pane-main > .split-editor', { timeout: 20000 })
+  await page.waitForSelector('.split-editor .preview details', { timeout: 30000 })
+
+  const readDetailsSource = () => {
+    const fixturePath = path.join(runtimePaths.workspacePath, 'notes', markdownPackageFixtureNoteFileName)
+    return fs.readFileSync(fixturePath, 'utf8')
+  }
+  const waitForDetailsSource = async (expectedSource, description, timeout = 10000) => {
+    const deadline = Date.now() + timeout
+    let source = ''
+
+    while (Date.now() < deadline) {
+      source = readDetailsSource()
+      if (source.includes(expectedSource)) return source
+      await wait(120)
+    }
+
+    throw new Error(`Timed out waiting for ${description}.\nSource:\n${source}`)
+  }
+
+  const closedSummary = page.locator('.split-editor .preview details summary', { hasText: 'Closed details summary' }).first()
+  await closedSummary.click()
+  await page.waitForFunction(() => {
+    const details = Array.from(document.querySelectorAll('.split-editor .preview details')).find(node => {
+      return (node.querySelector('summary')?.textContent || '').includes('Closed details summary')
+    })
+    return !!details && details.open
+  }, undefined, { timeout: 10000 })
+
+  await emitIPC(page, 'editor-split-toggle')
+  await page.waitForSelector('.mainbar-pane-main > .editor', { timeout: 20000 })
+
+  let source = await waitForDetailsSource('<details open><summary>Closed details summary</summary>', 'closed details source tag to gain open attribute')
+  assert.ok(source.includes('<details open><summary>Closed details summary</summary>'), `Expected opening preview details to add source open attribute.\nSource:\n${source}`)
+
+  await emitIPC(page, 'editor-split-toggle')
+  await page.waitForSelector('.mainbar-pane-main > .split-editor', { timeout: 20000 })
+  await page.waitForSelector('.split-editor .preview details', { timeout: 30000 })
+
+  const openSummary = page.locator('.split-editor .preview details summary', { hasText: 'Open details summary' }).first()
+  await openSummary.click()
+  await page.waitForFunction(() => {
+    const details = Array.from(document.querySelectorAll('.split-editor .preview details')).find(node => {
+      return (node.querySelector('summary')?.textContent || '').includes('Open details summary')
+    })
+    return !!details && !details.open
+  }, undefined, { timeout: 10000 })
+
+  await emitIPC(page, 'editor-split-toggle')
+  await page.waitForSelector('.mainbar-pane-main > .editor', { timeout: 20000 })
+
+  source = await waitForDetailsSource('<details><summary>Open details summary</summary>', 'open details source tag to lose open attribute')
+  assert.ok(source.includes('<details><summary>Open details summary</summary>'), `Expected closing preview details to remove source open attribute.\nSource:\n${source}`)
 })
 
 test('ui: editor formatting shortcuts and auto-pairing work for markdown edits', { timeout: 120000 }, async t => {
