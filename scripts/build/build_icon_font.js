@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-
 const fs = require ( 'fs' );
 const path = require ( 'path' );
 
@@ -15,12 +13,6 @@ const readConfig = () => {
 
   return JSON.parse ( content );
 
-};
-
-const ensureFile = filePath => {
-  if ( !fs.existsSync ( filePath ) ) {
-    throw new Error ( `Missing required file: ${path.relative ( rootPath, filePath )}` );
-  }
 };
 
 const build = async () => {

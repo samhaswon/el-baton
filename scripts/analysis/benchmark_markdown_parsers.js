@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-/* eslint-disable no-console */
-
 const {performance} = require('perf_hooks');
 const showdown = require('showdown');
 const cmark = require('cmark-gfm');

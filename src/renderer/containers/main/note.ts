@@ -411,7 +411,7 @@ class Note extends Container<NoteState, MainCTX> {
 
     const nextNote = _.cloneDeep ( note );
 
-    for ( let srcPath of filePaths ) {
+    for ( const srcPath of filePaths ) {
 
       let attachment = this.ctx.attachment.get ( srcPath );
 
@@ -502,7 +502,7 @@ class Note extends Container<NoteState, MainCTX> {
 
     let nextTags = note.metadata.tags;
 
-    for ( let tag of tags ) {
+    for ( const tag of tags ) {
 
       if ( note.metadata.tags.includes ( tag ) ) continue;
 
@@ -530,7 +530,7 @@ class Note extends Container<NoteState, MainCTX> {
 
     let nextTags = note.metadata.tags;
 
-    for ( let tag of tags ) {
+    for ( const tag of tags ) {
 
       nextTags = _.without ( nextTags, tag );
 

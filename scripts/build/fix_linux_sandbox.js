@@ -22,7 +22,7 @@ async function fixLinuxSandbox ( targets, cwd ) {
 
   const scriptPath = path.join ( cwd, 'el-baton' ),
         binaryPath = path.join ( cwd, 'el-baton.bin' ),
-        script = '#!/bin/bash\n"${BASH_SOURCE%/*}"/el-baton.bin "$@" --no-sandbox';
+        script = ['#!/bin/bash\n"', '$', '{BASH_SOURCE%/*}', '"/el-baton.bin "$@" --no-sandbox'].join ( '' );
 
   fs.renameSync ( scriptPath, binaryPath );
 

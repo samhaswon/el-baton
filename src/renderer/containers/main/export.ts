@@ -177,7 +177,7 @@ class Export extends Container<ExportState, MainCTX> {
 
       //TODO: Perhaps we should update the theme we are exporting to, as long as it's light, in order to not waste huge amounts of ink
 
-      let css = await this._getResources ([
+      const css = await this._getResources ([
         __non_webpack_require__.resolve ( 'katex/dist/katex.min.css' ), // Simply using `require` won't work with WebPack
         `${__static}/css/notable.css`
       ]);
@@ -238,7 +238,7 @@ class Export extends Container<ExportState, MainCTX> {
       if ( options.base64 ) { // Images
         const re = /<img([^>]*?)src="file:\/\/([^"]*)"/gi;
         const matches = this._stringMatches ( html, re );
-        for ( let match of matches ) {
+        for ( const match of matches ) {
           const type = mime.lookup ( match[2] );
           const base64 = await File.read ( match[2], 'base64' );
           if ( mime && base64 ) {
@@ -250,7 +250,7 @@ class Export extends Container<ExportState, MainCTX> {
       if ( options.base64 ) { // Fonts
         const re = /url\("?([^)]*?\.woff2[^)]*?)"?\)/gi;
         const matches = this._stringMatches ( html, re );
-        for ( let match of matches ) {
+        for ( const match of matches ) {
           const filePath = /katex/i.test ( match[1] ) ? __non_webpack_require__.resolve ( `katex/dist/${match[1]}` ): `${__static}/fonts/IconFont.woff2`; // Simply using `require` won't work with WebPack //UGLY
           const base64 = await File.read ( filePath, 'base64' );
           if ( base64 ) {

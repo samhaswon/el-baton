@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-
 const fs = require ( 'fs' );
 const path = require ( 'path' );
 const {spawnSync} = require ( 'child_process' );
@@ -160,7 +158,9 @@ const writeSettings = ({ theme, panel = 'explorer' }) => {
   fs.writeFileSync ( settingsPath, JSON.stringify ( settings, null, 2 ) + '\n' );
 };
 
-const wait = ms => new Promise ( resolve => setTimeout ( resolve, ms ) );
+const wait = ms => new Promise ( resolve => {
+  setTimeout ( resolve, ms );
+});
 
 const ensurePrerequisites = () => {
   if ( !fs.existsSync ( appMainPath ) ) {

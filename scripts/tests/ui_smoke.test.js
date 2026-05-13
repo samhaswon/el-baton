@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-
 const fs = require ( 'fs' );
 const path = require ( 'path' );
 const assert = require ( 'node:assert/strict' );
@@ -33,7 +31,9 @@ const noteFileNames = [
   'Malformer Packed.md'
 ];
 
-const wait = ms => new Promise ( resolve => setTimeout ( resolve, ms ) );
+const wait = ms => new Promise ( resolve => {
+  setTimeout ( resolve, ms );
+});
 const ariaToBool = value => value === 'true';
 const infoPaneScrollNoteFileName = '00 Info Pane Scroll Test.md';
 const formattingFixtureNoteFileName = '00 Formatting Shortcuts Test.md';

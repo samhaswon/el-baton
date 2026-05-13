@@ -1084,7 +1084,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
           shouldUseLinear = shouldUseFastPath || ( this._isPreviewPartial && !shouldUsePartialWindow ) || this._isPreviewRendering,
           anchors = shouldUseLinear ? undefined : this.__getAnchors ( source, preview );
 
-    let nextScrollTop = shouldUsePartialWindow
+    const nextScrollTop = shouldUsePartialWindow
       ? this.__mapSourceToPartialPreview ( source.sourceUnits, preview.maxScrollTop, this._currentPartialWindow! )
       : shouldUseLinear
       ? this.__mapSourceToPreviewLinear ( source, preview )

@@ -601,7 +601,7 @@ const Markdown = {
             if ( Markdown.extensions.utilities.isInsideAnchor ( content, index ) ) return match; // In order to better support encoded emails
             const asciimath = $1 || $2 || $3;
             try {
-              let tex = AsciiMath.toTeX ( decode ( asciimath ) );
+              const tex = AsciiMath.toTeX ( decode ( asciimath ) );
               return `$$${tex}$$`;
             } catch ( e ) {
               console.error ( `[asciimath] ${e.message}` );
