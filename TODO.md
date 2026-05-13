@@ -243,11 +243,12 @@
     - possibly with an upper bound or most recently opened constraint.
     - Should be done asynchronously at app startup in such a way as to not block app loading. 
     - Markov chain?
-- [ ] Scrolling issues:
-    - [ ] Scrolling a video element from the preview causes the source to ghost in a temporary position.
+- [X] Scrolling issues:
+    - [X] Scrolling a video element from the preview causes the source to ghost in a temporary position.
         - Test note: global Matthew 7 notes
         - Probably just need to account for the height of the video.
-    - [ ] Closed details tags scroll as if they're open, which can cause the preview to jump to the end quickly.
+    - [X] Closed details tags scroll as if they're open, which can cause the preview to jump to the end quickly.
+    - [X] Quote blocks break alignment
 - [X] When typing a path, folders and files should be suggested that exist from what has already been typed.
 - [X] Paths to files should support spaces in filenames.
 - [X] Disabling middle-click paste should enable middle-click to make multiple cursors for selection.

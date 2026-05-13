@@ -12,6 +12,7 @@ import Preview from './preview';
 type ScrollAnchorKind = 'heading' | 'p' | 'li' | 'blockquote' | 'table' | 'pre' | 'pre-end' | 'hr' | 'details' | 'summary' | 'details-end' | 'media' | 'media-end';
 type SourceAnchor = { line: number, kind: ScrollAnchorKind, key?: string };
 type PreviewAnchor = { top: number, kind: ScrollAnchorKind, key?: string };
+type SourceLineMap = { content: string, actualToVisible: number[], visibleToActual: Array<{ visible: number, actual: number }>, visibleMaxUnits: number };
 
 /* SPLIT EDITOR */
 
@@ -26,6 +27,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
   _previewToggleNode: HTMLDivElement | null = null;
   _sourceAnchorCacheContent?: string;
   _sourceAnchorCache: SourceAnchor[] = [];
+  _sourceLineMapCache?: SourceLineMap;
   _anchorPairs: { source: number, preview: number }[] = [];
   _anchorsCache?: { sourceMaxUnits: number, previewMaxScrollTop: number, anchors: { source: number, preview: number }[] };
   _pendingRenderMeta: { kind?: string, sourceSnapshot?: { sourceUnits: number, sourceMaxUnits: number }, partialWindow?: { startLine: number, endLine: number, totalLines: number } } | undefined;
@@ -38,7 +40,6 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
   _lastPreviewScrollTop = NaN;
   _lastSourceSyncAt = 0;
   _lastPreviewSyncAt = 0;
-  _lastSourceScrollEvent?: { scrollTop: number, scrollHeight: number };
   _sourceViewportHeight = 0;
   _blockSourceMouseMoveUntil = 0;
 
@@ -103,8 +104,11 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
           lineTop = monaco.getTopForLineNumber ( firstVisibleLine ),
           nextLineTop = monaco.getTopForLineNumber ( Math.min ( lineCount, firstVisibleLine + 1 ) ),
           lineHeight = Math.max ( 1, nextLineTop - lineTop || 20 ),
-          sourceMaxUnits = Math.max ( 1, lineCount - 1 ),
-          sourceUnits = _.clamp ( ( firstVisibleLine - 1 ) + ( ( scrollTop - lineTop ) / lineHeight ), 0, sourceMaxUnits ),
+          lineMap = this.__getSourceLineMap (),
+          actualMaxUnits = Math.max ( 1, lineCount - 1 ),
+          actualUnits = _.clamp ( ( firstVisibleLine - 1 ) + ( ( scrollTop - lineTop ) / lineHeight ), 0, actualMaxUnits ),
+          sourceMaxUnits = lineMap.visibleMaxUnits,
+          sourceUnits = _.clamp ( this.__mapActualToVisibleSourceUnits ( actualUnits, lineMap ), 0, sourceMaxUnits ),
           viewportHeight = layoutInfo ? layoutInfo.height : 0,
           maxScrollTop = Math.max ( 0, scrollHeight - viewportHeight );
 
@@ -112,42 +116,132 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       this._sourceViewportHeight = viewportHeight;
     }
 
-    return { monaco, scrollTop, maxScrollTop, viewportHeight, lineCount, lineHeight, sourceUnits, sourceMaxUnits };
-
-  }
-
-  __getSourceFastMetrics = () => {
-
-    const monaco = this.props.getMonaco (),
-          scrollEvent = this._lastSourceScrollEvent;
-
-    if ( !monaco || !scrollEvent ) return;
-
-    const model = monaco.getModel (),
-          lineCount = model ? model.getLineCount () : 1,
-          sourceMaxUnits = Math.max ( 1, lineCount - 1 ),
-          viewportHeight = this._sourceViewportHeight,
-          maxScrollTop = Math.max ( 0, scrollEvent.scrollHeight - viewportHeight ),
-          sourceUnits = this.__toRatio ( scrollEvent.scrollTop, maxScrollTop ) * sourceMaxUnits;
-
-    if ( !viewportHeight ) return;
-
-    return {
-      monaco,
-      scrollTop: scrollEvent.scrollTop,
-      maxScrollTop,
-      viewportHeight,
-      lineCount,
-      lineHeight: 0,
-      sourceUnits,
-      sourceMaxUnits
-    };
+    return { monaco, scrollTop, maxScrollTop, viewportHeight, lineCount, lineHeight, sourceUnits, sourceMaxUnits, actualMaxUnits, actualUnits, lineMap };
 
   }
 
   __getCurrentContent = () => {
 
     return _.isString ( this.state.content ) ? this.state.content : this.props.content;
+
+  }
+
+  __getSourceLineMap = (): SourceLineMap => {
+
+    const content = this.__getCurrentContent ();
+
+    if ( this._sourceLineMapCache?.content === content ) return this._sourceLineMapCache;
+
+    const lines = content.split ( '\n' ),
+          actualToVisible = new Array<number> ( lines.length + 1 ),
+          visibleToActual: Array<{ visible: number, actual: number }> = [];
+
+    let inFence = false,
+        closedDetailsDepth = 0,
+        visibleUnits = 0;
+    const detailsStack: boolean[] = [];
+
+    for ( let index = 0, l = lines.length; index < l; index++ ) {
+
+      const line = lines[index],
+            lineNumber = index + 1;
+
+      if ( /^\s{0,3}(?:```+|~~~+)/.test ( line ) ) {
+        actualToVisible[lineNumber] = visibleUnits;
+        visibleToActual.push ({ visible: visibleUnits, actual: lineNumber - 1 });
+        visibleUnits++;
+        inFence = !inFence;
+        continue;
+      }
+
+      if ( inFence ) {
+        actualToVisible[lineNumber] = visibleUnits;
+        visibleToActual.push ({ visible: visibleUnits, actual: lineNumber - 1 });
+        visibleUnits++;
+        continue;
+      }
+
+      const detailsTags = line.match ( /<\/?details\b[^>]*>/gi ) || [],
+            startsHidden = closedDetailsDepth > 0;
+
+      let closesHiddenDetails = false;
+
+      for ( let detailsIndex = 0, detailsLength = detailsTags.length; detailsIndex < detailsLength; detailsIndex++ ) {
+        const tag = detailsTags[detailsIndex];
+
+        if ( /^<\s*\/details\b/i.test ( tag ) ) {
+          const wasOpen = detailsStack.pop ();
+          if ( wasOpen === false ) {
+            closedDetailsDepth = Math.max ( 0, closedDetailsDepth - 1 );
+            closesHiddenDetails = true;
+          }
+          continue;
+        }
+
+        const isOpen = this.__isDetailsTagOpen ( tag );
+        detailsStack.push ( isOpen );
+        if ( !isOpen ) closedDetailsDepth++;
+      }
+
+      const isSummaryLine = /<summary\b/i.test ( line ),
+            isDetailsLine = /<\/?details\b/i.test ( line ),
+            isVisible = !startsHidden || isSummaryLine || ( isDetailsLine && !closesHiddenDetails );
+
+      if ( isVisible ) {
+        actualToVisible[lineNumber] = visibleUnits;
+        visibleToActual.push ({ visible: visibleUnits, actual: lineNumber - 1 });
+        visibleUnits++;
+      } else {
+        actualToVisible[lineNumber] = Math.max ( 0, visibleUnits - 1 );
+      }
+
+    }
+
+    const visibleMaxUnits = Math.max ( 1, visibleUnits - 1 ),
+          lineMap = { content, actualToVisible, visibleToActual, visibleMaxUnits };
+
+    this._sourceLineMapCache = lineMap;
+
+    return lineMap;
+
+  }
+
+  __mapActualToVisibleSourceUnits = ( actualUnits: number, lineMap: SourceLineMap ) => {
+
+    const actualLine = Math.floor ( actualUnits ) + 1,
+          fraction = actualUnits - Math.floor ( actualUnits ),
+          current = lineMap.actualToVisible[actualLine] ?? lineMap.visibleMaxUnits,
+          next = lineMap.actualToVisible[actualLine + 1] ?? current;
+
+    if ( next === current && fraction > 0 ) {
+      return current + Math.min ( 0.92, fraction );
+    }
+
+    return current + ( ( next - current ) * fraction );
+
+  }
+
+  __mapVisibleToActualSourceUnits = ( visibleUnits: number, lineMap: SourceLineMap ) => {
+
+    const entries = lineMap.visibleToActual;
+
+    if ( !entries.length ) return visibleUnits;
+
+    if ( visibleUnits <= entries[0].visible ) return entries[0].actual;
+
+    for ( let index = 1, l = entries.length; index < l; index++ ) {
+      const left = entries[index - 1],
+            right = entries[index];
+
+      if ( visibleUnits > right.visible ) continue;
+
+      const span = right.visible - left.visible || 1,
+            ratio = _.clamp ( ( visibleUnits - left.visible ) / span, 0, 1 );
+
+      return left.actual + ( ( right.actual - left.actual ) * ratio );
+    }
+
+    return entries[entries.length - 1].actual;
 
   }
 
@@ -163,12 +257,14 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     let inFence = false,
         inParagraph = false,
         inTable = false,
+        inBlockquote = false,
         closedDetailsDepth = 0,
         fenceKind: 'pre' | 'media' | undefined = undefined,
         fenceMediaKey: string | undefined = undefined,
-        mediaSequence = 0;
+        mediaSequence = 0,
+        detailsSequence = 0;
 
-    const detailsStack: boolean[] = [],
+    const detailsStack: Array<{ isOpen: boolean, isVisible: boolean, line: number, lastVisibleLine: number, key: string }> = [],
           htmlMediaStack: { type: string, key: string }[] = [],
           anchoredLines = new Set<string> ();
 
@@ -190,12 +286,14 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       if ( !trimmed ) {
         inParagraph = false;
         inTable = false;
+        inBlockquote = false;
         continue;
       }
 
       if ( closedDetailsDepth > 0 && !/<\/?details\b/i.test ( line ) && !/<summary\b/i.test ( line ) ) {
         inParagraph = false;
         inTable = false;
+        inBlockquote = false;
         continue;
       }
 
@@ -225,6 +323,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         inFence = !inFence;
         inParagraph = false;
         inTable = false;
+        inBlockquote = false;
         continue;
       }
 
@@ -237,36 +336,49 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         const tag = detailsTags[detailsIndex];
 
         if ( /^<\s*\/details\b/i.test ( tag ) ) {
-          const wasOpen = detailsStack.pop ();
-          if ( wasOpen === false ) {
+          const details = detailsStack.pop ();
+          if ( details && !details.isOpen ) {
             closedDetailsDepth = Math.max ( 0, closedDetailsDepth - 1 );
           }
-          pushAnchor ( lineNumber, 'details-end' );
+          if ( details?.isVisible ) {
+            pushAnchor ( details && !details.isOpen ? Math.min ( lines.length, details.lastVisibleLine + 0.92 ) : lineNumber, 'details-end', details.key );
+          }
           continue;
         }
 
-        const isOpen = this.__isDetailsTagOpen ( tag );
-        detailsStack.push ( isOpen );
+        const isOpen = this.__isDetailsTagOpen ( tag ),
+              isVisible = closedDetailsDepth === 0,
+              key = `d:${++detailsSequence}`;
+
+        detailsStack.push ({ isOpen, isVisible, line: lineNumber, lastVisibleLine: lineNumber, key });
         if ( !isOpen ) {
           closedDetailsDepth++;
         }
-        pushAnchor ( lineNumber, 'details' );
+        if ( isVisible ) {
+          pushAnchor ( lineNumber, 'details', key );
+        }
 
       }
 
       if ( /<summary\b/i.test ( line ) ) {
-        pushAnchor ( lineNumber, 'summary' );
+        const details = detailsStack[detailsStack.length - 1];
+        if ( details && !details.isOpen ) details.lastVisibleLine = lineNumber;
+        if ( details?.isVisible ) {
+          pushAnchor ( lineNumber, 'summary', details.key );
+        }
       }
 
       if ( /<\/?details\b/i.test ( line ) || /<summary\b/i.test ( line ) ) {
         inParagraph = false;
         inTable = false;
+        inBlockquote = false;
         continue;
       }
 
       if ( closedDetailsDepth > 0 ) {
         inParagraph = false;
         inTable = false;
+        inBlockquote = false;
         continue;
       }
 
@@ -278,6 +390,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         pushAnchor ( Math.min ( lines.length, lineNumber + 0.92 ), 'media-end', mediaKey );
         inParagraph = false;
         inTable = false;
+        inBlockquote = false;
         continue;
       }
 
@@ -333,6 +446,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       if ( consumedByMedia ) {
         inParagraph = false;
         inTable = false;
+        inBlockquote = false;
         continue;
       }
 
@@ -343,12 +457,14 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         pushAnchor ( lineNumber, 'p' );
         inParagraph = !hasClosingParagraphTag;
         inTable = false;
+        inBlockquote = false;
         continue;
       }
 
       if ( hasClosingParagraphTag ) {
         inParagraph = false;
         inTable = false;
+        inBlockquote = false;
         continue;
       }
 
@@ -364,6 +480,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         pushAnchor ( lineNumber, 'heading', key );
         inParagraph = false;
         inTable = false;
+        inBlockquote = false;
         continue;
       }
 
@@ -371,6 +488,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         pushAnchor ( lineNumber, 'hr' );
         inParagraph = false;
         inTable = false;
+        inBlockquote = false;
         continue;
       }
 
@@ -380,6 +498,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         }
         inParagraph = false;
         inTable = true;
+        inBlockquote = false;
         continue;
       } else {
         inTable = false;
@@ -388,12 +507,16 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       if ( /^\s{0,3}(?:[-*+]|\d+[.)])\s+/.test ( line ) ) {
         pushAnchor ( lineNumber, 'li' );
         inParagraph = false;
+        inBlockquote = false;
         continue;
       }
 
       if ( /^\s{0,3}>\s?/.test ( line ) ) {
-        pushAnchor ( lineNumber, 'blockquote' );
+        if ( !inBlockquote ) {
+          pushAnchor ( lineNumber, 'blockquote' );
+        }
         inParagraph = false;
+        inBlockquote = true;
         continue;
       }
 
@@ -401,6 +524,8 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         pushAnchor ( lineNumber, 'p' );
         inParagraph = true;
       }
+
+      inBlockquote = false;
 
     }
 
@@ -417,6 +542,133 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
           attributes = match ? match[1] : '';
 
     return /(?:^|\s)open(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?(?=\s|$)/i.test ( attributes );
+
+  }
+
+  __setDetailsTagOpen = ( detailsTag: string, isOpen: boolean ) => {
+
+    const match = detailsTag.match ( /^<details\b([^>]*)>/i ),
+          attributes = match ? match[1] : '';
+
+    if ( !match ) return detailsTag;
+
+    const hasOpen = this.__isDetailsTagOpen ( detailsTag );
+
+    if ( hasOpen === isOpen ) return detailsTag;
+
+    if ( isOpen ) {
+      return `<details${attributes} open>`;
+    }
+
+    const attributesNext = attributes
+      .replace ( /\s+open(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?(?=\s|$)/i, '' )
+      .replace ( /\s+$/g, '' );
+
+    return `<details${attributesNext}>`;
+
+  }
+
+  __findSourceDetailsOpening = ( detailsIndex: number ) => {
+
+    const content = this.__getCurrentContent (),
+          lines = content.split ( '\n' );
+
+    let currentDetailsIndex = 0,
+        inFence = false,
+        closedDetailsDepth = 0;
+    const detailsStack: boolean[] = [];
+
+    for ( let index = 0, l = lines.length; index < l; index++ ) {
+
+      const line = lines[index];
+
+      if ( /^\s{0,3}(?:```+|~~~+)/.test ( line ) ) {
+        inFence = !inFence;
+        continue;
+      }
+
+      if ( inFence ) continue;
+
+      const re = /<\/?details\b[^>]*>/ig;
+      let match;
+
+      while ( match = re.exec ( line ) ) {
+        const tag = match[0];
+
+        if ( /^<\s*\/details\b/i.test ( tag ) ) {
+          const wasOpen = detailsStack.pop ();
+          if ( wasOpen === false ) {
+            closedDetailsDepth = Math.max ( 0, closedDetailsDepth - 1 );
+          }
+          continue;
+        }
+
+        const isVisible = closedDetailsDepth === 0,
+              isOpen = this.__isDetailsTagOpen ( tag );
+
+        detailsStack.push ( isOpen );
+
+        if ( isVisible ) {
+          if ( currentDetailsIndex === detailsIndex ) {
+            return {
+              lineNumber: index + 1,
+              tagStart: match.index,
+              tagEnd: match.index + match[0].length,
+              tag
+            };
+          }
+
+          currentDetailsIndex++;
+        }
+
+        if ( !isOpen ) closedDetailsDepth++;
+      }
+
+    }
+
+  }
+
+  __setSourceDetailsOpen = ( target: HTMLDetailsElement ) => {
+
+    const preview = this._previewRef.current,
+          monaco = this.props.getMonaco ();
+
+    if ( !preview || !monaco ) return;
+
+    const detailsNodes = ( Array.from ( preview.querySelectorAll ( '.preview-content details' ) ) as HTMLDetailsElement[] )
+            .filter ( node => this.__isPreviewAnchorNodeVisible ( node ) ),
+          detailsIndex = detailsNodes.indexOf ( target );
+
+    if ( detailsIndex < 0 ) return;
+
+    const sourceDetails = this.__findSourceDetailsOpening ( detailsIndex );
+
+    if ( !sourceDetails ) return;
+
+    const tagNext = this.__setDetailsTagOpen ( sourceDetails.tag, target.open );
+
+    if ( tagNext === sourceDetails.tag ) return;
+
+    const model = monaco.getModel ();
+
+    if ( !model ) return;
+
+    const line = model.getLineContent ( sourceDetails.lineNumber ),
+          lineNext = `${line.slice ( 0, sourceDetails.tagStart )}${tagNext}${line.slice ( sourceDetails.tagEnd )}`;
+
+    this._sourceAnchorCacheContent = undefined;
+    this._anchorsCache = undefined;
+
+    monaco.executeEdits ( 'details-toggle', [{
+      range: {
+        startLineNumber: sourceDetails.lineNumber,
+        startColumn: 1,
+        endLineNumber: sourceDetails.lineNumber,
+        endColumn: line.length + 1
+      },
+      text: lineNext,
+      forceMoveMarkers: false
+    }] );
 
   }
 
@@ -612,7 +864,9 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
           previewContentNode = ( preview.node.querySelector ( '.preview-content' ) as HTMLElement | null ) || preview.node;
 
     const previewHeadingOccurrences: Record<string, number> = {};
-    let previewMediaSequence = 0;
+    const previewDetailsKeys = new WeakMap<HTMLElement, string> ();
+    let previewMediaSequence = 0,
+        previewDetailsSequence = 0;
 
     for ( let index = 0, l = blockNodes.length; index < l; index++ ) {
 
@@ -622,6 +876,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
       if ( !this.__isPreviewAnchorNodeVisible ( node ) ) continue;
       if ( ( tag === 'img' || tag === 'iframe' || tag === 'video' || tag === 'figure' ) && node.closest ( '.mermaid, .plantuml' ) ) continue;
+      if ( tag !== 'blockquote' && node.closest ( 'blockquote' ) ) continue;
 
       const isDiagramBlock = node.classList.contains ( 'mermaid' ) || node.classList.contains ( 'plantuml' ),
             isMediaBlock = isDiagramBlock || tag === 'img' || tag === 'iframe' || tag === 'video' || tag === 'figure';
@@ -658,11 +913,15 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       } else if ( tag === 'hr' ) {
         previewAnchors.push ({ top, kind: 'hr' });
       } else if ( tag === 'details' ) {
-        const endTop = top + Math.max ( 0, node.offsetHeight - 1 );
-        previewAnchors.push ({ top, kind: 'details' });
-        previewAnchors.push ({ top: endTop, kind: 'details-end' });
+        const key = `d:${++previewDetailsSequence}`,
+              endTop = top + Math.max ( 0, node.offsetHeight - 1 );
+        previewDetailsKeys.set ( node, key );
+        previewAnchors.push ({ top, kind: 'details', key });
+        previewAnchors.push ({ top: endTop, kind: 'details-end', key });
       } else if ( tag === 'summary' ) {
-        previewAnchors.push ({ top, kind: 'summary' });
+        const details = node.closest ( 'details' ) as HTMLElement | null,
+              key = details ? previewDetailsKeys.get ( details ) : undefined;
+        previewAnchors.push ({ top, kind: 'summary', key });
       } else {
         previewAnchors.push ({ top, kind: 'p' });
       }
@@ -710,7 +969,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       usedPreview.add ( previewIndex );
       usedSource.add ( index );
       anchors.push ({
-        source: sourceAnchor.line - 1,
+        source: this.__mapActualToVisibleSourceUnits ( sourceAnchor.line - 1, source.lineMap ),
         preview: previewTop
       });
     }
@@ -732,7 +991,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
       if ( this.__isAnchorTypeCompatible ( sourceItem.anchor.kind, previewItem.anchor.kind ) ) {
         anchors.push ({
-          source: sourceItem.anchor.line - 1,
+          source: this.__mapActualToVisibleSourceUnits ( sourceItem.anchor.line - 1, source.lineMap ),
           preview: previewItem.anchor.top
         });
         sourceIndex++;
@@ -769,7 +1028,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       }
 
       anchors.push ({
-        source: sourceItem.anchor.line - 1,
+        source: this.__mapActualToVisibleSourceUnits ( sourceItem.anchor.line - 1, source.lineMap ),
         preview: previewItem.anchor.top
       });
       sourceIndex++;
@@ -814,9 +1073,20 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     if ( !target || target.tagName.toLowerCase () !== 'details' ) return;
 
+    this.__setSourceDetailsOpen ( target as HTMLDetailsElement );
+
     this._anchorsCache = undefined;
     this.__scheduleAnchorsRebuild ();
-    this.__scheduleSourceSync ();
+    window.requestAnimationFrame ( () => {
+      this._anchorsCache = undefined;
+      this.__scheduleAnchorsRebuild ();
+      this.__scheduleSourceSync ();
+    });
+    window.setTimeout ( () => {
+      this._anchorsCache = undefined;
+      this.__scheduleAnchorsRebuild ();
+      this.__scheduleSourceSync ();
+    }, 80 );
 
   }
 
@@ -824,6 +1094,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     this._anchorsCache = undefined;
     this.__scheduleAnchorsRebuild ();
+    this.__scheduleSourceSync ();
 
   }
 
@@ -1069,7 +1340,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     if ( !force && now < this._ignoreSourceScrollUntil ) return;
 
-    const source = force ? this.__getSourceMetrics () : ( this.__getSourceFastMetrics () || this.__getSourceMetrics () ),
+    const source = this.__getSourceMetrics (),
           preview = this.__getPreviewMetrics ();
 
     if ( !source || !preview ) return;
@@ -1079,9 +1350,8 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     // While typing, keep preview steady unless the editor scrollbar actually moved.
     if ( !force && source.monaco.hasTextFocus () && sourceScrollDelta < 1 ) return;
 
-    const shouldUseFastPath = !force && !!this._lastSourceScrollEvent,
-          shouldUsePartialWindow = !!( this._isPreviewPartial && this._currentPartialWindow ),
-          shouldUseLinear = shouldUseFastPath || ( this._isPreviewPartial && !shouldUsePartialWindow ) || this._isPreviewRendering,
+    const shouldUsePartialWindow = !!( this._isPreviewPartial && this._currentPartialWindow ),
+          shouldUseLinear = ( this._isPreviewPartial && !shouldUsePartialWindow ) || this._isPreviewRendering,
           anchors = shouldUseLinear ? undefined : this.__getAnchors ( source, preview );
 
     const nextScrollTop = shouldUsePartialWindow
@@ -1131,9 +1401,9 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       ? this.__mapPreviewToSourceLinear ( source, preview )
       : this.__mapPreviewToSource ( source, preview, anchors );
 
-    const
-          nextLine = _.clamp ( 1 + Math.floor ( targetUnits ), 1, source.lineCount ),
-          lineOffsetUnits = targetUnits - ( nextLine - 1 ),
+    const actualTargetUnits = this.__mapVisibleToActualSourceUnits ( targetUnits, source.lineMap ),
+          nextLine = _.clamp ( 1 + Math.floor ( actualTargetUnits ), 1, source.lineCount ),
+          lineOffsetUnits = actualTargetUnits - ( nextLine - 1 ),
           nextScrollTop = _.clamp ( source.monaco.getTopForLineNumber ( nextLine ) + ( lineOffsetUnits * source.lineHeight ), 0, source.maxScrollTop );
 
     this._lastPreviewScrollTop = preview.scrollTop;
@@ -1163,11 +1433,6 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     event.preventDefault ();
     this._blockSourceMouseMoveUntil = Date.now () + 140;
-
-    this._lastSourceScrollEvent = {
-      scrollTop: nextScrollTop,
-      scrollHeight: source.maxScrollTop + source.viewportHeight
-    };
 
     source.monaco.setScrollTop ( nextScrollTop );
 
@@ -1207,14 +1472,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
   }
 
-  __handleSourceScroll = ( event?: { scrollTop?: number, scrollHeight?: number } ) => {
-
-    if ( _.isNumber ( event?.scrollTop ) && _.isNumber ( event?.scrollHeight ) ) {
-      this._lastSourceScrollEvent = {
-        scrollTop: event!.scrollTop!,
-        scrollHeight: event!.scrollHeight!
-      };
-    }
+  __handleSourceScroll = () => {
 
     this.__scheduleSourceSync ();
 
