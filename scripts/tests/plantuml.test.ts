@@ -72,3 +72,19 @@ test ( 'plantuml remote URL builder: replaces sample payload when URL already po
   assert.equal ( url, 'https://plantuml.example.com/plantuml/svg/ENCODED' );
 
 } );
+
+test ( 'plantuml remote render URL builder: appends /svg when missing', () => {
+
+  const url = PlantUML.buildRemoteRenderUrl ( 'https://plantuml.example.com/plantuml' );
+
+  assert.equal ( url, 'https://plantuml.example.com/plantuml/svg' );
+
+} );
+
+test ( 'plantuml remote render URL builder: keeps /svg endpoint without payload', () => {
+
+  const url = PlantUML.buildRemoteRenderUrl ( 'https://plantuml.example.com/plantuml/svg/SyfFKj2rKt3CoKnELR1Io4ZDoSa70000' );
+
+  assert.equal ( url, 'https://plantuml.example.com/plantuml/svg' );
+
+} );

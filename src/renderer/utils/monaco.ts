@@ -25,6 +25,7 @@ const Monaco = {
 
   editorOptions: {
     accessibilitySupport: 'off',
+    codeLens: false,
     colorDecorators: false,
     contextmenu: false,
     copyWithSyntaxHighlighting: false,
@@ -64,6 +65,7 @@ const Monaco = {
     },
     scrollBeyondLastColumn: 0,
     scrollBeyondLastLine: true,
+    smoothScrolling: false,
     snippetSuggestions: 'none',
     stickyScroll: {
       enabled: false,

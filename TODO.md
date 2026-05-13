@@ -252,13 +252,26 @@
 - [X] Paths to files should support spaces in filenames.
 - [X] Disabling middle-click paste should enable middle-click to make multiple cursors for selection.
     - If a user clicks in a position with the middle mouse button and drags down, another cursor should be created there that follows the original horizontally.
-- [ ] Some emojis aren't replaced correctly.
+- [X] Some emojis aren't replaced correctly.
     - E.g., :mermaid: does not become 🧜‍♀️ as shown in the dialogue boxes.
     - Emojis also don't render if they don't start the line.
 - [ ] Dictate button (microphone icon)
     - Web Speech API?
     - Wherever the cursor is placed, emit the dictation output there.
     - Long pauses (configurable) should ideally skip to a new output line (down 2 source lines)
+- [X] Allow note tabs to be reordered.
+    - Click and drag to a new position
+- [X] When a new note is created, including with the shortcut and menu item:
+    - it does not consistently appear in a tab
+    - Tags are not consistently applied to that note, sometimes a copy of that note.
+- [X] Mermaid errors still sometimes overflow
+    - The expected error is still inline, but the error popup thing still appears below the UI
+- [X] Replace enex-dump with https://github.com/notable/dumper
+    - Test the old version, replicate behavior on the new.
+- [ ] KaTeX: 
+    - Disable spell check in code blocks and math blocks and inline math
+    - Autofill within math blocks and inline math with the addition of all supported KaTeX functions
+    - Disable underscore auto completion in math blocks and inline math
 
 ## Mobile App
 
@@ -270,7 +283,7 @@
 
 - [ ] Implement a presentation mode similar to whatever Pandoc has.
     - https://pandoc.org/MANUAL.html#slide-shows
-- [ ] (V)LLM integration
+- [ ] VLM/LLM integration
 - [ ] Replace as much rendering logic as possible and sensible with native code.
 - [ ] Custom CSS/JS
 - [ ] Plugins
@@ -287,3 +300,4 @@
     - https://github.com/electron/electron/issues/49244
 - [X] Move to built-in `node:sqlite` when the project can be upgraded to a later ~~node~~ Electron version.
     - There appears to be a disconnect between the project and Electron node versions.
+- [ ] Re-enable `VALIDATE_TYPESCRIPT_STANDARD` in CI linting

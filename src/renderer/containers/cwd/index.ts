@@ -71,9 +71,9 @@ class CWD extends Container<CWDState, CWDCTX> {
 
   }
 
-  select = () => {
+  select = async () => {
 
-    const folderPath = this.dialog ();
+    const folderPath = await this.dialog ();
 
     if ( !folderPath ) return;
 
@@ -103,21 +103,21 @@ class CWD extends Container<CWDState, CWDCTX> {
 
   }
 
-  dialog = (): string | undefined => {
+  dialog = async (): Promise<string | undefined> => {
 
     const cwd = Config.cwd,
           defaultPath = cwd ? path.dirname ( cwd ) : os.homedir ();
 
-    const folderPaths = remote.dialog.showOpenDialogSync ({
+    const {canceled, filePaths} = await remote.dialog.showOpenDialog ({
       title: 'Select Data Directory',
       buttonLabel: 'Select',
       properties: ['openDirectory', 'createDirectory', 'showHiddenFiles'],
       defaultPath
     });
 
-    if ( !folderPaths || !folderPaths.length ) return;
+    if ( canceled || !filePaths.length ) return;
 
-    return folderPaths[0];
+    return filePaths[0];
 
   }
 

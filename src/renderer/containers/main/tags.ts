@@ -145,7 +145,7 @@ class Tags extends Container<TagsState, MainCTX> {
 
   refresh = () => {
 
-    let tags: TagsObj = {};
+    const tags: TagsObj = {};
 
     tags[ALL] = { icon: 'note', collapsed: this.ctx.tag.isCollapsed ( ALL ), path: ALL, name: TagSpecialsNames.ALL, notes: [], tags: {} };
     tags[FAVORITES] = { icon: 'star', collapsed: this.ctx.tag.isCollapsed ( FAVORITES ), path: FAVORITES, name: TagSpecialsNames.FAVORITES, notes: [], tags: {} };

@@ -29,8 +29,25 @@ jobs:
             echo "No existing release found for tag $TAG_NAME"
           fi
 
-  publish:
+  create_release:
     needs: cleanup_release
+    name: Create Nightly Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Create prerelease for this nightly tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG_NAME" \
+            --prerelease \
+            --notes ""
+
+  publish:
+    needs: create_release
     name: Publish Nightly ${{ matrix.os }} / ${{ matrix.arch }}
     runs-on: ${{ matrix.runs_on }}
     timeout-minutes: 120

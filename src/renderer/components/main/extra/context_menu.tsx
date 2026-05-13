@@ -78,7 +78,7 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
     const x = event.clientX,
           y = event.clientY;
 
-    for ( let menuData of this.menus ) {
+    for ( const menuData of this.menus ) {
 
       let ele: boolean | Element | undefined;
 

@@ -128,7 +128,7 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
 
     if ( !this._mermaidInitPromise ) {
 
-      this._mermaidInitPromise = import ( '@root/node_modules/mermaid/dist/mermaid.esm.mjs' ).then ( ( module ) => {
+      this._mermaidInitPromise = import ( 'mermaid/dist/mermaid.esm.mjs' ).then ( ( module ) => {
         const mermaid = ( module as any ).default || module;
         if ( mermaid.initialize ) {
           mermaid.initialize ( _.merge ({}, Config.mermaid, {
@@ -252,7 +252,14 @@ class PreviewPlugins extends Component<{ container: IMain }, {}> {
         try {
           const result = await mermaid.render ( id, source ),
                 svg = _.isString ( result ) ? result : result.svg,
+                renderedErrorMessage = MarkdownRenderHelpers.getMermaidRenderedErrorMessage ( svg ),
                 $external = $node.children ( '.mermaid-open-external' ).detach ();
+
+          if ( renderedErrorMessage ) {
+            console.error ( `[mermaid] ${renderedErrorMessage}` );
+            $node.html ( MarkdownRenderHelpers.renderMermaidError ( renderedErrorMessage ) );
+            continue;
+          }
 
           this.__setMermaidCache ( source, svg );
 

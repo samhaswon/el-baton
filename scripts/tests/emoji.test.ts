@@ -25,7 +25,14 @@ test ( 'emoji: replaces known shortcodes and leaves unknown ones alone', () => {
 
   assert.equal ( output, 'Check ❓ and 🚀, but not :not_a_real_emoji:.' );
 
-});
+} );
+
+test ( 'emoji: includes the mermaid shortcode in the built-in lookup', () => {
+
+  assert.equal ( Emoji.get ( 'mermaid' ), '🧜‍♀️' );
+  assert.equal ( Emoji.replaceShortcodes ( 'Diagram :mermaid: ready' ), 'Diagram 🧜‍♀️ ready' );
+
+} );
 
 test ( 'emoji: replacement can skip protected regions', () => {
 
@@ -34,7 +41,16 @@ test ( 'emoji: replacement can skip protected regions', () => {
 
   assert.equal ( output, 'Code `:question:` text ❓' );
 
-});
+} );
+
+test ( 'emoji: replacement works for shortcodes in the middle of a line', () => {
+
+  const input = '- [ ] Some emojis :question: appear mid-line',
+        output = Emoji.replaceShortcodes ( input );
+
+  assert.equal ( output, '- [ ] Some emojis ❓ appear mid-line' );
+
+} );
 
 test ( 'emoji: suggestions prioritize prefix matches', () => {
 
@@ -45,7 +61,7 @@ test ( 'emoji: suggestions prioritize prefix matches', () => {
     { shortcode: 'question_mark', emoji: '❓' }
   ] );
 
-});
+} );
 
 test ( 'emoji: includes GitHub-only aliases in suggestions even without a unicode glyph', () => {
 
@@ -54,7 +70,7 @@ test ( 'emoji: includes GitHub-only aliases in suggestions even without a unicod
   assert.equal ( suggestions.some ( entry => entry.shortcode === 'shipit' ), true );
   assert.equal ( Emoji.get ( 'shipit' ), undefined );
 
-});
+} );
 
 test ( 'emoji: exposes easter egg replacements for configured invalid shortcodes', () => {
 
@@ -79,4 +95,4 @@ test ( 'emoji: exposes easter egg replacements for configured invalid shortcodes
 
   assert.equal ( Emoji.getEasterEgg ( 'question' ), undefined );
 
-});
+} );

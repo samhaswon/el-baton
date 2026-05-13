@@ -66,7 +66,7 @@ There are multiple ways to contribute to this project, read about them [here](ht
 
 ## Related
 
-- **[enex-dump](https://github.com/fabiospampinato/enex-dump)**: Dump the content of Evernote's `.enex` files, preserving attachments, some metadata and optionally converting notes to Markdown.
+- **[@notable/dumper](https://github.com/notable/dumper)**: Extract attachments, notes, and metadata from Evernote `.enex` files and other note export formats.
 - **[Noty](https://github.com/fabiospampinato/noty)**: Autosaving sticky note with support for multiple notes without needing multiple windows.
 - **[Markdown Todo](https://marketplace.visualstudio.com/items?itemName=fabiospampinato.vscode-markdown-todo)**: Manage todo lists inside markdown files with ease. Have the same todo-related shortcuts that El Baton provides, but in Visual Studio Code.
 - **[Todo+](https://marketplace.visualstudio.com/items?itemName=fabiospampinato.vscode-todo-plus)**: Manage todo lists with ease. Powerful, easy to use and customizable.

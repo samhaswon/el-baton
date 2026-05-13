@@ -207,7 +207,7 @@ const Markdown = {
     let output = Markdown.preprocessMath ( str );
 
     output = MarkdownRenderHelpers.replaceMacroPlaceholders ( output );
-    output = Markdown.applyTransforms ( output, Markdown.extensions.emoji () as MarkdownTransformRule[], 'language' );
+    output = Emoji.replaceShortcodes ( output, ( index, content ) => Markdown.extensions.utilities.isInsideCode ( content, index, true ) );
 
     // Language-stage transforms that are parser-dependent should run before cmark.
     output = Markdown.applyTransforms ( output, Markdown.extensions.resolveRelativeLinks ( sourceFilePath ) as MarkdownTransformRule[], 'language' );
@@ -601,7 +601,7 @@ const Markdown = {
             if ( Markdown.extensions.utilities.isInsideAnchor ( content, index ) ) return match; // In order to better support encoded emails
             const asciimath = $1 || $2 || $3;
             try {
-              let tex = AsciiMath.toTeX ( decode ( asciimath ) );
+              const tex = AsciiMath.toTeX ( decode ( asciimath ) );
               return `$$${tex}$$`;
             } catch ( e ) {
               console.error ( `[asciimath] ${e.message}` );

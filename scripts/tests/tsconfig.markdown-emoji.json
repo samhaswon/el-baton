@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "../../.tmp/tests",
+    "target": "es2020",
+    "rootDir": "../..",
+    "ignoreDeprecations": "6.0",
+    "noEmit": false
+  },
+  "include": [
+    "./markdown_emoji.test.ts",
+    "../../src/renderer/utils/markdown.ts",
+    "../../src/common/types.ts",
+    "../../src/types/**/*.d.ts"
+  ]
+}

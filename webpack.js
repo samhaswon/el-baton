@@ -1,34 +1,34 @@
-
 /* IMPORT */
 
-const TerserPlugin = require ( 'terser-webpack-plugin' ),
-      TSConfigPathsPlugin = require ( 'tsconfig-paths-webpack-plugin' ),
-      path = require ( 'path' ),
-      webpack = require ( 'webpack' );
+const TerserPlugin = require('terser-webpack-plugin')
+const TSConfigPathsPlugin = require('tsconfig-paths-webpack-plugin')
+const path = require('path')
+const webpack = require('webpack')
 
-const isDevelopment = process.env.NODE_ENV !== 'production';
+const isDevelopment = process.env.NODE_ENV !== 'production'
+const mermaidDistPath = path.resolve(__dirname, 'node_modules', 'mermaid', 'dist')
 
-const babelPresetEnv = [ '@babel/preset-env', {
+const babelPresetEnv = ['@babel/preset-env', {
   targets: {
     electron: '5.0'
   }
-} ];
+}]
 
 const reactCompilerPlugins = [
   'babel-plugin-react-compiler'
-];
+]
 
 /* PLUGINS */
 
-function PluginSkeletonOptimization ( compiler ) { // Loading heavy resources after the skeleton
-  compiler.plugin ( 'compilation', compilation => {
+function PluginSkeletonOptimization (compiler) { // Loading heavy resources after the skeleton
+  compiler.plugin('compilation', compilation => {
     compilation.hooks.htmlWebpackPluginAfterHtmlProcessing = {
-      async promise ( data ) {
-        data.html = data.html.replace ( /<link(.*?)rel="stylesheet">(.*?)<body>(.*?)<script/, '$2<body>$3<link$1rel="stylesheet"><script' ); // Moving the main CSS to the bottom in order to make the skeleton load faster
-        return data;
+      async promise (data) {
+        data.html = data.html.replace(/<link(.*?)rel="stylesheet">(.*?)<body>(.*?)<script/, '$2<body>$3<link$1rel="stylesheet"><script') // Moving the main CSS to the bottom in order to make the skeleton load faster
+        return data
       }
-    };
-  });
+    }
+  })
 }
 
 /* CONFIG */
@@ -36,30 +36,30 @@ function PluginSkeletonOptimization ( compiler ) { // Loading heavy resources af
 const config = {
   devtool: isDevelopment ? 'eval-source-map' : false,
   devServer: {
-    allowedHosts: [ 'localhost', '127.0.0.1' ],
+    allowedHosts: ['localhost', '127.0.0.1'],
     disableHostCheck: true
   },
   resolve: {
     alias: {
-      'create-react-context': path.resolve ( __dirname, 'src/common/create_react_context_shim.ts' ),
-      'electron-util': path.resolve ( __dirname, 'src/common/electron_util_shim.ts' ),
-      'overstated': path.resolve ( __dirname, 'src/renderer/lib/overstated.ts' )
+      'create-react-context': path.resolve(__dirname, 'src/common/create_react_context_shim.ts'),
+      'electron-util': path.resolve(__dirname, 'src/common/electron_util_shim.ts'),
+      overstated: path.resolve(__dirname, 'src/renderer/lib/overstated.ts')
     },
     extensionAlias: {
-      '.js': [ '.js', '.ts', '.tsx' ],
-      '.mjs': [ '.mjs', '.mts' ],
-      '.cjs': [ '.cjs', '.cts' ]
+      '.js': ['.js', '.ts', '.tsx'],
+      '.mjs': ['.mjs', '.mts'],
+      '.cjs': ['.cjs', '.cts']
     },
-    extensions: [ '.ts', '.tsx', '.js', '.json' ],
+    extensions: ['.ts', '.tsx', '.js', '.json'],
     plugins: [
-      new TSConfigPathsPlugin ()
+      new TSConfigPathsPlugin()
     ]
   },
   module: {
     rules: [
       {
         test: /\.m?js$/,
-        include: /node_modules\/mermaid\/dist/,
+        include: mermaidDistPath,
         use: {
           loader: 'babel-loader',
           options: {
@@ -80,7 +80,7 @@ const config = {
             presets: [
               babelPresetEnv,
               '@babel/preset-react',
-              [ '@babel/preset-typescript', { allowDeclareFields: true } ]
+              ['@babel/preset-typescript', { allowDeclareFields: true }]
             ],
             plugins: reactCompilerPlugins
           }
@@ -89,14 +89,14 @@ const config = {
     ]
   },
   plugins: [
-    new webpack.DefinePlugin ({
-      'Environment.isDevelopment': JSON.stringify ( process.env.NODE_ENV !== 'production' )
+    new webpack.DefinePlugin({
+      'Environment.isDevelopment': JSON.stringify(process.env.NODE_ENV !== 'production')
     }),
     PluginSkeletonOptimization
   ],
   optimization: {
     minimizer: [
-      new TerserPlugin ({
+      new TerserPlugin({
         parallel: true,
         sourceMap: isDevelopment,
         terserOptions: {
@@ -105,8 +105,8 @@ const config = {
       })
     ]
   }
-};
+}
 
 /* EXPORT */
 
-module.exports = config;
+module.exports = config

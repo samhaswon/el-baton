@@ -1,9 +1,9 @@
 
 /* IMPORT */
 
-import {app, ipcMain as ipc, Event, IpcMainEvent, Menu, MenuItemConstructorOptions, powerMonitor, shell} from 'electron';
+import {app, ipcMain as ipc, Event, IpcMainEvent, Menu, MenuItemConstructorOptions, powerMonitor, session, shell} from 'electron';
 import {autoUpdater as updater} from 'electron-updater';
-import installExtension, {REACT_DEVELOPER_TOOLS} from 'electron-devtools-installer';
+import {downloadChromeExtension} from 'electron-devtools-installer/dist/downloadChromeExtension';
 import {enforceMacOSAppLocation, is} from '@common/electron_util_shim';
 import * as fs from 'fs';
 import pkg from '@root/package.json';
@@ -16,6 +16,8 @@ import Main from './windows/main';
 import Window from './windows/window';
 
 /* APP */
+
+const REACT_DEVELOPER_TOOLS_ID = 'fmkadmapgofadopljbjfkapdkoienihi';
 
 class App {
 
@@ -72,7 +74,11 @@ class App {
     if ( !Environment.isDevelopment ) return;
 
     try {
-      const extension = await installExtension ( REACT_DEVELOPER_TOOLS );
+      console.info ( '[debug] Installing React DevTools extension...' );
+      const extensionFolder = await downloadChromeExtension ( REACT_DEVELOPER_TOOLS_ID );
+      const extension = await session.defaultSession.loadExtension ( extensionFolder, {
+        allowFileAccess: true
+      });
       console.info ( '[debug] Installed React DevTools extension', {
         extensionId: extension.id,
         extensionName: extension.name

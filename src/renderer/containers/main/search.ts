@@ -423,9 +423,11 @@ class Search extends Container<SearchState, MainCTX> {
       return acc;
     }, [] );
 
-    const resultsByPath = _.keyBy ( results, result => result.note.filePath );
+    const resultsByPath = _.keyBy ( results, result => result.note.filePath ),
+          sortedNotes = this.ctx.sorting.sort ( results.map ( result => result.note ) ),
+          orderedNotes = Array.isArray ( sortedNotes ) ? sortedNotes : results.map ( result => result.note );
 
-    return this.ctx.sorting.sort ( results.map ( result => result.note ) ).map ( note => resultsByPath[note.filePath] ).filter ( Boolean );
+    return orderedNotes.map ( note => resultsByPath[note.filePath] ).filter ( Boolean );
 
   }
 
@@ -1084,7 +1086,11 @@ class Search extends Container<SearchState, MainCTX> {
 
   getNoteIndex = ( note: NoteObj ): number => {
 
-    return this.state.notes.indexOf ( note );
+    const index = this.state.notes.indexOf ( note );
+
+    if ( index >= 0 ) return index;
+
+    return this.state.notes.findIndex ( candidate => candidate.filePath === note.filePath );
 
   }
 

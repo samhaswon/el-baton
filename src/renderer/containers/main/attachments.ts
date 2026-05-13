@@ -144,16 +144,16 @@ class Attachments extends Container<AttachmentsState, MainCTX> {
 
   }
 
-  dialog = (): string[] => {
+  dialog = async (): Promise<string[]> => {
 
-    const filePaths = remote.dialog.showOpenDialogSync ({
+    const {canceled, filePaths} = await remote.dialog.showOpenDialog ({
       title: 'Select Files to Add',
       buttonLabel: 'Add',
       properties: ['openFile', 'multiSelections'],
       defaultPath: Config.attachments.path
     });
 
-    return filePaths || [];
+    return canceled ? [] : filePaths;
 
   }
 

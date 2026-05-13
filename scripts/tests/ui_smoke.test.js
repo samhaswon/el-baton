@@ -1,26 +1,26 @@
-/* eslint-disable no-console */
+const fs = require('fs')
+const path = require('path')
+const assert = require('node:assert/strict')
+const { test } = require('node:test')
+const YAML = require('js-yaml')
 
-const fs = require ( 'fs' );
-const path = require ( 'path' );
-const assert = require ( 'node:assert/strict' );
-const {test} = require ( 'node:test' );
-const YAML = require ( 'js-yaml' );
+/* global HTMLElement */
 
-let electron;
+let electron
 
 try {
-  electron = require ( 'playwright' )._electron;
-} catch ( error ) {
-  throw new Error ( 'Missing dependency: playwright. Install dependencies with `npm install`.' );
+  electron = require('playwright')._electron
+} catch (error) {
+  throw new Error('Missing dependency: playwright. Install dependencies with `npm install`.')
 }
 
-const rootPath = path.join ( __dirname, '..', '..' );
-const demoSeedPath = path.join ( rootPath, 'resources', 'demo_data', 'seed' );
-const appMainPath = path.join ( rootPath, 'dist', 'main', 'main.js' );
-const runtimeRootPath = path.join ( rootPath, '.tmp', 'ui_tests' );
-const windowSize = { width: 1365, height: 720 };
-const hasDisplayServer = Boolean ( process.env.DISPLAY || process.env.WAYLAND_DISPLAY || process.env.MIR_SOCKET );
-const shouldSkipForMissingDisplay = process.platform === 'linux' && !hasDisplayServer && process.env.EL_BATON_UI_TESTS_FORCE !== '1';
+const rootPath = path.join(__dirname, '..', '..')
+const demoSeedPath = path.join(rootPath, 'resources', 'demo_data', 'seed')
+const appMainPath = path.join(rootPath, 'dist', 'main', 'main.js')
+const runtimeRootPath = path.join(rootPath, '.tmp', 'ui_tests')
+const windowSize = { width: 1365, height: 720 }
+const hasDisplayServer = Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY || process.env.MIR_SOCKET)
+const shouldSkipForMissingDisplay = process.platform === 'linux' && !hasDisplayServer && process.env.EL_BATON_UI_TESTS_FORCE !== '1'
 
 const noteFileNames = [
   '1 Test Note.md',
@@ -31,80 +31,82 @@ const noteFileNames = [
   'CSC 3570 Labs Changelog.md',
   'Malformer Dataset Notes.md',
   'Malformer Packed.md'
-];
+]
 
-const wait = ms => new Promise ( resolve => setTimeout ( resolve, ms ) );
-const ariaToBool = value => value === 'true';
-const infoPaneScrollNoteFileName = '00 Info Pane Scroll Test.md';
-const formattingFixtureNoteFileName = '00 Formatting Shortcuts Test.md';
+const wait = ms => new Promise(resolve => {
+  setTimeout(resolve, ms)
+})
+const ariaToBool = value => value === 'true'
+const infoPaneScrollNoteFileName = '00 Info Pane Scroll Test.md'
+const formattingFixtureNoteFileName = '00 Formatting Shortcuts Test.md'
 
 const rmrf = targetPath => {
-  if ( fs.existsSync ( targetPath ) ) {
-    fs.rmSync ( targetPath, { recursive: true, force: true } );
+  if (fs.existsSync(targetPath)) {
+    fs.rmSync(targetPath, { recursive: true, force: true })
   }
-};
+}
 
 const mkdirp = targetPath => {
-  fs.mkdirSync ( targetPath, { recursive: true } );
-};
+  fs.mkdirSync(targetPath, { recursive: true })
+}
 
-const copyDir = ( sourcePath, destinationPath ) => {
-  mkdirp ( destinationPath );
+const copyDir = (sourcePath, destinationPath) => {
+  mkdirp(destinationPath)
 
-  for ( const entry of fs.readdirSync ( sourcePath, { withFileTypes: true } ) ) {
-    const sourceEntryPath = path.join ( sourcePath, entry.name );
-    const destinationEntryPath = path.join ( destinationPath, entry.name );
+  for (const entry of fs.readdirSync(sourcePath, { withFileTypes: true })) {
+    const sourceEntryPath = path.join(sourcePath, entry.name)
+    const destinationEntryPath = path.join(destinationPath, entry.name)
 
-    if ( entry.isDirectory () ) {
-      copyDir ( sourceEntryPath, destinationEntryPath );
-    } else if ( entry.isFile () ) {
-      fs.copyFileSync ( sourceEntryPath, destinationEntryPath );
+    if (entry.isDirectory()) {
+      copyDir(sourceEntryPath, destinationEntryPath)
+    } else if (entry.isFile()) {
+      fs.copyFileSync(sourceEntryPath, destinationEntryPath)
     }
   }
-};
+}
 
 const ensurePrerequisites = () => {
-  if ( !fs.existsSync ( appMainPath ) ) {
-    throw new Error ( 'Missing dist/main/main.js. Run `npm run compile:release` first.' );
+  if (!fs.existsSync(appMainPath)) {
+    throw new Error('Missing dist/main/main.js. Run `npm run compile:release` first.')
   }
 
-  if ( !fs.existsSync ( demoSeedPath ) ) {
-    throw new Error ( `Missing demo seed workspace: ${demoSeedPath}` );
+  if (!fs.existsSync(demoSeedPath)) {
+    throw new Error(`Missing demo seed workspace: ${demoSeedPath}`)
   }
-};
+}
 
 const assertReleaseBundle = () => {
-  const mainBundle = fs.readFileSync ( appMainPath, 'utf8' );
-  const looksLikeDevelopmentBundle = mainBundle.includes ( 'eval(\"{__webpack_require__' ) ||
-    mainBundle.includes ( 'environment: \"development\"' ) ||
-    mainBundle.includes ( "isDevelopment: \"development\" !== 'production'" );
+  const mainBundle = fs.readFileSync(appMainPath, 'utf8')
+  const looksLikeDevelopmentBundle = mainBundle.includes('eval("{__webpack_require__') ||
+    mainBundle.includes('environment: "development"') ||
+    mainBundle.includes("isDevelopment: \"development\" !== 'production'")
 
-  if ( looksLikeDevelopmentBundle ) {
-    throw new Error ( 'dist/main/main.js appears to be a development bundle. Run `npm run compile:release` and retry.' );
+  if (looksLikeDevelopmentBundle) {
+    throw new Error('dist/main/main.js appears to be a development bundle. Run `npm run compile:release` and retry.')
   }
-};
+}
 
 const createRuntimePaths = runtimeId => {
-  const runtimeBasePath = path.join ( runtimeRootPath, runtimeId );
+  const runtimeBasePath = path.join(runtimeRootPath, runtimeId)
 
   return {
     runtimeBasePath,
-    workspacePath: path.join ( runtimeBasePath, 'workspace' ),
-    homePath: path.join ( runtimeBasePath, 'home' ),
-    defaultWorkspacePath: path.join ( runtimeBasePath, 'home', '.el-baton' )
-  };
-};
+    workspacePath: path.join(runtimeBasePath, 'workspace'),
+    homePath: path.join(runtimeBasePath, 'home'),
+    defaultWorkspacePath: path.join(runtimeBasePath, 'home', '.el-baton')
+  }
+}
 
 const prepareRuntimePaths = runtimePaths => {
-  rmrf ( runtimePaths.runtimeBasePath );
-  copyDir ( demoSeedPath, runtimePaths.workspacePath );
-  copyDir ( demoSeedPath, runtimePaths.defaultWorkspacePath );
-};
+  rmrf(runtimePaths.runtimeBasePath)
+  copyDir(demoSeedPath, runtimePaths.workspacePath)
+  copyDir(demoSeedPath, runtimePaths.defaultWorkspacePath)
+}
 
 const writeInfoPaneScrollNote = runtimePaths => {
-  const headings = Array.from ({ length: 140 }, ( _unused, index ) => {
-    return `## Scroll Heading ${index + 1}\n\nLine ${index + 1}: filler content for info pane scrolling.\n`;
-  }).join ( '\n' );
+  const headings = Array.from({ length: 140 }, (_unused, index) => {
+    return `## Scroll Heading ${index + 1}\n\nLine ${index + 1}: filler content for info pane scrolling.\n`
+  }).join('\n')
 
   const content = [
     '# Info Pane Scrollability Fixture',
@@ -112,29 +114,29 @@ const writeInfoPaneScrollNote = runtimePaths => {
     'This note is generated by UI smoke tests to force a long TOC in the Info pane.',
     '',
     headings
-  ].join ( '\n' );
+  ].join('\n')
 
-  const notePath = path.join ( runtimePaths.workspacePath, 'notes', infoPaneScrollNoteFileName );
-  fs.writeFileSync ( notePath, content, 'utf8' );
-};
+  const notePath = path.join(runtimePaths.workspacePath, 'notes', infoPaneScrollNoteFileName)
+  fs.writeFileSync(notePath, content, 'utf8')
+}
 
 const writeFormattingFixtureNote = runtimePaths => {
   const content = [
     '# Formatting Shortcuts Test',
     '',
     'Fixture seed'
-  ].join ( '\n' );
+  ].join('\n')
 
-  const notePath = path.join ( runtimePaths.workspacePath, 'notes', formattingFixtureNoteFileName );
-  fs.writeFileSync ( notePath, content, 'utf8' );
-};
+  const notePath = path.join(runtimePaths.workspacePath, 'notes', formattingFixtureNoteFileName)
+  fs.writeFileSync(notePath, content, 'utf8')
+}
 
 const writeSettings = ({ theme, panel = 'explorer', runtimePaths, extraOpenTabs = [], disableAutomaticRenaming = false }) => {
-  const settingsPath = path.join ( runtimePaths.homePath, '.el-baton.json' );
+  const settingsPath = path.join(runtimePaths.homePath, '.el-baton.json')
   const openTabs = [
-    ...noteFileNames.map ( fileName => path.join ( runtimePaths.workspacePath, 'notes', fileName ) ),
+    ...noteFileNames.map(fileName => path.join(runtimePaths.workspacePath, 'notes', fileName)),
     ...extraOpenTabs
-  ];
+  ]
 
   const settings = {
     cwd: runtimePaths.workspacePath,
@@ -167,125 +169,125 @@ const writeSettings = ({ theme, panel = 'explorer', runtimePaths, extraOpenTabs 
       zen: false,
       panel
     }
-  };
+  }
 
-  mkdirp ( runtimePaths.homePath );
-  fs.writeFileSync ( settingsPath, JSON.stringify ( settings, null, 2 ) + '\n' );
-};
+  mkdirp(runtimePaths.homePath)
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n')
+}
 
-const resolveRendererPage = async ( electronApp, preferredPage ) => {
-  const windows = electronApp.windows ();
-  const candidates = windows.filter ( win => !win.isClosed () && !win.url ().startsWith ( 'devtools://' ) );
+const resolveRendererPage = async (electronApp, preferredPage) => {
+  const windows = electronApp.windows()
+  const candidates = windows.filter(win => !win.isClosed() && !win.url().startsWith('devtools://'))
 
-  const selected = ( preferredPage && !preferredPage.isClosed () && !preferredPage.url ().startsWith ( 'devtools://' ) )
+  const selected = (preferredPage && !preferredPage.isClosed() && !preferredPage.url().startsWith('devtools://'))
     ? preferredPage
-    : candidates[0];
+    : candidates[0]
 
-  if ( selected ) return selected;
+  if (selected) return selected
 
-  return electronApp.waitForEvent ( 'window', { timeout: 30000 } );
-};
+  return electronApp.waitForEvent('window', { timeout: 30000 })
+}
 
 const isPageClosedError = error => {
-  const message = String ( error && error.message ? error.message : error );
-  return message.includes ( 'Target page, context or browser has been closed' );
-};
+  const message = String(error && error.message ? error.message : error)
+  return message.includes('Target page, context or browser has been closed')
+}
 
-const ensureStartupRouteReady = async ( electronApp, initialPage, timeout = 60000 ) => {
-  const deadline = Date.now () + timeout;
-  let page = initialPage;
+const ensureStartupRouteReady = async (electronApp, initialPage, timeout = 60000) => {
+  const deadline = Date.now() + timeout
+  let page = initialPage
 
-  while ( Date.now () < deadline ) {
-    page = await resolveRendererPage ( electronApp, page );
+  while (Date.now() < deadline) {
+    page = await resolveRendererPage(electronApp, page)
 
-    const remaining = Math.max ( 1000, Math.min ( 12000, deadline - Date.now () ) );
+    const remaining = Math.max(1000, Math.min(12000, deadline - Date.now()))
 
     try {
-      await page.waitForLoadState ( 'domcontentloaded', { timeout: remaining } );
-      await page.waitForFunction (() => !!document.querySelector ( '.mainbar, .cwd.app-wrapper, .app' ), undefined, { timeout: remaining } );
-      await wait ( 250 );
-      return page;
-    } catch ( error ) {
-      if ( !isPageClosedError ( error ) ) throw error;
-      await wait ( 120 );
+      await page.waitForLoadState('domcontentloaded', { timeout: remaining })
+      await page.waitForFunction(() => !!document.querySelector('.mainbar, .cwd.app-wrapper, .app'), undefined, { timeout: remaining })
+      await wait(250)
+      return page
+    } catch (error) {
+      if (!isPageClosedError(error)) throw error
+      await wait(120)
     }
   }
 
-  throw new Error ( 'Timed out waiting for main or cwd route to become available' );
-};
+  throw new Error('Timed out waiting for main or cwd route to become available')
+}
 
-const isMainRoute = async page => ( await page.locator ( '.mainbar' ).count () ) > 0;
-const isCwdRoute = async page => ( await page.locator ( '.cwd.app-wrapper' ).count () ) > 0;
+const isMainRoute = async page => (await page.locator('.mainbar').count()) > 0
+const isCwdRoute = async page => (await page.locator('.cwd.app-wrapper').count()) > 0
 
-const ensureMainUI = async ( electronApp, page ) => {
-  let livePage = await ensureStartupRouteReady ( electronApp, page, 60000 );
+const ensureMainUI = async (electronApp, page) => {
+  let livePage = await ensureStartupRouteReady(electronApp, page, 60000)
 
-  if ( await isMainRoute ( livePage ) ) return livePage;
+  if (await isMainRoute(livePage)) return livePage
 
-  if ( !( await isCwdRoute ( livePage ) ) ) {
-    const debug = await livePage.evaluate (() => ({
+  if (!(await isCwdRoute(livePage))) {
+    const debug = await livePage.evaluate(() => ({
       href: window.location.href,
       title: document.title,
       readyState: document.readyState,
-      bodyTextSnippet: document.body?.innerText?.slice ( 0, 300 ) || ''
-    }) );
-    throw new Error ( `Unexpected startup route: ${JSON.stringify ( debug )}` );
+      bodyTextSnippet: document.body?.innerText?.slice(0, 300) || ''
+    }))
+    throw new Error(`Unexpected startup route: ${JSON.stringify(debug)}`)
   }
 
-  const nextWindowPromise = electronApp.waitForEvent ( 'window', { timeout: 30000 } );
-  await livePage.locator ( '.layout-footer .button.default' ).first ().click ();
-  const nextPage = await nextWindowPromise;
+  const nextWindowPromise = electronApp.waitForEvent('window', { timeout: 30000 })
+  await livePage.locator('.layout-footer .button.default').first().click()
+  const nextPage = await nextWindowPromise
 
-  livePage = await ensureStartupRouteReady ( electronApp, nextPage, 60000 );
-  await livePage.waitForSelector ( '.mainbar', { timeout: 60000 } );
+  livePage = await ensureStartupRouteReady(electronApp, nextPage, 60000)
+  await livePage.waitForSelector('.mainbar', { timeout: 60000 })
 
-  return livePage;
-};
+  return livePage
+}
 
 const setWindowSize = async electronApp => {
-  await electronApp.evaluate ( ({ BrowserWindow }, size ) => {
-    const win = BrowserWindow.getAllWindows ()[0];
+  await electronApp.evaluate(({ BrowserWindow }, size) => {
+    const win = BrowserWindow.getAllWindows()[0]
 
-    if ( !win ) return;
+    if (!win) return
 
-    win.setSize ( size.width, size.height );
-    win.center ();
-  }, windowSize );
-};
+    win.setSize(size.width, size.height)
+    win.center()
+  }, windowSize)
+}
 
 const ensureSidebarVisible = async page => {
-  const hasActivitybar = async () => ( await page.locator ( '.activitybar' ).count () ) > 0;
+  const hasActivitybar = async () => (await page.locator('.activitybar').count()) > 0
 
-  if ( await hasActivitybar () ) return;
+  if (await hasActivitybar()) return
 
-  await page.evaluate (() => {
-    const {ipcRenderer} = require ( 'electron' );
-    ipcRenderer.emit ( 'window-sidebar-toggle' );
-  } );
+  await page.evaluate(() => {
+    const { ipcRenderer } = require('electron')
+    ipcRenderer.emit('window-sidebar-toggle')
+  })
 
-  await page.waitForSelector ( '.activitybar', { timeout: 20000 } );
-};
+  await page.waitForSelector('.activitybar', { timeout: 20000 })
+}
 
 const launchApp = async ({ runtimeId, theme = 'dark', withInfoPaneScrollNote = false, withFormattingFixtureNote = false, disableAutomaticRenaming = false }) => {
-  const runtimePaths = createRuntimePaths ( runtimeId );
+  const runtimePaths = createRuntimePaths(runtimeId)
 
-  prepareRuntimePaths ( runtimePaths );
+  prepareRuntimePaths(runtimePaths)
 
-  const extraOpenTabs = [];
+  const extraOpenTabs = []
 
-  if ( withInfoPaneScrollNote ) {
-    writeInfoPaneScrollNote ( runtimePaths );
-    extraOpenTabs.push ( path.join ( runtimePaths.workspacePath, 'notes', infoPaneScrollNoteFileName ) );
+  if (withInfoPaneScrollNote) {
+    writeInfoPaneScrollNote(runtimePaths)
+    extraOpenTabs.push(path.join(runtimePaths.workspacePath, 'notes', infoPaneScrollNoteFileName))
   }
 
-  if ( withFormattingFixtureNote ) {
-    writeFormattingFixtureNote ( runtimePaths );
-    extraOpenTabs.push ( path.join ( runtimePaths.workspacePath, 'notes', formattingFixtureNoteFileName ) );
+  if (withFormattingFixtureNote) {
+    writeFormattingFixtureNote(runtimePaths)
+    extraOpenTabs.push(path.join(runtimePaths.workspacePath, 'notes', formattingFixtureNoteFileName))
   }
 
-  writeSettings ({ theme, runtimePaths, extraOpenTabs, disableAutomaticRenaming });
+  writeSettings({ theme, runtimePaths, extraOpenTabs, disableAutomaticRenaming })
 
-  const electronApp = await electron.launch ({
+  const electronApp = await electron.launch({
     args: [
       '.',
       '--no-sandbox',
@@ -304,749 +306,749 @@ const launchApp = async ({ runtimeId, theme = 'dark', withInfoPaneScrollNote = f
       HOME: runtimePaths.homePath,
       USERPROFILE: runtimePaths.homePath
     }
-  });
+  })
 
-  const firstPage = await electronApp.firstWindow ();
-  const page = await ensureMainUI ( electronApp, await resolveRendererPage ( electronApp, firstPage ) );
+  const firstPage = await electronApp.firstWindow()
+  const page = await ensureMainUI(electronApp, await resolveRendererPage(electronApp, firstPage))
 
-  await setWindowSize ( electronApp );
-  await page.waitForSelector ( '.mainbar', { timeout: 60000 } );
-  await ensureSidebarVisible ( page );
-  await page.waitForSelector ( '.activitybar-item[title="Explorer"]', { timeout: 30000 } );
+  await setWindowSize(electronApp)
+  await page.waitForSelector('.mainbar', { timeout: 60000 })
+  await ensureSidebarVisible(page)
+  await page.waitForSelector('.activitybar-item[title="Explorer"]', { timeout: 30000 })
 
   return {
     electronApp,
-    page: await resolveRendererPage ( electronApp, page ),
+    page: await resolveRendererPage(electronApp, page),
     runtimePaths
-  };
-};
+  }
+}
 
-const launchAppOrSkip = async ( t, options ) => {
+const launchAppOrSkip = async (t, options) => {
   try {
-    return await launchApp ( options );
-  } catch ( error ) {
-    const message = String ( error && error.message ? error.message : error );
+    return await launchApp(options)
+  } catch (error) {
+    const message = String(error && error.message ? error.message : error)
 
-    if ( message.includes ( 'Process failed to launch!' ) ) {
-      t.skip ( `Electron could not launch in this environment (${message})` );
-      return undefined;
+    if (message.includes('Process failed to launch!')) {
+      t.skip(`Electron could not launch in this environment (${message})`)
+      return undefined
     }
 
-    throw error;
+    throw error
   }
-};
+}
 
-const emitIPC = async ( page, channel, ...args ) => {
-  await page.evaluate ( ([nextChannel, nextArgs]) => {
-    const {ipcRenderer} = require ( 'electron' );
-    ipcRenderer.emit ( nextChannel, {}, ...nextArgs );
-  }, [channel, args] );
-};
+const emitIPC = async (page, channel, ...args) => {
+  await page.evaluate(([nextChannel, nextArgs]) => {
+    const { ipcRenderer } = require('electron')
+    ipcRenderer.emit(nextChannel, {}, ...nextArgs)
+  }, [channel, args])
+}
 
-const clickActivitybar = async ( page, title ) => {
-  await page.locator ( `.activitybar-item[title="${title}"]` ).click ();
-  await wait ( 140 );
-};
+const clickActivitybar = async (page, title) => {
+  await page.locator(`.activitybar-item[title="${title}"]`).click()
+  await wait(140)
+}
 
-const hasVisible = async ( page, selector ) => ( await page.locator ( selector ).count () ) > 0;
+const hasVisible = async (page, selector) => (await page.locator(selector).count()) > 0
 
-const ensureActivitybarPanelOpen = async ( page, title, visibleSelector, timeout = 20000 ) => {
-  const deadline = Date.now () + timeout;
-  const tabSelector = `.activitybar-item[title="${title}"]`;
-  const settleMs = 220;
+const ensureActivitybarPanelOpen = async (page, title, visibleSelector, timeout = 20000) => {
+  const deadline = Date.now() + timeout
+  const tabSelector = `.activitybar-item[title="${title}"]`
+  const settleMs = 220
 
-  while ( Date.now () < deadline ) {
-    if ( await hasVisible ( page, visibleSelector ) ) return;
+  while (Date.now() < deadline) {
+    if (await hasVisible(page, visibleSelector)) return
 
-    const className = await page.locator ( tabSelector ).first ().getAttribute ( 'class' );
-    const isActive = ( className || '' ).includes ( 'active' );
+    const className = await page.locator(tabSelector).first().getAttribute('class')
+    const isActive = (className || '').includes('active')
 
     // Avoid double-toggling an already active panel while transition classes settle.
-    if ( !isActive ) {
-      await clickActivitybar ( page, title );
+    if (!isActive) {
+      await clickActivitybar(page, title)
     }
 
-    await wait ( settleMs );
+    await wait(settleMs)
   }
 
-  const finalClassName = await page.locator ( tabSelector ).first ().getAttribute ( 'class' );
-  const finalVisible = await hasVisible ( page, visibleSelector );
+  const finalClassName = await page.locator(tabSelector).first().getAttribute('class')
+  const finalVisible = await hasVisible(page, visibleSelector)
 
-  assert.ok ( finalVisible, `Panel "${title}" did not open for selector "${visibleSelector}" (tab class: "${finalClassName || ''}")` );
-};
+  assert.ok(finalVisible, `Panel "${title}" did not open for selector "${visibleSelector}" (tab class: "${finalClassName || ''}")`)
+}
 
-const ensureActivitybarTabActive = async ( page, title, timeout = 20000 ) => {
-  const deadline = Date.now () + timeout;
+const ensureActivitybarTabActive = async (page, title, timeout = 20000) => {
+  const deadline = Date.now() + timeout
 
-  while ( Date.now () < deadline ) {
-    const className = await page.locator ( `.activitybar-item[title="${title}"]` ).first ().getAttribute ( 'class' );
+  while (Date.now() < deadline) {
+    const className = await page.locator(`.activitybar-item[title="${title}"]`).first().getAttribute('class')
 
-    if ( ( className || '' ).includes ( 'active' ) ) return;
+    if ((className || '').includes('active')) return
 
-    await clickActivitybar ( page, title );
+    await clickActivitybar(page, title)
   }
 
-  const finalClassName = await page.locator ( `.activitybar-item[title="${title}"]` ).first ().getAttribute ( 'class' );
-  assert.ok ( ( finalClassName || '' ).includes ( 'active' ), `Expected activitybar tab "${title}" to be active` );
-};
+  const finalClassName = await page.locator(`.activitybar-item[title="${title}"]`).first().getAttribute('class')
+  assert.ok((finalClassName || '').includes('active'), `Expected activitybar tab "${title}" to be active`)
+}
 
-const waitForAttributeChange = async ( locator, attribute, previousValue, timeout = 6000 ) => {
-  const deadline = Date.now () + timeout;
+const waitForAttributeChange = async (locator, attribute, previousValue, timeout = 6000) => {
+  const deadline = Date.now() + timeout
 
-  while ( Date.now () < deadline ) {
-    const nextValue = await locator.getAttribute ( attribute );
-    if ( nextValue !== previousValue ) return nextValue;
-    await wait ( 100 );
+  while (Date.now() < deadline) {
+    const nextValue = await locator.getAttribute(attribute)
+    if (nextValue !== previousValue) return nextValue
+    await wait(100)
   }
 
-  throw new Error ( `Timed out waiting for "${attribute}" to change from "${previousValue}"` );
-};
+  throw new Error(`Timed out waiting for "${attribute}" to change from "${previousValue}"`)
+}
 
-const waitForInputValue = async ( locator, expectedValue, timeout = 6000 ) => {
-  const deadline = Date.now () + timeout;
+const waitForInputValue = async (locator, expectedValue, timeout = 6000) => {
+  const deadline = Date.now() + timeout
 
-  while ( Date.now () < deadline ) {
-    if ( await locator.inputValue () === expectedValue ) return;
-    await wait ( 100 );
+  while (Date.now() < deadline) {
+    if (await locator.inputValue() === expectedValue) return
+    await wait(100)
   }
 
-  throw new Error ( `Timed out waiting for input value "${expectedValue}"` );
-};
+  throw new Error(`Timed out waiting for input value "${expectedValue}"`)
+}
 
-const waitForEnabled = async ( locator, timeout = 6000 ) => {
-  const deadline = Date.now () + timeout;
+const waitForEnabled = async (locator, timeout = 6000) => {
+  const deadline = Date.now() + timeout
 
-  while ( Date.now () < deadline ) {
-    if ( !( await locator.isDisabled () ) ) return;
-    await wait ( 100 );
+  while (Date.now() < deadline) {
+    if (!(await locator.isDisabled())) return
+    await wait(100)
   }
 
-  throw new Error ( 'Timed out waiting for control to become enabled' );
-};
+  throw new Error('Timed out waiting for control to become enabled')
+}
 
-const getDotPathValue = ( object, dotPath ) => {
-  return dotPath.split ( '.' ).reduce ( ( current, key ) => ( current && Object.prototype.hasOwnProperty.call ( current, key ) ) ? current[key] : undefined, object );
-};
+const getDotPathValue = (object, dotPath) => {
+  return dotPath.split('.').reduce((current, key) => (current && Object.prototype.hasOwnProperty.call(current, key)) ? current[key] : undefined, object)
+}
 
 const readConfigFile = filePath => {
-  const raw = fs.readFileSync ( filePath, 'utf8' );
-  const extension = path.extname ( filePath ).toLowerCase ();
+  const raw = fs.readFileSync(filePath, 'utf8')
+  const extension = path.extname(filePath).toLowerCase()
 
-  if ( extension === '.json' ) {
-    return JSON.parse ( raw );
+  if (extension === '.json') {
+    return JSON.parse(raw)
   }
 
-  return YAML.load ( raw ) || {};
-};
+  return YAML.load(raw) || {}
+}
 
-const waitForConfigPathValue = async ( filePath, dotPath, expectedValue, timeout = 10000 ) => {
-  const deadline = Date.now () + timeout;
-  let lastValue;
+const waitForConfigPathValue = async (filePath, dotPath, expectedValue, timeout = 10000) => {
+  const deadline = Date.now() + timeout
+  let lastValue
 
-  while ( Date.now () < deadline ) {
-    if ( fs.existsSync ( filePath ) ) {
-      const config = readConfigFile ( filePath );
-      const nextValue = getDotPathValue ( config, dotPath );
+  while (Date.now() < deadline) {
+    if (fs.existsSync(filePath)) {
+      const config = readConfigFile(filePath)
+      const nextValue = getDotPathValue(config, dotPath)
 
-      lastValue = nextValue;
+      lastValue = nextValue
 
-      if ( JSON.stringify ( nextValue ) === JSON.stringify ( expectedValue ) ) return;
+      if (JSON.stringify(nextValue) === JSON.stringify(expectedValue)) return
     }
 
-    await wait ( 120 );
+    await wait(120)
   }
 
-  throw new Error ( `Timed out waiting for config "${dotPath}" to become ${JSON.stringify ( expectedValue )}. Last value: ${JSON.stringify ( lastValue )}` );
-};
+  throw new Error(`Timed out waiting for config "${dotPath}" to become ${JSON.stringify(expectedValue)}. Last value: ${JSON.stringify(lastValue)}`)
+}
 
-const waitForConfigPredicate = async ( filePath, description, predicate, timeout = 10000 ) => {
-  const deadline = Date.now () + timeout;
-  let lastConfig = {};
+const waitForConfigPredicate = async (filePath, description, predicate, timeout = 10000) => {
+  const deadline = Date.now() + timeout
+  let lastConfig = {}
 
-  while ( Date.now () < deadline ) {
-    if ( fs.existsSync ( filePath ) ) {
-      const config = readConfigFile ( filePath );
-      lastConfig = config;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(filePath)) {
+      const config = readConfigFile(filePath)
+      lastConfig = config
 
-      if ( predicate ( config ) ) return;
+      if (predicate(config)) return
     }
 
-    await wait ( 120 );
+    await wait(120)
   }
 
-  throw new Error ( `Timed out waiting for config condition: ${description}. Last config snapshot: ${JSON.stringify ( lastConfig )}` );
-};
+  throw new Error(`Timed out waiting for config condition: ${description}. Last config snapshot: ${JSON.stringify(lastConfig)}`)
+}
 
 const openExplorerAndFirstNote = async page => {
-  await ensureActivitybarPanelOpen ( page, 'Explorer', '.sidepanel-pane.explorer.is-active' );
-  const firstNote = page.locator ( '.explorer-note.list-item' ).first ();
-  await firstNote.waitFor ({ state: 'visible', timeout: 30000 });
-  await firstNote.click ();
-  await wait ( 150 );
-};
+  await ensureActivitybarPanelOpen(page, 'Explorer', '.sidepanel-pane.explorer.is-active')
+  const firstNote = page.locator('.explorer-note.list-item').first()
+  await firstNote.waitFor({ state: 'visible', timeout: 30000 })
+  await firstNote.click()
+  await wait(150)
+}
 
-const openExplorerNoteByTitle = async ( page, title ) => {
-  await ensureActivitybarPanelOpen ( page, 'Explorer', '.sidepanel-pane.explorer.is-active' );
-  const filterInput = page.locator ( '.sidebar-search input[placeholder="Filter titles..."]' ).first ();
-  await filterInput.waitFor ({ state: 'visible', timeout: 30000 });
-  await filterInput.fill ( title );
-  await wait ( 200 );
-  const targetNote = page.locator ( '.explorer-note.list-item', { hasText: title } ).first ();
-  await targetNote.waitFor ({ state: 'visible', timeout: 30000 });
-  await targetNote.click ();
-  await wait ( 150 );
-};
+const openExplorerNoteByTitle = async (page, title) => {
+  await ensureActivitybarPanelOpen(page, 'Explorer', '.sidepanel-pane.explorer.is-active')
+  const filterInput = page.locator('.sidebar-search input[placeholder="Filter titles..."]').first()
+  await filterInput.waitFor({ state: 'visible', timeout: 30000 })
+  await filterInput.fill(title)
+  await wait(200)
+  const targetNote = page.locator('.explorer-note.list-item', { hasText: title }).first()
+  await targetNote.waitFor({ state: 'visible', timeout: 30000 })
+  await targetNote.click()
+  await wait(150)
+}
 
 const ensureSourceEditorReady = async page => {
-  const isEditorMode = async () => ( await page.locator ( '.mainbar-pane-main > .editor' ).count () ) > 0;
-  const isSplitMode = async () => ( await page.locator ( '.mainbar-pane-main > .split-editor' ).count () ) > 0;
+  const isEditorMode = async () => (await page.locator('.mainbar-pane-main > .editor').count()) > 0
+  const isSplitMode = async () => (await page.locator('.mainbar-pane-main > .split-editor').count()) > 0
 
-  if ( !( await isEditorMode () ) && !( await isSplitMode () ) ) {
-    await emitIPC ( page, 'note-edit-toggle' );
+  if (!(await isEditorMode()) && !(await isSplitMode())) {
+    await emitIPC(page, 'note-edit-toggle')
   }
 
-  await page.waitForSelector ( '.mainbar-pane-main > .editor, .mainbar-pane-main > .split-editor', { timeout: 20000 } );
+  await page.waitForSelector('.mainbar-pane-main > .editor, .mainbar-pane-main > .split-editor', { timeout: 20000 })
 
-  if ( await isSplitMode () ) {
-    await emitIPC ( page, 'editor-split-toggle' );
+  if (await isSplitMode()) {
+    await emitIPC(page, 'editor-split-toggle')
   }
 
-  await page.waitForSelector ( '.mainbar-pane-main > .editor', { timeout: 20000 } );
-  await page.waitForSelector ( '.mainbar-pane-main > .editor .monaco-editor', { timeout: 30000 } );
-};
+  await page.waitForSelector('.mainbar-pane-main > .editor', { timeout: 20000 })
+  await page.waitForSelector('.mainbar-pane-main > .editor .monaco-editor', { timeout: 30000 })
+}
 
-const waitForActiveTabSaved = async ( page, timeout = 10000 ) => {
-  const deadline = Date.now () + timeout;
+const waitForActiveTabSaved = async (page, timeout = 10000) => {
+  const deadline = Date.now() + timeout
 
-  while ( Date.now () < deadline ) {
-    const activeTabText = await page.locator ( '.note-tabs .note-tab.active' ).first ().innerText ();
-    if ( !activeTabText.includes ( '*' ) ) return;
-    await wait ( 100 );
+  while (Date.now() < deadline) {
+    const activeTabText = await page.locator('.note-tabs .note-tab.active').first().innerText()
+    if (!activeTabText.includes('*')) return
+    await wait(100)
   }
 
-  throw new Error ( 'Timed out waiting for active note tab dirty marker to clear after save' );
-};
+  throw new Error('Timed out waiting for active note tab dirty marker to clear after save')
+}
 
-test ( 'ui: launches the main window and shows explorer notes', { timeout: 120000 }, async t => {
-  if ( shouldSkipForMissingDisplay ) {
-    t.skip ( 'UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.' );
+test('ui: launches the main window and shows explorer notes', { timeout: 120000 }, async t => {
+  if (shouldSkipForMissingDisplay) {
+    t.skip('UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.')
   }
 
-  ensurePrerequisites ();
-  assertReleaseBundle ();
+  ensurePrerequisites()
+  assertReleaseBundle()
 
-  const launched = await launchAppOrSkip ( t, { runtimeId: 'launch-main', theme: 'dark' } );
+  const launched = await launchAppOrSkip(t, { runtimeId: 'launch-main', theme: 'dark' })
 
-  if ( !launched ) return;
+  if (!launched) return
 
-  const {electronApp, page, runtimePaths} = launched;
+  const { electronApp, page, runtimePaths } = launched
 
-  t.after ( async () => {
-    await electronApp.close ();
-    rmrf ( runtimePaths.runtimeBasePath );
-  } );
+  t.after(async () => {
+    await electronApp.close()
+    rmrf(runtimePaths.runtimeBasePath)
+  })
 
-  assert.equal ( await page.locator ( '.mainbar' ).count (), 1 );
-  await ensureActivitybarPanelOpen ( page, 'Explorer', '.sidepanel-pane.explorer.is-active' );
-  assert.ok ( await page.locator ( '.explorer-note.list-item' ).count () > 0 );
-} );
+  assert.equal(await page.locator('.mainbar').count(), 1)
+  await ensureActivitybarPanelOpen(page, 'Explorer', '.sidepanel-pane.explorer.is-active')
+  assert.ok(await page.locator('.explorer-note.list-item').count() > 0)
+})
 
-test ( 'ui: activitybar panels render expected sidepanel and mainbar views', { timeout: 120000 }, async t => {
-  if ( shouldSkipForMissingDisplay ) {
-    t.skip ( 'UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.' );
+test('ui: activitybar panels render expected sidepanel and mainbar views', { timeout: 120000 }, async t => {
+  if (shouldSkipForMissingDisplay) {
+    t.skip('UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.')
   }
 
-  ensurePrerequisites ();
-  assertReleaseBundle ();
+  ensurePrerequisites()
+  assertReleaseBundle()
 
-  const launched = await launchAppOrSkip ( t, { runtimeId: 'activitybar-panels', theme: 'light' } );
+  const launched = await launchAppOrSkip(t, { runtimeId: 'activitybar-panels', theme: 'light' })
 
-  if ( !launched ) return;
+  if (!launched) return
 
-  const {electronApp, page, runtimePaths} = launched;
+  const { electronApp, page, runtimePaths } = launched
 
-  t.after ( async () => {
-    await electronApp.close ();
-    rmrf ( runtimePaths.runtimeBasePath );
-  } );
+  t.after(async () => {
+    await electronApp.close()
+    rmrf(runtimePaths.runtimeBasePath)
+  })
 
-  await ensureActivitybarPanelOpen ( page, 'Explorer', '.sidepanel-pane.explorer.is-active' );
-  assert.ok ( await page.locator ( '.explorer-note.list-item' ).count () > 0 );
+  await ensureActivitybarPanelOpen(page, 'Explorer', '.sidepanel-pane.explorer.is-active')
+  assert.ok(await page.locator('.explorer-note.list-item').count() > 0)
 
-  await ensureActivitybarPanelOpen ( page, 'Global Search', '.sidepanel-pane.search.is-active' );
-  await page.waitForSelector ( '.sidepanel-pane.search input[placeholder="Search..."]', { timeout: 20000 } );
+  await ensureActivitybarPanelOpen(page, 'Global Search', '.sidepanel-pane.search.is-active')
+  await page.waitForSelector('.sidepanel-pane.search input[placeholder="Search..."]', { timeout: 20000 })
 
-  await ensureActivitybarPanelOpen ( page, 'Graph', '.sidepanel-pane.is-active .toolbar .small' );
-  await ensureActivitybarTabActive ( page, 'Graph' );
-  assert.ok ( await page.locator ( '.sidepanel-pane.is-active .value.small' ).first ().innerText () === 'TODO' );
+  await ensureActivitybarPanelOpen(page, 'Graph', '.sidepanel-pane.is-active .toolbar .small')
+  await ensureActivitybarTabActive(page, 'Graph')
+  assert.ok(await page.locator('.sidepanel-pane.is-active .value.small').first().innerText() === 'TODO')
 
-  await ensureActivitybarTabActive ( page, 'Info' );
-  await page.waitForSelector ( '.sidepanel-pane-info, .mainbar-pane-info', { timeout: 20000 } );
-  const infoHeader = await page.evaluate (() => {
-    const candidates = Array.from ( document.querySelectorAll ( '.sidepanel-pane-info .toolbar .small, .mainbar-pane-info .toolbar .small' ) );
-    const firstWithText = candidates.find ( node => ( node.textContent || '' ).trim ().length > 0 );
-    return firstWithText ? firstWithText.textContent.trim () : '';
-  } );
-  assert.equal ( infoHeader, 'Table of Contents' );
+  await ensureActivitybarTabActive(page, 'Info')
+  await page.waitForSelector('.sidepanel-pane-info, .mainbar-pane-info', { timeout: 20000 })
+  const infoHeader = await page.evaluate(() => {
+    const candidates = Array.from(document.querySelectorAll('.sidepanel-pane-info .toolbar .small, .mainbar-pane-info .toolbar .small'))
+    const firstWithText = candidates.find(node => (node.textContent || '').trim().length > 0)
+    return firstWithText ? firstWithText.textContent.trim() : ''
+  })
+  assert.equal(infoHeader, 'Table of Contents')
 
-  await clickActivitybar ( page, 'Cheatsheets' );
-  await page.waitForSelector ( '.cheatsheet-view', { timeout: 20000 } );
+  await clickActivitybar(page, 'Cheatsheets')
+  await page.waitForSelector('.cheatsheet-view', { timeout: 20000 })
 
-  const hasTutorialHeading = await page.evaluate (() => {
-    return Array.from ( document.querySelectorAll ( '.cheatsheet-view h2, .cheatsheet-view h3' ) )
-      .some ( node => node.textContent?.trim () === 'Tutorial' );
-  } );
+  const hasTutorialHeading = await page.evaluate(() => {
+    return Array.from(document.querySelectorAll('.cheatsheet-view h2, .cheatsheet-view h3'))
+      .some(node => node.textContent?.trim() === 'Tutorial')
+  })
 
-  assert.equal ( hasTutorialHeading, true );
+  assert.equal(hasTutorialHeading, true)
 
-  await clickActivitybar ( page, 'Settings' );
-  await page.waitForSelector ( '.settings-view', { timeout: 20000 } );
-  await page.waitForSelector ( '.settings-hero-title', { timeout: 20000 } );
-  const settingsTitle = await page.locator ( '.settings-hero-title' ).first ().innerText ();
-  assert.equal ( settingsTitle.trim (), 'Global Configuration' );
-} );
+  await clickActivitybar(page, 'Settings')
+  await page.waitForSelector('.settings-view', { timeout: 20000 })
+  await page.waitForSelector('.settings-hero-title', { timeout: 20000 })
+  const settingsTitle = await page.locator('.settings-hero-title').first().innerText()
+  assert.equal(settingsTitle.trim(), 'Global Configuration')
+})
 
-test ( 'ui: note view walkthrough covers tabs, panels, and editor modes', { timeout: 120000 }, async t => {
-  if ( shouldSkipForMissingDisplay ) {
-    t.skip ( 'UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.' );
+test('ui: note view walkthrough covers tabs, panels, and editor modes', { timeout: 120000 }, async t => {
+  if (shouldSkipForMissingDisplay) {
+    t.skip('UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.')
   }
 
-  ensurePrerequisites ();
-  assertReleaseBundle ();
+  ensurePrerequisites()
+  assertReleaseBundle()
 
-  const launched = await launchAppOrSkip ( t, { runtimeId: 'note-view-walkthrough', theme: 'dark' } );
+  const launched = await launchAppOrSkip(t, { runtimeId: 'note-view-walkthrough', theme: 'dark' })
 
-  if ( !launched ) return;
+  if (!launched) return
 
-  const {electronApp, page, runtimePaths} = launched;
+  const { electronApp, page, runtimePaths } = launched
 
-  t.after ( async () => {
-    await electronApp.close ();
-    rmrf ( runtimePaths.runtimeBasePath );
-  } );
+  t.after(async () => {
+    await electronApp.close()
+    rmrf(runtimePaths.runtimeBasePath)
+  })
 
-  await ensureActivitybarPanelOpen ( page, 'Explorer', '.sidepanel-pane.explorer.is-active' );
-  await openExplorerAndFirstNote ( page );
+  await ensureActivitybarPanelOpen(page, 'Explorer', '.sidepanel-pane.explorer.is-active')
+  await openExplorerAndFirstNote(page)
 
-  await page.waitForSelector ( '.note-tabs .note-tab', { timeout: 20000 } );
+  await page.waitForSelector('.note-tabs .note-tab', { timeout: 20000 })
 
-  const noteTabs = page.locator ( '.note-tabs .note-tab' );
-  const noteTabCount = await noteTabs.count ();
+  const noteTabs = page.locator('.note-tabs .note-tab')
+  const noteTabCount = await noteTabs.count()
 
-  assert.ok ( noteTabCount >= 2, `Expected at least two open note tabs, received ${noteTabCount}` );
+  assert.ok(noteTabCount >= 2, `Expected at least two open note tabs, received ${noteTabCount}`)
 
-  const readActiveTabTitle = async () => ( await page.locator ( '.note-tabs .note-tab.active .note-tab-title' ).first ().innerText () ).trim ();
-  const readActiveTabIndex = async () => await page.evaluate (() => {
-    const tabs = Array.from ( document.querySelectorAll ( '.note-tabs .note-tab' ) );
-    return tabs.findIndex ( tab => tab.classList.contains ( 'active' ) );
-  } );
-  const waitForActiveTabIndex = async ( expectedIndex, timeout = 8000 ) => {
-    await page.waitForFunction ( index => {
-      const tabs = Array.from ( document.querySelectorAll ( '.note-tabs .note-tab' ) );
-      return tabs.findIndex ( tab => tab.classList.contains ( 'active' ) ) === index;
-    }, expectedIndex, { timeout } );
-  };
-
-  const firstActiveTitle = await readActiveTabTitle ();
-  const firstActiveIndex = await readActiveTabIndex ();
-  assert.ok ( firstActiveIndex >= 0, 'Expected an active note tab' );
-  const noteTabTitles = await noteTabs.locator ( '.note-tab-title' ).allInnerTexts ();
-  const switchTargetIndex = noteTabTitles.findIndex ( ( title, index ) => index !== firstActiveIndex && title.trim () !== firstActiveTitle );
-
-  assert.ok ( switchTargetIndex >= 0, `Expected at least one open tab with a title different from "${firstActiveTitle}"` );
-
-  await noteTabs.nth ( switchTargetIndex ).locator ( '.note-tab-title' ).click ();
-  await waitForActiveTabIndex ( switchTargetIndex );
-
-  const secondActiveIndex = await readActiveTabIndex ();
-  const secondActiveTitle = await readActiveTabTitle ();
-  assert.equal ( secondActiveIndex, switchTargetIndex );
-  assert.equal ( secondActiveTitle, noteTabTitles[switchTargetIndex].trim () );
-
-  await noteTabs.nth ( firstActiveIndex ).locator ( '.note-tab-title' ).click ();
-  await waitForActiveTabIndex ( firstActiveIndex );
-
-  const roundTripTitle = await readActiveTabTitle ();
-  assert.equal ( roundTripTitle, firstActiveTitle );
-
-  await ensureActivitybarPanelOpen ( page, 'Global Search', '.sidepanel-pane.search.is-active' );
-  await page.waitForSelector ( '.sidepanel-pane.search input[placeholder="Search..."]', { timeout: 20000 } );
-
-  await ensureActivitybarPanelOpen ( page, 'Graph', '.sidepanel-pane.is-active .toolbar .small' );
-  await ensureActivitybarTabActive ( page, 'Graph' );
-
-  await ensureActivitybarTabActive ( page, 'Info' );
-  await page.waitForSelector ( '.sidepanel-pane-info, .mainbar-pane-info', { timeout: 20000 } );
-
-  await clickActivitybar ( page, 'Cheatsheets' );
-  await page.waitForSelector ( '.cheatsheet-view', { timeout: 20000 } );
-
-  await clickActivitybar ( page, 'Settings' );
-  await page.waitForSelector ( '.settings-view', { timeout: 20000 } );
-
-  await openExplorerAndFirstNote ( page );
-  await page.waitForSelector ( '.mainbar-pane-main > .preview', { timeout: 20000 } );
-  assert.equal ( await page.locator ( '.mainbar-pane-main > .split-editor' ).count (), 0 );
-
-  await emitIPC ( page, 'note-edit-toggle' );
-  await page.waitForSelector ( '.mainbar-pane-main > .editor', { timeout: 20000 } );
-  assert.equal ( await page.locator ( '.mainbar-pane-main > .preview' ).count (), 0 );
-
-  await emitIPC ( page, 'editor-split-toggle' );
-  await page.waitForSelector ( '.mainbar-pane-main > .split-editor', { timeout: 20000 } );
-  assert.equal ( await page.locator ( '.mainbar-pane-main > .editor' ).count (), 0 );
-  assert.equal ( await page.locator ( '.mainbar-pane-main > .preview' ).count (), 0 );
-
-  await emitIPC ( page, 'editor-split-toggle' );
-  await page.waitForSelector ( '.mainbar-pane-main > .editor', { timeout: 20000 } );
-  assert.equal ( await page.locator ( '.mainbar-pane-main > .split-editor' ).count (), 0 );
-
-  await emitIPC ( page, 'note-edit-toggle' );
-  await page.waitForSelector ( '.mainbar-pane-main > .preview', { timeout: 20000 } );
-  assert.equal ( await page.locator ( '.mainbar-pane-main > .editor' ).count (), 0 );
-  assert.equal ( await page.locator ( '.mainbar-pane-main > .split-editor' ).count (), 0 );
-} );
-
-test ( 'ui: note interactions support local search, split view, and quick open', { timeout: 120000 }, async t => {
-  if ( shouldSkipForMissingDisplay ) {
-    t.skip ( 'UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.' );
+  const readActiveTabTitle = async () => (await page.locator('.note-tabs .note-tab.active .note-tab-title').first().innerText()).trim()
+  const readActiveTabIndex = async () => await page.evaluate(() => {
+    const tabs = Array.from(document.querySelectorAll('.note-tabs .note-tab'))
+    return tabs.findIndex(tab => tab.classList.contains('active'))
+  })
+  const waitForActiveTabIndex = async (expectedIndex, timeout = 8000) => {
+    await page.waitForFunction(index => {
+      const tabs = Array.from(document.querySelectorAll('.note-tabs .note-tab'))
+      return tabs.findIndex(tab => tab.classList.contains('active')) === index
+    }, expectedIndex, { timeout })
   }
 
-  ensurePrerequisites ();
-  assertReleaseBundle ();
+  const firstActiveTitle = await readActiveTabTitle()
+  const firstActiveIndex = await readActiveTabIndex()
+  assert.ok(firstActiveIndex >= 0, 'Expected an active note tab')
+  const noteTabTitles = await noteTabs.locator('.note-tab-title').allInnerTexts()
+  const switchTargetIndex = noteTabTitles.findIndex((title, index) => index !== firstActiveIndex && title.trim() !== firstActiveTitle)
 
-  const launched = await launchAppOrSkip ( t, { runtimeId: 'note-interactions', theme: 'dark' } );
+  assert.ok(switchTargetIndex >= 0, `Expected at least one open tab with a title different from "${firstActiveTitle}"`)
 
-  if ( !launched ) return;
+  await noteTabs.nth(switchTargetIndex).locator('.note-tab-title').click()
+  await waitForActiveTabIndex(switchTargetIndex)
 
-  const {electronApp, page, runtimePaths} = launched;
+  const secondActiveIndex = await readActiveTabIndex()
+  const secondActiveTitle = await readActiveTabTitle()
+  assert.equal(secondActiveIndex, switchTargetIndex)
+  assert.equal(secondActiveTitle, noteTabTitles[switchTargetIndex].trim())
 
-  t.after ( async () => {
-    await electronApp.close ();
-    rmrf ( runtimePaths.runtimeBasePath );
-  } );
+  await noteTabs.nth(firstActiveIndex).locator('.note-tab-title').click()
+  await waitForActiveTabIndex(firstActiveIndex)
 
-  await openExplorerAndFirstNote ( page );
-  await page.waitForSelector ( '.note-tabs .note-tab', { timeout: 20000 } );
+  const roundTripTitle = await readActiveTabTitle()
+  assert.equal(roundTripTitle, firstActiveTitle)
 
-  await emitIPC ( page, 'search-focus' );
-  await page.waitForSelector ( '.local-search input[placeholder="Search in note..."]', { timeout: 20000 } );
-  await page.locator ( '.local-search input[placeholder="Search in note..."]' ).fill ( 'test' );
-  await page.locator ( '.local-search-regex' ).click ();
-  const isRegexActive = await page.locator ( '.local-search-regex' ).first ().getAttribute ( 'class' );
-  assert.ok ( ( isRegexActive || '' ).includes ( 'active' ) );
+  await ensureActivitybarPanelOpen(page, 'Global Search', '.sidepanel-pane.search.is-active')
+  await page.waitForSelector('.sidepanel-pane.search input[placeholder="Search..."]', { timeout: 20000 })
 
-  await emitIPC ( page, 'editor-split-toggle' );
-  await page.waitForSelector ( '.split-editor', { timeout: 20000 } );
+  await ensureActivitybarPanelOpen(page, 'Graph', '.sidepanel-pane.is-active .toolbar .small')
+  await ensureActivitybarTabActive(page, 'Graph')
 
-  await emitIPC ( page, 'quick-panel-toggle', true );
-  await page.waitForSelector ( '.quick-panel input[placeholder="Open note or attachment..."]', { timeout: 20000 } );
-  await page.locator ( '.quick-panel input[placeholder="Open note or attachment..."]' ).fill ( 'malformer' );
-  await wait ( 200 );
-  assert.ok ( await page.locator ( '.quick-panel .list-item' ).count () > 0 );
-} );
+  await ensureActivitybarTabActive(page, 'Info')
+  await page.waitForSelector('.sidepanel-pane-info, .mainbar-pane-info', { timeout: 20000 })
 
-test ( 'ui: editor formatting shortcuts and auto-pairing work for markdown edits', { timeout: 120000 }, async t => {
-  if ( shouldSkipForMissingDisplay ) {
-    t.skip ( 'UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.' );
+  await clickActivitybar(page, 'Cheatsheets')
+  await page.waitForSelector('.cheatsheet-view', { timeout: 20000 })
+
+  await clickActivitybar(page, 'Settings')
+  await page.waitForSelector('.settings-view', { timeout: 20000 })
+
+  await openExplorerAndFirstNote(page)
+  await page.waitForSelector('.mainbar-pane-main > .preview', { timeout: 20000 })
+  assert.equal(await page.locator('.mainbar-pane-main > .split-editor').count(), 0)
+
+  await emitIPC(page, 'note-edit-toggle')
+  await page.waitForSelector('.mainbar-pane-main > .editor', { timeout: 20000 })
+  assert.equal(await page.locator('.mainbar-pane-main > .preview').count(), 0)
+
+  await emitIPC(page, 'editor-split-toggle')
+  await page.waitForSelector('.mainbar-pane-main > .split-editor', { timeout: 20000 })
+  assert.equal(await page.locator('.mainbar-pane-main > .editor').count(), 0)
+  assert.equal(await page.locator('.mainbar-pane-main > .preview').count(), 0)
+
+  await emitIPC(page, 'editor-split-toggle')
+  await page.waitForSelector('.mainbar-pane-main > .editor', { timeout: 20000 })
+  assert.equal(await page.locator('.mainbar-pane-main > .split-editor').count(), 0)
+
+  await emitIPC(page, 'note-edit-toggle')
+  await page.waitForSelector('.mainbar-pane-main > .preview', { timeout: 20000 })
+  assert.equal(await page.locator('.mainbar-pane-main > .editor').count(), 0)
+  assert.equal(await page.locator('.mainbar-pane-main > .split-editor').count(), 0)
+})
+
+test('ui: note interactions support local search, split view, and quick open', { timeout: 120000 }, async t => {
+  if (shouldSkipForMissingDisplay) {
+    t.skip('UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.')
   }
 
-  ensurePrerequisites ();
-  assertReleaseBundle ();
+  ensurePrerequisites()
+  assertReleaseBundle()
 
-  const launched = await launchAppOrSkip ( t, { runtimeId: 'editor-format-shortcuts', theme: 'dark', withFormattingFixtureNote: true, disableAutomaticRenaming: true } );
+  const launched = await launchAppOrSkip(t, { runtimeId: 'note-interactions', theme: 'dark' })
 
-  if ( !launched ) return;
+  if (!launched) return
 
-  const {electronApp, page, runtimePaths} = launched;
-  const ctrlOrCmd = process.platform === 'darwin' ? 'Meta' : 'Control';
+  const { electronApp, page, runtimePaths } = launched
 
-  t.after ( async () => {
-    await electronApp.close ();
-    rmrf ( runtimePaths.runtimeBasePath );
-  } );
+  t.after(async () => {
+    await electronApp.close()
+    rmrf(runtimePaths.runtimeBasePath)
+  })
 
-  await openExplorerNoteByTitle ( page, 'Formatting Shortcuts Test' );
+  await openExplorerAndFirstNote(page)
+  await page.waitForSelector('.note-tabs .note-tab', { timeout: 20000 })
 
-  await ensureSourceEditorReady ( page );
-  await page.locator ( '.mainbar-pane-main > .editor .monaco-editor' ).first ().click ();
+  await emitIPC(page, 'search-focus')
+  await page.waitForSelector('.local-search input[placeholder="Search in note..."]', { timeout: 20000 })
+  await page.locator('.local-search input[placeholder="Search in note..."]').fill('test')
+  await page.locator('.local-search-regex').click()
+  const isRegexActive = await page.locator('.local-search-regex').first().getAttribute('class')
+  assert.ok((isRegexActive || '').includes('active'))
 
-  await page.keyboard.press ( `${ctrlOrCmd}+End` );
-  await page.keyboard.press ( 'Enter' );
-  await page.keyboard.type ( 'alpha' );
+  await emitIPC(page, 'editor-split-toggle')
+  await page.waitForSelector('.split-editor', { timeout: 20000 })
 
-  await page.keyboard.down ( 'Shift' );
-  for ( let index = 0; index < 5; index++ ) {
-    await page.keyboard.press ( 'ArrowLeft' );
+  await emitIPC(page, 'quick-panel-toggle', true)
+  await page.waitForSelector('.quick-panel input[placeholder="Open note or attachment..."]', { timeout: 20000 })
+  await page.locator('.quick-panel input[placeholder="Open note or attachment..."]').fill('malformer')
+  await wait(200)
+  assert.ok(await page.locator('.quick-panel .list-item').count() > 0)
+})
+
+test('ui: editor formatting shortcuts and auto-pairing work for markdown edits', { timeout: 120000 }, async t => {
+  if (shouldSkipForMissingDisplay) {
+    t.skip('UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.')
   }
-  await page.keyboard.up ( 'Shift' );
-  await page.keyboard.down ( ctrlOrCmd );
-  await page.keyboard.press ( 'b' );
-  await page.keyboard.up ( ctrlOrCmd );
 
-  await page.keyboard.press ( 'End' );
-  await page.keyboard.type ( '(' );
-  await page.keyboard.type ( 'z' );
-  await page.keyboard.type ( ')' );
+  ensurePrerequisites()
+  assertReleaseBundle()
 
-  await page.keyboard.press ( 'Enter' );
-  await page.keyboard.type ( 'delta' );
-  await page.keyboard.press ( 'Shift+Home' );
-  await page.keyboard.type ( '*' );
-  await page.keyboard.press ( 'ArrowRight' );
-  await page.keyboard.press ( 'ArrowRight' );
+  const launched = await launchAppOrSkip(t, { runtimeId: 'editor-format-shortcuts', theme: 'dark', withFormattingFixtureNote: true, disableAutomaticRenaming: true })
 
-  await page.keyboard.press ( 'Enter' );
-  await page.keyboard.type ( '``' );
-  await page.keyboard.type ( '`' );
-  await page.keyboard.type ( 'py' );
-  await page.keyboard.press ( 'Enter' );
-  await page.keyboard.type ( 'print(1)' );
+  if (!launched) return
 
-  await page.keyboard.down ( ctrlOrCmd );
-  await page.keyboard.press ( 's' );
-  await page.keyboard.up ( ctrlOrCmd );
-  await waitForActiveTabSaved ( page, 10000 );
+  const { electronApp, page, runtimePaths } = launched
+  const ctrlOrCmd = process.platform === 'darwin' ? 'Meta' : 'Control'
 
-  const fixturePath = path.join ( runtimePaths.workspacePath, 'notes', formattingFixtureNoteFileName );
-  const deadline = Date.now () + 10000;
-  let source = '';
+  t.after(async () => {
+    await electronApp.close()
+    rmrf(runtimePaths.runtimeBasePath)
+  })
 
-  while ( Date.now () < deadline ) {
-    if ( fs.existsSync ( fixturePath ) ) {
-      source = fs.readFileSync ( fixturePath, 'utf8' );
-      if ( source.includes ( '**alpha**(z)' ) && source.includes ( '*delta*' ) && source.includes ( '```py\nprint(1)\n```' ) ) break;
+  await openExplorerNoteByTitle(page, 'Formatting Shortcuts Test')
+
+  await ensureSourceEditorReady(page)
+  await page.locator('.mainbar-pane-main > .editor .monaco-editor').first().click()
+
+  await page.keyboard.press(`${ctrlOrCmd}+End`)
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('alpha')
+
+  await page.keyboard.down('Shift')
+  for (let index = 0; index < 5; index++) {
+    await page.keyboard.press('ArrowLeft')
+  }
+  await page.keyboard.up('Shift')
+  await page.keyboard.down(ctrlOrCmd)
+  await page.keyboard.press('b')
+  await page.keyboard.up(ctrlOrCmd)
+
+  await page.keyboard.press('End')
+  await page.keyboard.type('(')
+  await page.keyboard.type('z')
+  await page.keyboard.type(')')
+
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('delta')
+  await page.keyboard.press('Shift+Home')
+  await page.keyboard.type('*')
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('``')
+  await page.keyboard.type('`')
+  await page.keyboard.type('py')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('print(1)')
+
+  await page.keyboard.down(ctrlOrCmd)
+  await page.keyboard.press('s')
+  await page.keyboard.up(ctrlOrCmd)
+  await waitForActiveTabSaved(page, 10000)
+
+  const fixturePath = path.join(runtimePaths.workspacePath, 'notes', formattingFixtureNoteFileName)
+  const deadline = Date.now() + 10000
+  let source = ''
+
+  while (Date.now() < deadline) {
+    if (fs.existsSync(fixturePath)) {
+      source = fs.readFileSync(fixturePath, 'utf8')
+      if (source.includes('**alpha**(z)') && source.includes('*delta*') && source.includes('```py\nprint(1)\n```')) break
     }
-    await wait ( 120 );
+    await wait(120)
   }
 
-  assert.ok ( !!source, `Expected fixture note file to exist: ${fixturePath}` );
-  assert.ok ( source.includes ( '**alpha**(z)' ), `Expected saved note to include bold shortcut + parenthesis auto-close behavior.\nSource:\n${source}` );
-  assert.ok ( source.includes ( '*delta*' ), `Expected saved note to include selection wrap on '*' typing.\nSource:\n${source}` );
-  assert.ok ( source.includes ( '```py\nprint(1)\n```' ), `Expected saved note to include triple-backtick code block expansion.\nSource:\n${source}` );
-} );
+  assert.ok(!!source, `Expected fixture note file to exist: ${fixturePath}`)
+  assert.ok(source.includes('**alpha**(z)'), `Expected saved note to include bold shortcut + parenthesis auto-close behavior.\nSource:\n${source}`)
+  assert.ok(source.includes('*delta*'), `Expected saved note to include selection wrap on '*' typing.\nSource:\n${source}`)
+  assert.ok(source.includes('```py\nprint(1)\n```'), `Expected saved note to include triple-backtick code block expansion.\nSource:\n${source}`)
+})
 
-test ( 'ui: info pane is internally scrollable for long heading lists', { timeout: 120000 }, async t => {
-  if ( shouldSkipForMissingDisplay ) {
-    t.skip ( 'UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.' );
+test('ui: info pane is internally scrollable for long heading lists', { timeout: 120000 }, async t => {
+  if (shouldSkipForMissingDisplay) {
+    t.skip('UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.')
   }
 
-  ensurePrerequisites ();
-  assertReleaseBundle ();
+  ensurePrerequisites()
+  assertReleaseBundle()
 
-  const launched = await launchAppOrSkip ( t, { runtimeId: 'info-pane-scroll', theme: 'dark', withInfoPaneScrollNote: true } );
+  const launched = await launchAppOrSkip(t, { runtimeId: 'info-pane-scroll', theme: 'dark', withInfoPaneScrollNote: true })
 
-  if ( !launched ) return;
+  if (!launched) return
 
-  const {electronApp, page, runtimePaths} = launched;
+  const { electronApp, page, runtimePaths } = launched
 
-  t.after ( async () => {
-    await electronApp.close ();
-    rmrf ( runtimePaths.runtimeBasePath );
-  } );
+  t.after(async () => {
+    await electronApp.close()
+    rmrf(runtimePaths.runtimeBasePath)
+  })
 
-  await openExplorerNoteByTitle ( page, 'Info Pane Scroll' );
-  await ensureActivitybarPanelOpen ( page, 'Info', '.sidepanel-pane-info.is-active' );
-  await page.waitForSelector ( '.sidepanel-pane-info.is-active .sidepanel-pane-info-content', { timeout: 20000 } );
+  await openExplorerNoteByTitle(page, 'Info Pane Scroll')
+  await ensureActivitybarPanelOpen(page, 'Info', '.sidepanel-pane-info.is-active')
+  await page.waitForSelector('.sidepanel-pane-info.is-active .sidepanel-pane-info-content', { timeout: 20000 })
 
-  const scrollResult = await page.evaluate (() => {
-    const target = document.querySelector ( '.sidepanel-pane-info.is-active .sidepanel-pane-info-content' );
+  const scrollResult = await page.evaluate(() => {
+    const target = document.querySelector('.sidepanel-pane-info.is-active .sidepanel-pane-info-content')
 
-    if ( !( target instanceof HTMLElement ) ) {
-      return { found: false };
+    if (!(target instanceof HTMLElement)) {
+      return { found: false }
     }
 
-    const initialScrollTop = target.scrollTop;
-    const maxScrollTop = Math.max ( 0, target.scrollHeight - target.clientHeight );
-    target.scrollTop = Math.min ( Math.max ( initialScrollTop + 220, 120 ), maxScrollTop );
+    const initialScrollTop = target.scrollTop
+    const maxScrollTop = Math.max(0, target.scrollHeight - target.clientHeight)
+    target.scrollTop = Math.min(Math.max(initialScrollTop + 220, 120), maxScrollTop)
 
     return {
       found: true,
-      overflowY: window.getComputedStyle ( target ).overflowY,
+      overflowY: window.getComputedStyle(target).overflowY,
       clientHeight: target.clientHeight,
       scrollHeight: target.scrollHeight,
       initialScrollTop,
       nextScrollTop: target.scrollTop
-    };
-  } );
+    }
+  })
 
-  assert.ok ( scrollResult.found, 'Expected info pane scroll container to exist' );
-  assert.ok ( scrollResult.scrollHeight > scrollResult.clientHeight, `Expected scrollHeight (${scrollResult.scrollHeight}) > clientHeight (${scrollResult.clientHeight})` );
-  assert.ok ( scrollResult.nextScrollTop > scrollResult.initialScrollTop, `Expected info pane scrollTop to increase (from ${scrollResult.initialScrollTop} to ${scrollResult.nextScrollTop})` );
-  assert.ok ( ['auto', 'scroll', 'overlay'].includes ( scrollResult.overflowY ), `Expected overflow-y to be scrollable, received "${scrollResult.overflowY}"` );
-} );
+  assert.ok(scrollResult.found, 'Expected info pane scroll container to exist')
+  assert.ok(scrollResult.scrollHeight > scrollResult.clientHeight, `Expected scrollHeight (${scrollResult.scrollHeight}) > clientHeight (${scrollResult.clientHeight})`)
+  assert.ok(scrollResult.nextScrollTop > scrollResult.initialScrollTop, `Expected info pane scrollTop to increase (from ${scrollResult.initialScrollTop} to ${scrollResult.nextScrollTop})`)
+  assert.ok(['auto', 'scroll', 'overlay'].includes(scrollResult.overflowY), `Expected overflow-y to be scrollable, received "${scrollResult.overflowY}"`)
+})
 
-test ( 'ui: settings non-battery options are interactive', { timeout: 120000 }, async t => {
-  if ( shouldSkipForMissingDisplay ) {
-    t.skip ( 'UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.' );
+test('ui: settings non-battery options are interactive', { timeout: 120000 }, async t => {
+  if (shouldSkipForMissingDisplay) {
+    t.skip('UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.')
   }
 
-  ensurePrerequisites ();
-  assertReleaseBundle ();
+  ensurePrerequisites()
+  assertReleaseBundle()
 
-  const launched = await launchAppOrSkip ( t, { runtimeId: 'settings-controls', theme: 'dark' } );
+  const launched = await launchAppOrSkip(t, { runtimeId: 'settings-controls', theme: 'dark' })
 
-  if ( !launched ) return;
+  if (!launched) return
 
-  const {electronApp, page, runtimePaths} = launched;
+  const { electronApp, page, runtimePaths } = launched
 
-  t.after ( async () => {
-    await electronApp.close ();
-    rmrf ( runtimePaths.runtimeBasePath );
-  } );
+  t.after(async () => {
+    await electronApp.close()
+    rmrf(runtimePaths.runtimeBasePath)
+  })
 
   const openSettingsView = async () => {
-    await ensureActivitybarTabActive ( page, 'Settings' );
-    await page.waitForSelector ( '.settings-view', { timeout: 20000 } );
-  };
+    await ensureActivitybarTabActive(page, 'Settings')
+    await page.waitForSelector('.settings-view', { timeout: 20000 })
+  }
 
-  await openSettingsView ();
+  await openSettingsView()
 
-  const configFilePath = ( await page.locator ( '.settings-path' ).first ().innerText () ).trim ();
-  assert.ok ( !!configFilePath, 'Expected a non-empty config file path in settings UI' );
+  const configFilePath = (await page.locator('.settings-path').first().innerText()).trim()
+  assert.ok(!!configFilePath, 'Expected a non-empty config file path in settings UI')
 
-  const getSection = name => page.locator ( '.settings-section' ).filter ({
-    has: page.locator ( '.settings-section-name', { hasText: name } )
-  }).first ();
+  const getSection = name => page.locator('.settings-section').filter({
+    has: page.locator('.settings-section-name', { hasText: name })
+  }).first()
 
-  const getField = ( sectionLocator, label ) => sectionLocator.locator ( '.settings-field' ).filter ({
+  const getField = (sectionLocator, label) => sectionLocator.locator('.settings-field').filter({
     hasText: label
-  }).first ();
+  }).first()
 
-  const getFieldSelect = async ( sectionLocator, label ) => {
-    const field = getField ( sectionLocator, label );
-    await field.scrollIntoViewIfNeeded ();
-    const select = field.locator ( 'select.settings-select' ).first ();
-    await select.waitFor ({ state: 'attached', timeout: 20000 });
-    return select;
-  };
+  const getFieldSelect = async (sectionLocator, label) => {
+    const field = getField(sectionLocator, label)
+    await field.scrollIntoViewIfNeeded()
+    const select = field.locator('select.settings-select').first()
+    await select.waitFor({ state: 'attached', timeout: 20000 })
+    return select
+  }
 
-  const generalSection = getSection ( 'General' );
-  await generalSection.waitFor ({ state: 'visible', timeout: 20000 });
+  const generalSection = getSection('General')
+  await generalSection.waitFor({ state: 'visible', timeout: 20000 })
 
-  const autoUpdateSwitch = generalSection.locator ( 'button.settings-switch[aria-label="Toggle automatic update checks"]' ).first ();
-  const autoUpdatePrev = await autoUpdateSwitch.getAttribute ( 'aria-pressed' );
-  await autoUpdateSwitch.click ();
-  const autoUpdateNext = await waitForAttributeChange ( autoUpdateSwitch, 'aria-pressed', autoUpdatePrev );
-  await waitForConfigPathValue ( configFilePath, 'autoupdate', ariaToBool ( autoUpdateNext ) );
+  const autoUpdateSwitch = generalSection.locator('button.settings-switch[aria-label="Toggle automatic update checks"]').first()
+  const autoUpdatePrev = await autoUpdateSwitch.getAttribute('aria-pressed')
+  await autoUpdateSwitch.click()
+  const autoUpdateNext = await waitForAttributeChange(autoUpdateSwitch, 'aria-pressed', autoUpdatePrev)
+  await waitForConfigPathValue(configFilePath, 'autoupdate', ariaToBool(autoUpdateNext))
 
-  const useGpuSwitch = generalSection.locator ( 'button.settings-switch[aria-label="Toggle use GPU"]' ).first ();
-  const useGpuPrev = await useGpuSwitch.getAttribute ( 'aria-pressed' );
-  await useGpuSwitch.click ();
-  const useGpuNext = await waitForAttributeChange ( useGpuSwitch, 'aria-pressed', useGpuPrev );
-  await waitForConfigPathValue ( configFilePath, 'performance.highPerformanceMode', ariaToBool ( useGpuNext ) );
+  const useGpuSwitch = generalSection.locator('button.settings-switch[aria-label="Toggle use GPU"]').first()
+  const useGpuPrev = await useGpuSwitch.getAttribute('aria-pressed')
+  await useGpuSwitch.click()
+  const useGpuNext = await waitForAttributeChange(useGpuSwitch, 'aria-pressed', useGpuPrev)
+  await waitForConfigPathValue(configFilePath, 'performance.highPerformanceMode', ariaToBool(useGpuNext))
 
-  const editorSection = getSection ( 'Editor' );
-  await editorSection.waitFor ({ state: 'visible', timeout: 20000 });
+  const editorSection = getSection('Editor')
+  await editorSection.waitFor({ state: 'visible', timeout: 20000 })
 
-  const lineNumbersSelect = await getFieldSelect ( editorSection, 'Line numbers' );
-  const lineNumbersPrev = await lineNumbersSelect.inputValue ();
-  const lineNumbersNext = lineNumbersPrev === 'relative' ? 'on' : 'relative';
-  await lineNumbersSelect.selectOption ( lineNumbersNext );
-  await waitForInputValue ( lineNumbersSelect, lineNumbersNext );
-  await waitForConfigPathValue ( configFilePath, 'monaco.editorOptions.lineNumbers', lineNumbersNext );
+  const lineNumbersSelect = await getFieldSelect(editorSection, 'Line numbers')
+  const lineNumbersPrev = await lineNumbersSelect.inputValue()
+  const lineNumbersNext = lineNumbersPrev === 'relative' ? 'on' : 'relative'
+  await lineNumbersSelect.selectOption(lineNumbersNext)
+  await waitForInputValue(lineNumbersSelect, lineNumbersNext)
+  await waitForConfigPathValue(configFilePath, 'monaco.editorOptions.lineNumbers', lineNumbersNext)
 
-  const tabSizeSelect = await getFieldSelect ( editorSection, 'Tab size' );
-  const tabSizePrev = await tabSizeSelect.inputValue ();
-  const tabSizeNext = tabSizePrev === '4' ? '2' : '4';
-  await tabSizeSelect.selectOption ( tabSizeNext );
-  await waitForInputValue ( tabSizeSelect, tabSizeNext );
-  await waitForConfigPathValue ( configFilePath, 'monaco.editorOptions.tabSize', Number ( tabSizeNext ) );
+  const tabSizeSelect = await getFieldSelect(editorSection, 'Tab size')
+  const tabSizePrev = await tabSizeSelect.inputValue()
+  const tabSizeNext = tabSizePrev === '4' ? '2' : '4'
+  await tabSizeSelect.selectOption(tabSizeNext)
+  await waitForInputValue(tabSizeSelect, tabSizeNext)
+  await waitForConfigPathValue(configFilePath, 'monaco.editorOptions.tabSize', Number(tabSizeNext))
 
-  const disableSuggestionsSwitch = editorSection.locator ( 'button.settings-switch[aria-label="Toggle autocomplete suggestions"]' ).first ();
-  const disableSuggestionsPrev = await disableSuggestionsSwitch.getAttribute ( 'aria-pressed' );
-  await disableSuggestionsSwitch.click ();
-  const disableSuggestionsNext = await waitForAttributeChange ( disableSuggestionsSwitch, 'aria-pressed', disableSuggestionsPrev );
-  await waitForConfigPathValue ( configFilePath, 'monaco.editorOptions.disableSuggestions', ariaToBool ( disableSuggestionsNext ) );
+  const disableSuggestionsSwitch = editorSection.locator('button.settings-switch[aria-label="Toggle autocomplete suggestions"]').first()
+  const disableSuggestionsPrev = await disableSuggestionsSwitch.getAttribute('aria-pressed')
+  await disableSuggestionsSwitch.click()
+  const disableSuggestionsNext = await waitForAttributeChange(disableSuggestionsSwitch, 'aria-pressed', disableSuggestionsPrev)
+  await waitForConfigPathValue(configFilePath, 'monaco.editorOptions.disableSuggestions', ariaToBool(disableSuggestionsNext))
 
-  const disableTableFormattingSwitch = editorSection.locator ( 'button.settings-switch[aria-label="Toggle automatic table formatting"]' ).first ();
-  const disableTableFormattingPrev = await disableTableFormattingSwitch.getAttribute ( 'aria-pressed' );
-  await disableTableFormattingSwitch.click ();
-  const disableTableFormattingNext = await waitForAttributeChange ( disableTableFormattingSwitch, 'aria-pressed', disableTableFormattingPrev );
-  await waitForConfigPathValue ( configFilePath, 'monaco.disableAutomaticTableFormatting', ariaToBool ( disableTableFormattingNext ) );
+  const disableTableFormattingSwitch = editorSection.locator('button.settings-switch[aria-label="Toggle automatic table formatting"]').first()
+  const disableTableFormattingPrev = await disableTableFormattingSwitch.getAttribute('aria-pressed')
+  await disableTableFormattingSwitch.click()
+  const disableTableFormattingNext = await waitForAttributeChange(disableTableFormattingSwitch, 'aria-pressed', disableTableFormattingPrev)
+  await waitForConfigPathValue(configFilePath, 'monaco.disableAutomaticTableFormatting', ariaToBool(disableTableFormattingNext))
 
-  const tableFormatDelaySelect = await getFieldSelect ( editorSection, 'Automatic table format delay' );
-  assert.equal ( await tableFormatDelaySelect.isDisabled (), disableTableFormattingNext === 'true' );
+  const tableFormatDelaySelect = await getFieldSelect(editorSection, 'Automatic table format delay')
+  assert.equal(await tableFormatDelaySelect.isDisabled(), disableTableFormattingNext === 'true')
 
-  const spellcheckSection = getSection ( 'Spellcheck Dictionary' );
-  await spellcheckSection.waitFor ({ state: 'visible', timeout: 20000 });
-  const showDictionaryButton = spellcheckSection.locator ( 'button.settings-action.settings-action-inline' ).first ();
-  await showDictionaryButton.click ();
-  const dictionaryInput = spellcheckSection.locator ( 'input.settings-input-spellcheck' ).first ();
-  await dictionaryInput.waitFor ({ state: 'visible', timeout: 20000 });
-  const randomSuffix = Array.from ({ length: 7 }, () => String.fromCharCode ( 97 + Math.floor ( Math.random () * 26 ) ) ).join ( '' );
-  const testWord = `playwright${randomSuffix}`;
-  await dictionaryInput.fill ( testWord );
-  const addWordButton = spellcheckSection.locator ( 'button', { hasText: 'Add Word' } ).first ();
-  await waitForEnabled ( addWordButton, 10000 );
-  await addWordButton.click ();
-  const addedWord = spellcheckSection.locator ( '.settings-spellcheck-word', { hasText: testWord } ).first ();
-  await addedWord.waitFor ({ state: 'visible', timeout: 20000 });
-  await waitForConfigPredicate ( configFilePath, 'spellcheck.addedWords includes newly added word', config => {
-    const words = getDotPathValue ( config, 'spellcheck.addedWords' ) || [];
-    return Array.isArray ( words ) && words.includes ( testWord );
-  } );
-  const wordRow = spellcheckSection.locator ( '.settings-spellcheck-item', { hasText: testWord } ).first ();
-  await wordRow.scrollIntoViewIfNeeded ();
-  const removeWordButton = wordRow.locator ( 'button.settings-spellcheck-remove' ).first ();
-  await removeWordButton.waitFor ({ state: 'visible', timeout: 20000 });
-  await removeWordButton.click ();
-  await addedWord.waitFor ({ state: 'hidden', timeout: 20000 });
-  await waitForConfigPredicate ( configFilePath, 'spellcheck.addedWords excludes removed word', config => {
-    const words = getDotPathValue ( config, 'spellcheck.addedWords' ) || [];
-    return Array.isArray ( words ) && !words.includes ( testWord );
-  } );
+  const spellcheckSection = getSection('Spellcheck Dictionary')
+  await spellcheckSection.waitFor({ state: 'visible', timeout: 20000 })
+  const showDictionaryButton = spellcheckSection.locator('button.settings-action.settings-action-inline').first()
+  await showDictionaryButton.click()
+  const dictionaryInput = spellcheckSection.locator('input.settings-input-spellcheck').first()
+  await dictionaryInput.waitFor({ state: 'visible', timeout: 20000 })
+  const randomSuffix = Array.from({ length: 7 }, () => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join('')
+  const testWord = `playwright${randomSuffix}`
+  await dictionaryInput.fill(testWord)
+  const addWordButton = spellcheckSection.locator('button', { hasText: 'Add Word' }).first()
+  await waitForEnabled(addWordButton, 10000)
+  await addWordButton.click()
+  const addedWord = spellcheckSection.locator('.settings-spellcheck-word', { hasText: testWord }).first()
+  await addedWord.waitFor({ state: 'visible', timeout: 20000 })
+  await waitForConfigPredicate(configFilePath, 'spellcheck.addedWords includes newly added word', config => {
+    const words = getDotPathValue(config, 'spellcheck.addedWords') || []
+    return Array.isArray(words) && words.includes(testWord)
+  })
+  const wordRow = spellcheckSection.locator('.settings-spellcheck-item', { hasText: testWord }).first()
+  await wordRow.scrollIntoViewIfNeeded()
+  const removeWordButton = wordRow.locator('button.settings-spellcheck-remove').first()
+  await removeWordButton.waitFor({ state: 'visible', timeout: 20000 })
+  await removeWordButton.click()
+  await addedWord.waitFor({ state: 'hidden', timeout: 20000 })
+  await waitForConfigPredicate(configFilePath, 'spellcheck.addedWords excludes removed word', config => {
+    const words = getDotPathValue(config, 'spellcheck.addedWords') || []
+    return Array.isArray(words) && !words.includes(testWord)
+  })
 
-  const notesSection = getSection ( 'Notes' );
-  await notesSection.waitFor ({ state: 'visible', timeout: 20000 });
-  const disableRenameSwitch = notesSection.locator ( 'button.settings-switch[aria-label="Toggle automatic note renaming"]' ).first ();
-  const disableRenamePrev = await disableRenameSwitch.getAttribute ( 'aria-pressed' );
-  await disableRenameSwitch.click ();
-  const disableRenameNext = await waitForAttributeChange ( disableRenameSwitch, 'aria-pressed', disableRenamePrev );
-  await waitForConfigPathValue ( configFilePath, 'notes.disableAutomaticRenaming', ariaToBool ( disableRenameNext ) );
+  const notesSection = getSection('Notes')
+  await notesSection.waitFor({ state: 'visible', timeout: 20000 })
+  const disableRenameSwitch = notesSection.locator('button.settings-switch[aria-label="Toggle automatic note renaming"]').first()
+  const disableRenamePrev = await disableRenameSwitch.getAttribute('aria-pressed')
+  await disableRenameSwitch.click()
+  const disableRenameNext = await waitForAttributeChange(disableRenameSwitch, 'aria-pressed', disableRenamePrev)
+  await waitForConfigPathValue(configFilePath, 'notes.disableAutomaticRenaming', ariaToBool(disableRenameNext))
 
-  const inputSection = getSection ( 'Input' );
-  await inputSection.waitFor ({ state: 'visible', timeout: 20000 });
-  const middleClickSwitch = inputSection.locator ( 'button.settings-switch[aria-label="Toggle middle-click paste on Linux"]' ).first ();
-  const middleClickPrev = await middleClickSwitch.getAttribute ( 'aria-pressed' );
-  await middleClickSwitch.click ();
-  const middleClickNext = await waitForAttributeChange ( middleClickSwitch, 'aria-pressed', middleClickPrev );
-  await waitForConfigPathValue ( configFilePath, 'input.disableMiddleClickPaste', ariaToBool ( middleClickNext ) );
+  const inputSection = getSection('Input')
+  await inputSection.waitFor({ state: 'visible', timeout: 20000 })
+  const middleClickSwitch = inputSection.locator('button.settings-switch[aria-label="Toggle middle-click paste on Linux"]').first()
+  const middleClickPrev = await middleClickSwitch.getAttribute('aria-pressed')
+  await middleClickSwitch.click()
+  const middleClickNext = await waitForAttributeChange(middleClickSwitch, 'aria-pressed', middleClickPrev)
+  await waitForConfigPathValue(configFilePath, 'input.disableMiddleClickPaste', ariaToBool(middleClickNext))
 
   // Validate changed settings remain reflected in UI after panel navigation.
-  await ensureActivitybarPanelOpen ( page, 'Explorer', '.sidepanel-pane.explorer.is-active' );
-  await openSettingsView ();
+  await ensureActivitybarPanelOpen(page, 'Explorer', '.sidepanel-pane.explorer.is-active')
+  await openSettingsView()
 
-  const generalSectionAfter = getSection ( 'General' );
-  const editorSectionAfter = getSection ( 'Editor' );
-  const notesSectionAfter = getSection ( 'Notes' );
-  const inputSectionAfter = getSection ( 'Input' );
+  const generalSectionAfter = getSection('General')
+  const editorSectionAfter = getSection('Editor')
+  const notesSectionAfter = getSection('Notes')
+  const inputSectionAfter = getSection('Input')
 
-  await generalSectionAfter.waitFor ({ state: 'visible', timeout: 20000 });
-  await editorSectionAfter.waitFor ({ state: 'visible', timeout: 20000 });
-  await notesSectionAfter.waitFor ({ state: 'visible', timeout: 20000 });
-  await inputSectionAfter.waitFor ({ state: 'visible', timeout: 20000 });
+  await generalSectionAfter.waitFor({ state: 'visible', timeout: 20000 })
+  await editorSectionAfter.waitFor({ state: 'visible', timeout: 20000 })
+  await notesSectionAfter.waitFor({ state: 'visible', timeout: 20000 })
+  await inputSectionAfter.waitFor({ state: 'visible', timeout: 20000 })
 
-  assert.equal (
-    await generalSectionAfter.locator ( 'button.settings-switch[aria-label="Toggle automatic update checks"]' ).first ().getAttribute ( 'aria-pressed' ),
+  assert.equal(
+    await generalSectionAfter.locator('button.settings-switch[aria-label="Toggle automatic update checks"]').first().getAttribute('aria-pressed'),
     autoUpdateNext
-  );
-  assert.equal (
-    await generalSectionAfter.locator ( 'button.settings-switch[aria-label="Toggle use GPU"]' ).first ().getAttribute ( 'aria-pressed' ),
+  )
+  assert.equal(
+    await generalSectionAfter.locator('button.settings-switch[aria-label="Toggle use GPU"]').first().getAttribute('aria-pressed'),
     useGpuNext
-  );
-  assert.equal ( await ( await getFieldSelect ( editorSectionAfter, 'Line numbers' ) ).inputValue (), lineNumbersNext );
-  assert.equal ( await ( await getFieldSelect ( editorSectionAfter, 'Tab size' ) ).inputValue (), tabSizeNext );
-  assert.equal (
-    await editorSectionAfter.locator ( 'button.settings-switch[aria-label="Toggle autocomplete suggestions"]' ).first ().getAttribute ( 'aria-pressed' ),
+  )
+  assert.equal(await (await getFieldSelect(editorSectionAfter, 'Line numbers')).inputValue(), lineNumbersNext)
+  assert.equal(await (await getFieldSelect(editorSectionAfter, 'Tab size')).inputValue(), tabSizeNext)
+  assert.equal(
+    await editorSectionAfter.locator('button.settings-switch[aria-label="Toggle autocomplete suggestions"]').first().getAttribute('aria-pressed'),
     disableSuggestionsNext
-  );
-  assert.equal (
-    await notesSectionAfter.locator ( 'button.settings-switch[aria-label="Toggle automatic note renaming"]' ).first ().getAttribute ( 'aria-pressed' ),
+  )
+  assert.equal(
+    await notesSectionAfter.locator('button.settings-switch[aria-label="Toggle automatic note renaming"]').first().getAttribute('aria-pressed'),
     disableRenameNext
-  );
-  assert.equal (
-    await inputSectionAfter.locator ( 'button.settings-switch[aria-label="Toggle middle-click paste on Linux"]' ).first ().getAttribute ( 'aria-pressed' ),
+  )
+  assert.equal(
+    await inputSectionAfter.locator('button.settings-switch[aria-label="Toggle middle-click paste on Linux"]').first().getAttribute('aria-pressed'),
     middleClickNext
-  );
-} );
+  )
+})

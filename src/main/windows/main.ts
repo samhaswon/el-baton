@@ -6,6 +6,7 @@ import {BrowserWindowConstructorOptions, Event, ipcMain as ipc, BrowserWindow, M
 import {is} from '@common/electron_util_shim';
 import windowStateKeeper from 'electron-window-state';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import pkg from '@root/package.json';
 import Environment from '@common/environment';
@@ -24,6 +25,7 @@ class Main extends Route {
   _prevContextFlags: ContextFlags | false = false;
   _prevUpdateCheckTimestamp: number = 0;
   _isRendererAvailable: boolean = true;
+  _didReloadForReactDevTools: boolean = false;
 
   /* CONSTRUCTOR */
 
@@ -476,7 +478,7 @@ class Main extends Route {
 
     ipc.removeListener ( 'force-close', this.__forceClose );
     ipc.removeListener ( 'flags-update', this.__flagsUpdate );
-    ipc.removeListener ( 'print-pdf', this.__printPDF );
+    ipc.removeHandler ( 'print-pdf' );
     ipc.removeListener ( 'plantuml-render', this.__plantumlRender );
     ipc.removeListener ( 'plantuml-test-server', this.__plantumlTestServer );
     ipc.removeListener ( 'plantuml-open-external', this.__plantumlOpenExternal );
@@ -688,11 +690,11 @@ class Main extends Route {
 
   ___printPDF = () => {
 
-    ipc.on ( 'print-pdf', this.__printPDF );
+    ipc.handle ( 'print-pdf', this.__printPDF );
 
   }
 
-  __printPDF = ( event: Event, options: PrintOptions ) => {
+  __printPDF = async ( event: Event, options: PrintOptions ): Promise<void> => {
 
     const win = new BrowserWindow ({
       show: false,
@@ -702,63 +704,71 @@ class Main extends Route {
       }
     });
 
-    if ( options.html ) {
+    let tmpDirPath: string | undefined;
+    let tmpHtmlPath: string | undefined;
 
-      win.loadURL ( `data:text/html;base64,${Buffer.from ( options.html ).toString ( 'base64' )}` ); //FIXME: https://github.com/electron/electron/issues/18093
+    try {
 
-    } else if ( options.src ) {
+      if ( options.html ) {
 
-      win.loadFile ( options.src );
+        tmpDirPath = await fs.promises.mkdtemp ( path.join ( os.tmpdir (), 'el-baton-print-' ) );
+        tmpHtmlPath = path.join ( tmpDirPath, 'document.html' );
 
-    } else {
+        await fs.promises.writeFile ( tmpHtmlPath, options.html, 'utf8' );
+        await win.loadFile ( tmpHtmlPath );
 
-      return console.error ( 'No content or file to print to PDF provided' );
+      } else if ( options.src ) {
 
-    }
+        await win.loadFile ( options.src );
 
-    const optionsPDF = {
-      printBackground: true
-    };
+      } else {
 
-    win.webContents.on ( 'did-finish-load', () => {
+        throw new Error ( 'No content or file to print to PDF provided' );
 
-      const onData = ( data: Buffer ) => {
+      }
 
-        fs.writeFile ( options.dst, data, err => {
-          if ( !err ) {
-            win.destroy ();
-            return;
-          }
-          if ( err.code === 'ENOENT' ) {
-            fs.mkdir ( path.dirname ( options.dst ), { recursive: true }, ( err: NodeJS.ErrnoException | null ) => {
-              if ( err ) return console.error ( err );
-              fs.writeFile ( options.dst, data, err => {
-                if ( err ) return console.error ( err );
-                win.destroy ();
-              });
-            });
-            return;
-          }
-          console.error ( err );
-          win.destroy ();
-        });
-
-      };
-
-      const onError = ( err: Error ) => {
-        console.error ( err );
-        win.destroy ();
+      const optionsPDF = {
+        printBackground: true
       };
 
       const printToPDF = ( win.webContents as any ).printToPDF;
 
-      if ( printToPDF.length >= 2 ) {
-        printToPDF.call ( win.webContents, optionsPDF, ( err: Error, data: Buffer ) => err ? onError ( err ) : onData ( data ) );
-      } else {
-        printToPDF.call ( win.webContents, optionsPDF ).then ( onData ).catch ( onError );
+      const data = await new Promise<Buffer> (( resolve, reject ) => {
+
+        if ( printToPDF.length >= 2 ) {
+          printToPDF.call ( win.webContents, optionsPDF, ( err: Error, result: Buffer ) => err ? reject ( err ) : resolve ( result ) );
+        } else {
+          printToPDF.call ( win.webContents, optionsPDF ).then ( resolve ).catch ( reject );
+        }
+
+      });
+
+      try {
+
+        await fs.promises.writeFile ( options.dst, data );
+
+      } catch ( error ) {
+
+        const fileError = error as NodeJS.ErrnoException;
+
+        if ( fileError.code !== 'ENOENT' ) throw fileError;
+
+        await fs.promises.mkdir ( path.dirname ( options.dst ), { recursive: true } );
+        await fs.promises.writeFile ( options.dst, data );
+
       }
 
-    });
+    } finally {
+
+      if ( !win.isDestroyed () ) {
+        win.destroy ();
+      }
+
+      if ( tmpDirPath ) {
+        await fs.promises.rm ( tmpDirPath, { recursive: true, force: true } );
+      }
+
+    }
 
   }
 
@@ -886,7 +896,29 @@ class Main extends Route {
 
     super.load ();
 
+    if ( Environment.isDevelopment && !this._didReloadForReactDevTools ) {
+      this.win.webContents.once ( 'did-finish-load', this.__reloadForReactDevTools );
+    }
+
     setTimeout ( this.__didFinishLoad, 500 ); //TODO: Ideally the timeout should be 0, for for that we need to minimize the amount of work happening before the skeleton can be rendered
+
+  }
+
+  __reloadForReactDevTools = () => {
+
+    if ( !Environment.isDevelopment ) return;
+    if ( this._didReloadForReactDevTools ) return;
+    if ( !this.win || this.win.isDestroyed () ) return;
+
+    this._didReloadForReactDevTools = true;
+
+    setTimeout ( () => {
+
+      if ( !this.win || this.win.isDestroyed () ) return;
+
+      this.win.webContents.reload ();
+
+    }, 250 );
 
   }
 

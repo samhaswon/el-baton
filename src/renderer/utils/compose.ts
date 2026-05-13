@@ -17,7 +17,7 @@ const compose = ( containers: any ) => {
         ( this as any ).ctx = ( this as any ).ctx || {};
         ( this as any ).state = ( this as any ).state || {};
 
-        for ( let name in containers ) {
+        for ( const name in containers ) {
 
           const child = new containers[name]();
 

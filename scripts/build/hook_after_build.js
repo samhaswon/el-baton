@@ -1,20 +1,17 @@
-
 /* IMPORT */
 
-const fixLatestLinux = require ( './fix_latest_linux' ),
-      fixLatestWin = require ( './fix_latest_win' );
+const fixLatestLinux = require('./fix_latest_linux')
+const fixLatestWin = require('./fix_latest_win')
 
 /* AFTER BUILD */
 
 function afterBuild () {
+  fixLatestLinux()
+  fixLatestWin()
 
-  fixLatestLinux ();
-  fixLatestWin ();
-
-  return [];
-
+  return []
 }
 
 /* EXPORT */
 
-module.exports = afterBuild;
+module.exports = afterBuild
