@@ -993,6 +993,7 @@ test('ui: split preview details toggles update source details tags', { timeout: 
   if (!launched) return
 
   const { electronApp, page, runtimePaths } = launched
+  const ctrlOrCmd = process.platform === 'darwin' ? 'Meta' : 'Control'
 
   t.after(async () => {
     await electronApp.close()
@@ -1006,16 +1007,18 @@ test('ui: split preview details toggles update source details tags', { timeout: 
   await page.waitForSelector('.mainbar-pane-main > .split-editor', { timeout: 20000 })
   await page.waitForSelector('.split-editor .preview details', { timeout: 30000 })
 
-  const readDetailsSource = () => {
-    const fixturePath = path.join(runtimePaths.workspacePath, 'notes', markdownPackageFixtureNoteFileName)
-    return fs.readFileSync(fixturePath, 'utf8')
+  const readSplitEditorSource = async () => {
+    await page.locator('.split-editor .editor .monaco-editor').first().click()
+    await page.keyboard.press(`${ctrlOrCmd}+A`)
+    await page.keyboard.press(`${ctrlOrCmd}+C`)
+    return electronApp.evaluate(({ clipboard }) => clipboard.readText())
   }
   const waitForDetailsSource = async (expectedSource, description, timeout = 10000) => {
     const deadline = Date.now() + timeout
     let source = ''
 
     while (Date.now() < deadline) {
-      source = readDetailsSource()
+      source = await readSplitEditorSource()
       if (source.includes(expectedSource)) return source
       await wait(120)
     }
@@ -1032,15 +1035,8 @@ test('ui: split preview details toggles update source details tags', { timeout: 
     return !!details && details.open
   }, undefined, { timeout: 10000 })
 
-  await emitIPC(page, 'editor-split-toggle')
-  await page.waitForSelector('.mainbar-pane-main > .editor', { timeout: 20000 })
-
   let source = await waitForDetailsSource('<details open><summary>Closed details summary</summary>', 'closed details source tag to gain open attribute')
   assert.ok(source.includes('<details open><summary>Closed details summary</summary>'), `Expected opening preview details to add source open attribute.\nSource:\n${source}`)
-
-  await emitIPC(page, 'editor-split-toggle')
-  await page.waitForSelector('.mainbar-pane-main > .split-editor', { timeout: 20000 })
-  await page.waitForSelector('.split-editor .preview details', { timeout: 30000 })
 
   const openSummary = page.locator('.split-editor .preview details summary', { hasText: 'Open details summary' }).first()
   await openSummary.click()
@@ -1050,9 +1046,6 @@ test('ui: split preview details toggles update source details tags', { timeout: 
     })
     return !!details && !details.open
   }, undefined, { timeout: 10000 })
-
-  await emitIPC(page, 'editor-split-toggle')
-  await page.waitForSelector('.mainbar-pane-main > .editor', { timeout: 20000 })
 
   source = await waitForDetailsSource('<details><summary>Open details summary</summary>', 'open details source tag to lose open attribute')
   assert.ok(source.includes('<details><summary>Open details summary</summary>'), `Expected closing preview details to remove source open attribute.\nSource:\n${source}`)
