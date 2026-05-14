@@ -19,6 +19,12 @@ const cmark = require ( 'cmark-gfm' );
 
 const {encodeFilePath} = Utils;
 
+const getErrorMessage = ( error: unknown ): string => {
+
+  return error instanceof Error ? error.message : String ( error );
+
+};
+
 type MarkdownRuntimeConfig = {
   cwd?: string;
   notesPath?: string;
@@ -640,7 +646,7 @@ const Markdown = {
             const highlighted = Highlighter.highlight ( $2, language );
             return `<pre><code ${$1 || ''}>${highlighted}</code></pre>`;
           } catch ( e ) {
-            console.error ( `[highlight] ${e.message}` );
+            console.error ( `[highlight] ${getErrorMessage ( e )}` );
             return match;
           }
         }
@@ -681,7 +687,7 @@ const Markdown = {
               const tex = AsciiMath.toTeX ( decode ( asciimath ) );
               return `$$${tex}$$`;
             } catch ( e ) {
-              console.error ( `[asciimath] ${e.message}` );
+              console.error ( `[asciimath] ${getErrorMessage ( e )}` );
               return match;
             }
           }
@@ -714,7 +720,7 @@ const Markdown = {
             try {
               return MarkdownRenderHelpers.renderKatexPlaceholders ( match, Markdown._mathPlaceholders, ( tex, displayMode ) => Markdown.renderKatex ( tex, displayMode ) );
             } catch ( e ) {
-              console.error ( `[katex] ${e.message}` );
+              console.error ( `[katex] ${getErrorMessage ( e )}` );
               return match;
             }
           }
@@ -730,7 +736,7 @@ const Markdown = {
             try {
               return Markdown.renderKatex ( tex, true );
             } catch ( e ) {
-              console.error ( `[katex] ${e.message}` );
+              console.error ( `[katex] ${getErrorMessage ( e )}` );
               return match;
             }
           }
@@ -749,7 +755,7 @@ const Markdown = {
             try {
               return `${prefix}${Markdown.renderKatex ( tex, !!$displayMatch )}`;
             } catch ( e ) {
-              console.error ( `[katex] ${e.message}` );
+              console.error ( `[katex] ${getErrorMessage ( e )}` );
               return match;
             }
           }
