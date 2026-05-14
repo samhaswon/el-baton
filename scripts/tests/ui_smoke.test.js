@@ -980,7 +980,7 @@ test('ui: preview renders markdown dependency and plugin paths', { timeout: 1500
   }, undefined, { timeout: 10000 })
 })
 
-test('ui: split preview details toggles update source details tags', { timeout: 150000 }, async t => {
+test('ui: split preview details toggles update source details tags', { timeout: 120000 }, async t => {
   if (shouldSkipForMissingDisplay) {
     t.skip('UI tests require a Linux display server. Set EL_BATON_UI_TESTS_FORCE=1 to override.')
   }
