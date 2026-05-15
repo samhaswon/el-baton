@@ -26,6 +26,9 @@ class Window {
 
   /* CONSTRUCTOR */
 
+  /**
+   * Stores the configuration used to create and restore a named Electron window.
+   */
   constructor ( name: string, options: BrowserWindowConstructorOptions = {}, stateOptions: windowStateKeeper.Options = {} ) {
 
     this.name = name;
@@ -36,6 +39,9 @@ class Window {
 
   /* SPECIAL */
 
+  /**
+   * Creates the window, wires lifecycle handlers, and loads its route.
+   */
   init () {
 
     this.initWindow ();
@@ -48,12 +54,18 @@ class Window {
 
   }
 
+  /**
+   * Instantiates the BrowserWindow for this wrapper.
+   */
   initWindow () {
 
     this.win = this.make ();
 
   }
 
+  /**
+   * Opens devtools for development builds.
+   */
   initDebug () {
 
     if ( !Environment.isDevelopment ) return;
@@ -77,10 +89,19 @@ class Window {
 
   }
 
+  /**
+   * Hook for subclasses to install window-specific menus.
+   */
   initMenu () {}
 
+  /**
+   * Hook for subclasses to install window-local keyboard shortcuts.
+   */
   initLocalShortcuts () {}
 
+  /**
+   * Registers common BrowserWindow lifecycle handlers.
+   */
   events () {
 
     this.___didFinishLoad ();
@@ -89,6 +110,10 @@ class Window {
 
   }
 
+  /**
+   * Removes Electron listeners owned by this window before the wrapper is
+   * discarded.
+   */
   cleanup () {
 
     const win = this.win;
@@ -162,6 +187,9 @@ class Window {
 
   /* API */
 
+  /**
+   * Normalizes locale identifiers to the format expected by Electron spellcheck.
+   */
   normalizeLocaleCode ( locale: string ): string {
 
     const normalized = locale.trim ().replace ( /_/g, '-' );
@@ -182,6 +210,9 @@ class Window {
 
   }
 
+  /**
+   * Returns user/system locale preferences in priority order.
+   */
   getPreferredLocales (): string[] {
 
     const locales = new Set<string> ();
@@ -208,6 +239,10 @@ class Window {
 
   }
 
+  /**
+   * Selects supported spellchecker languages using preferred locales with
+   * sensible fallback.
+   */
   resolveSpellcheckerLanguages ( available: string[], preferred: string[] ): string[] {
 
     if ( !available.length ) {
@@ -248,6 +283,9 @@ class Window {
 
   }
 
+  /**
+   * Enables spellchecker localization for a BrowserWindow session.
+   */
   configureSpellcheckerLocalization ( win: BrowserWindow ) {
 
     if ( !win || win.isDestroyed () ) return;
@@ -296,6 +334,10 @@ class Window {
 
   }
 
+  /**
+   * Creates a BrowserWindow with persisted size, app defaults, and spellcheck
+   * setup.
+   */
   make ( id = this.name, options = this.options, stateOptions = this.stateOptions ) {
 
     stateOptions = _.merge ({
@@ -361,6 +403,9 @@ class Window {
 
   }
 
+  /**
+   * Hook for subclasses to load their route.
+   */
   load () {}
 
 }

@@ -334,6 +334,10 @@ let cachedSuggestions: Map<string, EmojiEntry[]> | undefined;
 
 /* HELPERS */
 
+/**
+ * Decodes an intentionally obscured shortcode used for invalid-shortcode
+ * compatibility messages.
+ */
 const decodeEasterEggShortcode = ( encodedShortcode: string, alertNumber: number ): string => {
 
   const normalizedShortcode = String ( encodedShortcode || '' ).trim ().toLowerCase (),
@@ -350,6 +354,10 @@ const decodeEasterEggShortcode = ( encodedShortcode: string, alertNumber: number
 
 };
 
+/**
+ * Loads optional `gemoji` shortcode data and normalizes it to the local entry
+ * shape.
+ */
 const getGemojiEntries = (): EmojiEntry[] => {
 
   try {
@@ -383,6 +391,10 @@ const getGemojiEntries = (): EmojiEntry[] => {
 
 };
 
+/**
+ * Builds and caches the complete shortcode list from bundled and optional
+ * emoji sources.
+ */
 const getEntries = (): EmojiEntry[] => {
 
   if ( cachedEntries ) return cachedEntries;
@@ -422,6 +434,9 @@ const getEntries = (): EmojiEntry[] => {
 
 };
 
+/**
+ * Returns the cached shortcode lookup, building it on first use.
+ */
 const getLookup = (): Record<string, EmojiEntry> => {
 
   if ( cachedLookup ) return cachedLookup;
@@ -436,12 +451,19 @@ const getLookup = (): Record<string, EmojiEntry> => {
 
 const Emoji = {
 
+  /**
+   * Returns the emoji for a shortcode when it is known locally.
+   */
   get ( shortcode: string ): string | undefined {
 
     return getLookup ()[String ( shortcode || '' ).toLowerCase ()]?.emoji;
 
   },
 
+  /**
+   * Replaces `:shortcode:` occurrences in text, optionally skipping matches at
+   * caller-defined offsets.
+   */
   replaceShortcodes ( text: string, shouldSkip?: ( index: number, content: string ) => boolean ): string {
 
     return text.replace ( /:([a-z0-9_+\-]+):/gi, ( match, shortcode, index, content ) => {
@@ -452,6 +474,10 @@ const Emoji = {
 
   },
 
+  /**
+   * Returns cached shortcode suggestions, preferring prefix matches over
+   * contains matches.
+   */
   getSuggestions ( query: string = '', limit: number = 25 ): EmojiEntry[] {
 
     const normalizedLimit = Math.max ( 0, limit | 0 ),
@@ -503,12 +529,19 @@ const Emoji = {
 
   },
 
+  /**
+   * Returns every known shortcode in sorted order.
+   */
   getAllShortcodes (): string[] {
 
     return getEntries ().map ( entry => entry.shortcode );
 
   },
 
+  /**
+   * Returns a replacement and message for intentionally handled invalid
+   * shortcodes.
+   */
   getEasterEgg ( shortcode: string ): undefined | { invalidShortcode: string, replacement: string, message: string, alertNumber: number } {
 
     const normalizedShortcode = String ( shortcode || '' ).trim ().toLowerCase ();

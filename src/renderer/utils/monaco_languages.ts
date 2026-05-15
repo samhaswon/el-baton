@@ -195,6 +195,10 @@ const MonacoLanguages = {
 
   ids: BASIC_LANGUAGE_IDS,
 
+  /**
+   * Lazily registers a Monaco basic language and its aliases when it is safe to
+   * load in this renderer bundle.
+   */
   async ensure ( language: string ): Promise<boolean> {
 
     const normalized = String ( language || '' ).trim ().toLowerCase ();

@@ -41,12 +41,20 @@ const MarkdownPath = {
 
   },
 
+  /**
+   * Returns a slash-normalized path from a configured markdown token root to a
+   * child path.
+   */
   toTokenRelativePath ( parentPath: string, childPath: string ): string {
 
     return path.relative ( parentPath, childPath ).replace ( /\\/g, '/' );
 
   },
 
+  /**
+   * Resolves a markdown link target relative to the current note while rejecting
+   * anchors, token paths, URLs, and paths outside the workspace.
+   */
   resolveMarkdownRelativePath ( rawTarget: string, options: ResolveRelativeOptions ): string | undefined {
 
     const {cwd, notesPath, sourceFilePath} = options,
@@ -63,6 +71,9 @@ const MarkdownPath = {
 
   },
 
+  /**
+   * Resolves a token-relative path under a specific token root.
+   */
   resolveTokenPath ( basePath: string, tokenPath: string ): string | undefined {
 
     const resolvedPath = path.resolve ( basePath, tokenPath );
@@ -73,6 +84,10 @@ const MarkdownPath = {
 
   },
 
+  /**
+   * Converts an absolute file path into the matching notes or attachments token
+   * path when the file lives under one of those roots.
+   */
   resolvePathToToken ( filePath: string, options: ResolveToTokenOptions ): string | undefined {
 
     const {attachmentsPath, attachmentsToken, notesPath, notesToken} = options;
@@ -89,6 +104,10 @@ const MarkdownPath = {
 
   },
 
+  /**
+   * Lists path completions for markdown links, including configured token roots
+   * and filesystem entries under the active note/attachment root.
+   */
   listPathSuggestions ( rawTarget: string, options: SuggestPathOptions ): PathSuggestion[] {
 
     const {attachmentsPath, attachmentsToken, cwd, notesPath, notesToken, sourceFilePath} = options,

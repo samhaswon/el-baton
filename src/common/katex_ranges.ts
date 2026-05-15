@@ -4,6 +4,10 @@ type Range = { start: number, end: number };
 
 /* HELPERS */
 
+/**
+ * Returns whether the character at `index` is escaped by an odd number of
+ * preceding backslashes.
+ */
 const isEscapedAt = ( value: string, index: number ): boolean => {
 
   let slashCount = 0;
@@ -16,6 +20,9 @@ const isEscapedAt = ( value: string, index: number ): boolean => {
 
 };
 
+/**
+ * Extracts the normalized language id from a markdown fence info string.
+ */
 const normalizeFenceLanguage = ( info: string ): string => {
 
   const firstToken = ( info || '' ).trim ().split ( /\s+/, 1 )[0] || '';
@@ -28,6 +35,9 @@ const normalizeFenceLanguage = ( info: string ): string => {
 
 };
 
+/**
+ * Sorts and combines overlapping or adjacent character ranges.
+ */
 const mergeRanges = ( ranges: Range[] ): Range[] => {
 
   if ( !ranges.length ) return [];
@@ -56,6 +66,10 @@ const mergeRanges = ( ranges: Range[] ): Range[] => {
 
 };
 
+/**
+ * Finds fenced code blocks and separates the ones that should be rendered as
+ * KaTeX blocks.
+ */
 const findFencedCodeBlocks = ( value: string ): { allFenceRanges: Range[], katexFenceRanges: Range[] } => {
 
   const lines = value.split ( '\n' );
@@ -111,6 +125,10 @@ const findFencedCodeBlocks = ( value: string ): { allFenceRanges: Range[], katex
 
 };
 
+/**
+ * Checks a sorted range list for a character offset while carrying forward the
+ * current range index for linear scans.
+ */
 const isInRanges = ( ranges: Range[], index: number, startAt: number ): { inRange: boolean, nextIndex: number } => {
 
   let rangeIndex = startAt;
@@ -130,6 +148,9 @@ const isInRanges = ( ranges: Range[], index: number, startAt: number ): { inRang
 
 };
 
+/**
+ * Finds inline-code spans so math scanning can ignore dollar signs inside code.
+ */
 const findInlineCodeRanges = ( value: string, excludedRanges: Range[] ): Range[] => {
 
   const ranges: Range[] = [];
@@ -197,6 +218,9 @@ const findInlineCodeRanges = ( value: string, excludedRanges: Range[] ): Range[]
 
 };
 
+/**
+ * Finds inline and display math ranges outside excluded code/fence ranges.
+ */
 const findMathRanges = ( value: string, excludedRanges: Range[] ): Range[] => {
 
   const ranges: Range[] = [];
@@ -266,6 +290,9 @@ const findMathRanges = ( value: string, excludedRanges: Range[] ): Range[] => {
 
 const KatexRanges = {
 
+  /**
+   * Returns all source ranges that should be treated as KaTeX content.
+   */
   find ( value: string ): Range[] {
 
     if ( !value ) return [];
@@ -284,4 +311,3 @@ const KatexRanges = {
 /* EXPORT */
 
 export default KatexRanges;
-

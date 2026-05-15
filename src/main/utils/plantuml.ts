@@ -36,12 +36,18 @@ const PlantUMLService = {
 
   /* HELPERS */
 
+  /**
+   * Builds a stable cache key for PlantUML source and server combinations.
+   */
   _hashKey ( key: string ): string {
 
     return createHash ( 'sha1' ).update ( key ).digest ( 'hex' );
 
   },
 
+  /**
+   * Lazily opens the persistent PlantUML render cache.
+   */
   _getCache (): PlantUMLSQLiteCache {
 
     if ( this._cache ) return this._cache;
@@ -54,6 +60,9 @@ const PlantUMLService = {
 
   },
 
+  /**
+   * Ensures the packaged PlantUML jar is available from a writable runtime path.
+   */
   _resolvePlantUmlJarPath (): string {
 
     if ( this._jarPath ) return this._jarPath;
@@ -75,6 +84,9 @@ const PlantUMLService = {
 
   },
 
+  /**
+   * Lazily loads the PlantUML URL encoder.
+   */
   _getEncoder (): { encode: ( source: string ) => string } {
 
     if ( this._encoder ) return this._encoder;
@@ -85,6 +97,9 @@ const PlantUMLService = {
 
   },
 
+  /**
+   * Builds remote PlantUML URLs for encoded and POST-based rendering.
+   */
   _buildRemoteEndpoint ( source: string, serverUrl: string ): PlantUMLEncoded {
 
     const encoded = this._getEncoder ().encode ( source ),
@@ -95,6 +110,10 @@ const PlantUMLService = {
 
   },
 
+  /**
+   * Renders PlantUML locally through the bundled jar and returns cacheable
+   * output.
+   */
   async _renderLocal ( source: string, timeoutMs: number ): Promise<PlantUMLCachedPayload> {
 
     if ( !source.trim () ) {
@@ -203,6 +222,10 @@ const PlantUMLService = {
 
   },
 
+  /**
+   * Renders PlantUML through an external server with POST first and encoded URL
+   * fallback.
+   */
   async _renderRemote ( source: string, serverUrl: string, timeoutMs: number ): Promise<PlantUMLCachedPayload> {
 
     const endpoint = this._buildRemoteEndpoint ( source, serverUrl ),
@@ -282,6 +305,10 @@ const PlantUMLService = {
 
   /* API */
 
+  /**
+   * Renders a PlantUML diagram using local rendering, optional remote fallback,
+   * and persistent caching.
+   */
   async render ( source: string, options: PlantUMLRenderOptions = {} ): Promise<PlantUMLRenderResult> {
 
     const timeoutMs = PlantUML.clampTimeoutMs ( options.requestTimeoutMs ),
@@ -342,6 +369,9 @@ const PlantUMLService = {
 
   },
 
+  /**
+   * Probes an external PlantUML server with a small known-good diagram.
+   */
   async testExternalServer ( rawServerUrl: string, options: { requestTimeoutMs?: number } = {} ): Promise<PlantUMLRenderResult> {
 
     const serverUrl = PlantUML.normalizeServerUrl ( rawServerUrl ),
@@ -372,6 +402,9 @@ const PlantUMLService = {
 
   },
 
+  /**
+   * Closes the persistent cache connection.
+   */
   close () {
 
     this._cache?.close ();

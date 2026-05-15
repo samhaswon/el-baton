@@ -8,12 +8,18 @@ import asciimath2tex from 'asciimath2tex';
 
 const AsciiMath = {
 
+  /**
+   * Returns the memoized AsciiMath parser instance.
+   */
   getParser: _.memoize ( () => {
 
     return new asciimath2tex ();
 
   }),
 
+  /**
+   * Converts AsciiMath input to TeX.
+   */
   toTeX ( str: string ): string {
 
     const Parser = AsciiMath.getParser ();

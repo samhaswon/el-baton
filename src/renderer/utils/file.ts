@@ -3,7 +3,6 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as pify from 'pify';
 
 /* STORAGE */
 
@@ -15,6 +14,10 @@ const Storage = { //TODO: This shouldn't be here
 
   /* HELPERS */
 
+  /**
+   * Wraps a filesystem action so callers can tell whether storage work is still
+   * pending.
+   */
   _wrapAction ( action: Function ) {
 
     return async function wrappedAction ( ...args: any[] ) {
@@ -28,6 +31,9 @@ const Storage = { //TODO: This shouldn't be here
 
   /* API */
 
+  /**
+   * Returns whether all tracked filesystem actions have settled.
+   */
   isIdle () {
 
     return !Storage.operations;
@@ -46,11 +52,15 @@ const File = {
 
   /* HELPERS */
 
+  /**
+   * Creates a missing parent directory and retries write-like operations that
+   * failed because their destination did not exist.
+   */
   _handleError: async ( e: NodeJS.ErrnoException, filePath: string, method: Function, args: any[] ) => {
 
     if ( e.code === 'ENOENT' ) {
 
-      await pify ( fs.mkdir )( path.dirname ( filePath ), { recursive: true } );
+      await fs.promises.mkdir ( path.dirname ( filePath ), { recursive: true } );
 
       return method ( ...args );
 
@@ -60,11 +70,14 @@ const File = {
 
   /* API */
 
+  /**
+   * Checks whether a file or directory exists.
+   */
   exists: Storage._wrapAction ( async ( filePath: string ): Promise<boolean> => {
 
     try {
 
-      await pify ( fs.access )( filePath, fs.constants.F_OK );
+      await fs.promises.access ( filePath, fs.constants.F_OK );
 
       return true;
 
@@ -76,73 +89,92 @@ const File = {
 
   }),
 
+  /**
+   * Reads filesystem metadata, returning `undefined` when the path cannot be
+   * statted.
+   */
   stat: Storage._wrapAction ( async ( filePath: string ): Promise<fs.Stats | undefined> => {
 
     try {
 
-      return await pify ( fs.stat )( filePath );
+      return await fs.promises.stat ( filePath );
 
     } catch ( e ) {}
 
   }),
 
-  read: Storage._wrapAction ( async ( filePath: string, encoding: string = 'utf8' ): Promise<string | undefined> => {
+  /**
+   * Reads a text file, returning `undefined` when it cannot be read.
+   */
+  read: Storage._wrapAction ( async ( filePath: string, encoding: BufferEncoding = 'utf8' ): Promise<string | undefined> => {
 
     try {
 
-      return ( await pify ( fs.readFile )( filePath, {encoding} ) ).toString ();
+      return ( await fs.promises.readFile ( filePath, {encoding} ) ).toString ();
 
     } catch ( e ) {}
 
   }),
 
+  /**
+   * Copies a file, creating the destination directory if necessary.
+   */
   copy: Storage._wrapAction ( async ( srcPath: string, dstPath: string ) => {
 
     try {
 
-      return await pify ( fs.copyFile )( srcPath, dstPath );
+      return await fs.promises.copyFile ( srcPath, dstPath );
 
     } catch ( e ) {
 
-      return await File._handleError ( e, dstPath, File.copy, [srcPath, dstPath] );
+      return await File._handleError ( e as NodeJS.ErrnoException, dstPath, File.copy, [srcPath, dstPath] );
 
     }
 
   }),
 
+  /**
+   * Renames or moves a file, creating the destination directory if necessary.
+   */
   rename: Storage._wrapAction ( async ( oldPath: string, newPath: string ) => {
 
     try {
 
-      return await pify ( fs.rename )( oldPath, newPath );
+      return await fs.promises.rename ( oldPath, newPath );
 
     } catch ( e ) {
 
-      return await File._handleError ( e, newPath, File.rename, [oldPath, newPath] );
+      return await File._handleError ( e as NodeJS.ErrnoException, newPath, File.rename, [oldPath, newPath] );
 
     }
 
   }),
 
+  /**
+   * Writes a text file, creating the parent directory if necessary.
+   */
   write: Storage._wrapAction ( async ( filePath: string, content: string ) => {
 
     try {
 
-      return await pify ( fs.writeFile )( filePath, content, {} );
+      return await fs.promises.writeFile ( filePath, content, {} );
 
     } catch ( e ) {
 
-      return await File._handleError ( e, filePath, File.write, [filePath, content] );
+      return await File._handleError ( e as NodeJS.ErrnoException, filePath, File.write, [filePath, content] );
 
     }
 
   }),
 
+  /**
+   * Deletes a path when it exists and ignores missing-path failures.
+   */
   unlink: Storage._wrapAction ( async ( filePath: string ) => {
 
     try {
 
-      return await pify ( fs.unlink )( filePath );
+      return await fs.promises.unlink ( filePath );
 
     } catch ( e ) {}
 

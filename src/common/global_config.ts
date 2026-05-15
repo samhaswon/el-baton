@@ -128,6 +128,10 @@ const GlobalConfig = {
   defaults: DEFAULTS,
   fileNames: FILE_NAMES,
 
+  /**
+   * Normalizes one user dictionary word and rejects unsupported spellcheck
+   * tokens.
+   */
   normalizeSpellcheckWord ( word: unknown ): string | undefined {
 
     if ( !word ) return;
@@ -141,6 +145,9 @@ const GlobalConfig = {
 
   },
 
+  /**
+   * Normalizes, deduplicates, and sorts user-added spellcheck words.
+   */
   normalizeSpellcheckWords ( words: unknown ): string[] {
 
     if ( !Array.isArray ( words ) ) return [];
@@ -161,12 +168,18 @@ const GlobalConfig = {
 
   },
 
+  /**
+   * Returns whether a value is a plain record that can hold config keys.
+   */
   isRecord ( value: unknown ): value is Record<string, unknown> {
 
     return !!value && typeof value === 'object' && !Array.isArray ( value );
 
   },
 
+  /**
+   * Builds a fresh copy of the default global configuration.
+   */
   cloneDefaults (): GlobalConfigShape {
 
     return {
@@ -221,6 +234,9 @@ const GlobalConfig = {
 
   },
 
+  /**
+   * Finds the first supported config file in a workspace directory.
+   */
   resolvePath ( cwd?: string ): string | undefined {
 
     if ( !cwd ) return;
@@ -239,6 +255,9 @@ const GlobalConfig = {
 
   },
 
+  /**
+   * Parses JSON or YAML config content into a record.
+   */
   parse ( content: string, filePath: string ): Record<string, unknown> | undefined {
 
     const ext = path.extname ( filePath ).toLowerCase ();
@@ -249,6 +268,9 @@ const GlobalConfig = {
 
   },
 
+  /**
+   * Coerces a partial/untrusted config object into the complete supported shape.
+   */
   normalize ( config?: Record<string, unknown> ): GlobalConfigShape {
 
     const normalized = GlobalConfig.cloneDefaults ();
@@ -403,6 +425,9 @@ const GlobalConfig = {
 
   },
 
+  /**
+   * Reads and normalizes workspace config, falling back to defaults on errors.
+   */
   read ( cwd?: string ): GlobalConfigShape {
 
     const filePath = GlobalConfig.resolvePath ( cwd );
@@ -421,6 +446,9 @@ const GlobalConfig = {
 
   },
 
+  /**
+   * Returns the config path to write, preferring an existing supported file.
+   */
   resolveWritablePath ( cwd?: string ): string | undefined {
 
     if ( !cwd ) return;
@@ -429,6 +457,9 @@ const GlobalConfig = {
 
   },
 
+  /**
+   * Serializes config as JSON or YAML based on the destination extension.
+   */
   serialize ( config: GlobalConfigShape, filePath: string ): string {
 
     const normalized = GlobalConfig.normalize ( config ),
@@ -445,6 +476,9 @@ const GlobalConfig = {
 
   },
 
+  /**
+   * Writes normalized workspace config and returns the file path written.
+   */
   write ( cwd: string | undefined, config: GlobalConfigShape ): string | undefined {
 
     const filePath = GlobalConfig.resolveWritablePath ( cwd );

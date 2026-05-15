@@ -4,12 +4,19 @@ import * as _ from 'lodash';
 
 /* HELPERS */
 
+/**
+ * Removes invalid, empty, and duplicate tab paths while preserving the first
+ * occurrence order.
+ */
 const normalizeOpenTabs = ( openTabs: string[] = [] ): string[] => {
 
   return _.uniq ( openTabs.filter ( _.isString ).filter ( _.identity ) );
 
 };
 
+/**
+ * Returns a normalized tab list that contains `filePath` exactly once.
+ */
 const ensureOpenTab = ( openTabs: string[] = [], filePath?: string ): string[] => {
 
   const normalized = normalizeOpenTabs ( openTabs );
@@ -21,6 +28,9 @@ const ensureOpenTab = ( openTabs: string[] = [], filePath?: string ): string[] =
 
 };
 
+/**
+ * Returns a normalized tab list without the requested file path.
+ */
 const removeOpenTab = ( openTabs: string[] = [], filePath?: string ): string[] => {
 
   const normalized = normalizeOpenTabs ( openTabs );
@@ -31,6 +41,10 @@ const removeOpenTab = ( openTabs: string[] = [], filePath?: string ): string[] =
 
 };
 
+/**
+ * Replaces an existing open tab path, or ensures the new path is present when
+ * there is no previous path to replace.
+ */
 const replaceOpenTab = ( openTabs: string[] = [], previousFilePath?: string, nextFilePath?: string ): string[] => {
 
   const normalized = normalizeOpenTabs ( openTabs );
@@ -43,6 +57,10 @@ const replaceOpenTab = ( openTabs: string[] = [], previousFilePath?: string, nex
 
 };
 
+/**
+ * Moves one tab before or after another tab, leaving the list unchanged when
+ * either tab is missing.
+ */
 const reorderOpenTabs = ( openTabs: string[] = [], sourceFilePath?: string, targetFilePath?: string, position: 'before' | 'after' = 'before' ): string[] => {
 
   const normalized = normalizeOpenTabs ( openTabs );

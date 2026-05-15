@@ -4,6 +4,10 @@ import {Container} from 'overstated';
 
 /* COMPOSE */
 
+/**
+ * Composes overstated child containers into a main container and mirrors each
+ * child state slice back into the parent state.
+ */
 const compose = ( containers: any ) => {
 
   return function ( MainContainer: any ) {

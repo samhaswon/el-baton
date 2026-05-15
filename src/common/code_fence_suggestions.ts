@@ -70,6 +70,10 @@ const CodeFenceSuggestions = {
 
   baseLanguages: BASE_CODE_FENCE_LANGUAGES,
 
+  /**
+   * Returns completion context when the cursor is on a markdown fence opening
+   * line.
+   */
   getContext ( beforeCursor: string ): CodeFenceContext | null {
 
     if ( !beforeCursor ) return null;
@@ -86,6 +90,9 @@ const CodeFenceSuggestions = {
 
   },
 
+  /**
+   * Filters and ranks code fence language suggestions by query.
+   */
   getSuggestions ( query: string = '', candidates: string[] = [], limit: number = 30 ): string[] {
 
     const normalizedQuery = String ( query || '' ).trim ().toLowerCase ();
@@ -125,6 +132,10 @@ const CodeFenceSuggestions = {
 
   },
 
+  /**
+   * Returns whether the current fence context is opening a block rather than
+   * closing an already-open block.
+   */
   isOpeningContext ( context: CodeFenceContext, linesBefore: string[] = [] ): boolean {
 
     if ( !context ) return false;

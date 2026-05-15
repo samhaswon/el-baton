@@ -1,10 +1,9 @@
 
 /* IMPORT */
 
-import filenamify from 'filenamify';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as pify from 'pify';
+import Filename from '../../common/filename';
 
 /* PATH */
 
@@ -14,6 +13,10 @@ const Path = {
 
   _allowedPaths: {} as { [filePath: string]: number }, // Ensuring we don't return the same path mutliple times within some amount of time, in order to avoid race conditions //UGLY
 
+  /**
+   * Reserves a candidate path for a short window so concurrent callers do not
+   * choose the same unused filename.
+   */
   _checkAllowedPath ( filePath: string ): boolean {
 
     if ( !Path._allowedPaths[filePath] || ( Path._allowedPaths[filePath] + 5000 ) < Date.now () ) {
@@ -28,6 +31,10 @@ const Path = {
 
   },
 
+  /**
+   * Finds a sanitized filename that does not currently exist in `folderPath`,
+   * adding a numeric suffix when needed.
+   */
   async getAllowedPath ( folderPath: string, baseName: string ): Promise<{ folderPath: string, filePath: string, fileName: string }> {
 
     baseName = baseName.replace ( /\//g, '∕' ); // Preserving a dash-like character
@@ -45,7 +52,7 @@ const Path = {
 
       try {
 
-        await pify ( fs.access )( filePath );
+        await fs.promises.access ( filePath );
 
       } catch ( e ) {
 
@@ -59,9 +66,13 @@ const Path = {
 
   },
 
+  /**
+   * Removes characters that are unsafe for filenames while keeping a readable
+   * display-oriented name.
+   */
   sanitize ( filePath: string ): string {
 
-    return filenamify ( filePath, { replacement: ' ' } )
+    return Filename.sanitize ( filePath, ' ' )
              .replace ( /#/g, ' ' )
              .trim ();
 

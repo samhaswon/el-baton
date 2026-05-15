@@ -584,6 +584,43 @@ const Preview = ({ content, onScroll, onWheel, onAnchorNavigate, previewRef, isE
     });
   }, [disableScriptSanitization, html, isRendering, resolvedPreviewRef] );
 
+  React.useEffect ( () => {
+    if ( isRendering ) return;
+
+    const previewContentNode = previewContentRef.current;
+
+    if ( !previewContentNode ) return;
+
+    let frame = 0;
+
+    const emitDynamicContentUpdated = () => {
+      if ( frame ) return;
+      frame = window.requestAnimationFrame ( () => {
+        frame = 0;
+        $.$window.trigger ( 'preview:dynamic-content:updated', [{ source: 'preview-media' }] );
+      });
+    };
+
+    const observedNodes = Array.from ( previewContentNode.querySelectorAll ( 'img, iframe, video, audio, figure, details, .mermaid, .plantuml' ) ) as HTMLElement[],
+          mediaNodes = Array.from ( previewContentNode.querySelectorAll ( 'img, iframe, video, audio' ) ) as HTMLElement[],
+          resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver ( emitDynamicContentUpdated ) : undefined,
+          mediaEvents = ['load', 'loadedmetadata', 'loadeddata', 'durationchange', 'resize'];
+
+    resizeObserver?.observe ( previewContentNode );
+    observedNodes.forEach ( node => resizeObserver?.observe ( node ) );
+    mediaNodes.forEach ( node => {
+      mediaEvents.forEach ( eventName => node.addEventListener ( eventName, emitDynamicContentUpdated ) );
+    });
+
+    return () => {
+      if ( frame ) window.cancelAnimationFrame ( frame );
+      resizeObserver?.disconnect ();
+      mediaNodes.forEach ( node => {
+        mediaEvents.forEach ( eventName => node.removeEventListener ( eventName, emitDynamicContentUpdated ) );
+      });
+    };
+  }, [html, isRendering] );
+
   const onClick = React.useCallback ( ( event: React.MouseEvent<HTMLDivElement> ) => {
     const container = resolvedPreviewRef.current,
           target = event.target as Element | null,

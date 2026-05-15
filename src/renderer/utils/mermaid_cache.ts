@@ -5,6 +5,9 @@ const cache = new Map<string, string> ();
 
 const MermaidCache = {
 
+  /**
+   * Reads a cached Mermaid SVG and refreshes its LRU position.
+   */
   get ( source: string ) {
 
     const cached = cache.get ( source );
@@ -19,6 +22,9 @@ const MermaidCache = {
 
   },
 
+  /**
+   * Stores a Mermaid SVG and evicts the oldest entry when the cache is full.
+   */
   set ( source: string, svg: string ) {
 
     cache.set ( source, svg );
@@ -31,6 +37,9 @@ const MermaidCache = {
 
   },
 
+  /**
+   * Removes all cached Mermaid SVGs.
+   */
   clear () {
 
     cache.clear ();

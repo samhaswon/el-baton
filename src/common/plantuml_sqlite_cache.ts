@@ -50,6 +50,9 @@ class PlantUMLSQLiteCache {
 
   /* CONSTRUCTOR */
 
+  /**
+   * Creates a PlantUML cache backed by the provided SQLite database path.
+   */
   constructor ( dbPath: string, options: Partial<CacheOptions> = {} ) {
 
     this.dbPath = dbPath;
@@ -63,6 +66,10 @@ class PlantUMLSQLiteCache {
 
   /* PRIVATE */
 
+  /**
+   * Serializes cache operations so the synchronous SQLite database is accessed
+   * in a predictable order.
+   */
   _enqueue<T> ( fn: () => Promise<T> ): Promise<T> {
 
     const next = this.queue.then ( fn, fn );
@@ -73,6 +80,9 @@ class PlantUMLSQLiteCache {
 
   }
 
+  /**
+   * Retries an operation once after resetting the database connection.
+   */
   async _withRecovery<T> ( fn: () => Promise<T> ): Promise<T> {
 
     try {
@@ -84,6 +94,9 @@ class PlantUMLSQLiteCache {
 
   }
 
+  /**
+   * Closes and clears the active database connection.
+   */
   _resetDatabase () {
 
     const db = this.db;
@@ -100,12 +113,18 @@ class PlantUMLSQLiteCache {
 
   }
 
+  /**
+   * Opens the SQLite database with the cache's timeout policy.
+   */
   _openDatabase ( dbPath: string ): SQLiteDatabase {
 
     return new DatabaseSync ( dbPath, { timeout: 5000 } );
 
   }
 
+  /**
+   * Executes a SQL statement when the database is open.
+   */
   _exec ( sql: string ): void {
 
     if ( !this.db ) return;
@@ -114,6 +133,9 @@ class PlantUMLSQLiteCache {
 
   }
 
+  /**
+   * Runs a prepared SQL statement with positional parameters.
+   */
   _run ( sql: string, params: any[] = [] ): void {
 
     if ( !this.db ) return;
@@ -122,6 +144,9 @@ class PlantUMLSQLiteCache {
 
   }
 
+  /**
+   * Reads one row from a prepared SQL statement.
+   */
   _get<T> ( sql: string, params: any[] = [] ): T | undefined {
 
     if ( !this.db ) return;
@@ -130,6 +155,9 @@ class PlantUMLSQLiteCache {
 
   }
 
+  /**
+   * Converts SQLite integer values into JavaScript numbers.
+   */
   _normalizeInteger ( value: number | bigint | undefined ): number {
 
     if ( typeof value === 'bigint' ) return Number ( value );
@@ -139,6 +167,9 @@ class PlantUMLSQLiteCache {
 
   }
 
+  /**
+   * Opens and initializes the cache database and schema when needed.
+   */
   async _ensureDatabase () {
 
     const dbPath = this.dbPath;
@@ -172,6 +203,9 @@ class PlantUMLSQLiteCache {
 
   }
 
+  /**
+   * Encodes a cached value as compressed JSON.
+   */
   _encode ( value: unknown ): Buffer {
 
     const content = Buffer.from ( JSON.stringify ( value ) );
@@ -184,6 +218,9 @@ class PlantUMLSQLiteCache {
 
   }
 
+  /**
+   * Decodes a compressed JSON cache payload.
+   */
   _decode<T> ( payload: Buffer ): T {
 
     const inflated = zlib.brotliDecompressSync ( payload ),
@@ -193,6 +230,9 @@ class PlantUMLSQLiteCache {
 
   }
 
+  /**
+   * Removes least-recently-accessed rows until configured cache limits are met.
+   */
   async _prune () {
 
     while ( true ) {
@@ -214,6 +254,9 @@ class PlantUMLSQLiteCache {
 
   /* API */
 
+  /**
+   * Updates cache size limits and prunes existing rows if necessary.
+   */
   updateOptions ( options: Partial<CacheOptions> = {} ): Promise<void> {
 
     if ( options.maxEntries !== undefined ) {
@@ -231,6 +274,9 @@ class PlantUMLSQLiteCache {
 
   }
 
+  /**
+   * Reads a cached value and updates its last-accessed timestamp.
+   */
   get<T> ( key: string ): Promise<T | undefined> {
 
     return this._enqueue ( () => this._withRecovery ( async () => {
@@ -259,6 +305,9 @@ class PlantUMLSQLiteCache {
 
   }
 
+  /**
+   * Stores a value in the cache and prunes old rows when limits are exceeded.
+   */
   set<T> ( key: string, value: T ): Promise<void> {
 
     return this._enqueue ( () => this._withRecovery ( async () => {
@@ -279,6 +328,9 @@ class PlantUMLSQLiteCache {
 
   }
 
+  /**
+   * Closes the active database connection.
+   */
   close () {
 
     this._resetDatabase ();

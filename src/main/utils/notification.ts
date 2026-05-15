@@ -7,6 +7,9 @@ import {Notification as ENotification} from 'electron';
 
 const Notification = {
 
+  /**
+   * Shows a native desktop notification.
+   */
   show ( title: string, body: string ) {
 
     const notification = new ENotification ({ title, body });

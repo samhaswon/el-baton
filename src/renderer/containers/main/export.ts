@@ -2,7 +2,6 @@
 /* IMPORT */
 
 import * as _ from 'lodash';
-import critically from 'critically';
 import {ipcRenderer as ipc} from 'electron';
 import Dialog from 'electron-dialog';
 import * as mime from 'mime-types';
@@ -90,6 +89,9 @@ class Export extends Container<ExportState, MainCTX> {
   _getCriticalHtml = async ( html: string ): Promise<string> => {
 
     try {
+
+      const module = await import ( 'critically' ),
+            critically = ( module as any ).default || module;
 
       return ( await critically ({ html }) ).html;
 

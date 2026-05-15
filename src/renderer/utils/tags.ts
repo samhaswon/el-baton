@@ -32,12 +32,18 @@ const Tags = {
 
   SEPARATOR: '/', // Used for nested tags: `Parent/Child`
 
+  /**
+   * Returns whether a tag is one of the app's internal sentinel tags.
+   */
   isPrivate ( tag: TagObj | string ): boolean {
 
     return /^__.*__$/.test ( _.isString ( tag ) ? tag : tag.name );
 
   },
 
+  /**
+   * Sorts tag objects or names case-insensitively by their visible name.
+   */
   sort ( tags: (TagObj | string)[] ) {
 
     return _.sortBy ( tags, tag => ( _.isString ( tag ) ? tag : tag.name ).toLowerCase () );

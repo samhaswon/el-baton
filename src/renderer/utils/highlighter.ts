@@ -7,6 +7,10 @@ import {decode} from 'html-entities';
 let Prism: any,
     prismLanguages: Record<string, { require?: string | string[] }> = {};
 
+/**
+ * Lazily initializes Prism and disables its worker message handler when running
+ * inside a web worker.
+ */
 const initPrism = _.once ( () => {
   const workerGlobalScope = ( globalThis as any ).WorkerGlobalScope,
         isWorker = typeof workerGlobalScope !== 'undefined' && typeof self !== 'undefined' && self instanceof workerGlobalScope;
@@ -51,12 +55,18 @@ const Highlighter = {
     zsh: 'bash'
   },
 
+  /**
+   * Normalizes a language identifier from markdown or HTML.
+   */
   sanitizeLanguage ( language: string ): string {
 
     return ( language || '' ).trim ().toLowerCase ();
 
   },
 
+  /**
+   * Infers a Prism language id from code block attributes.
+   */
   inferLanguage ( str: string ): string | undefined {
 
     if ( !str ) return;
@@ -72,6 +82,9 @@ const Highlighter = {
 
   },
 
+  /**
+   * Dynamically loads a Prism language and any declared dependencies.
+   */
   initLanguage ( language: string ): boolean { // Loading needed languages dynamically, for performance and because WebPack complains about the included `loadLanguages` function //TODO: Add support for peerDependencies
 
     initPrism ();
@@ -90,6 +103,9 @@ const Highlighter = {
 
   },
 
+  /**
+   * Highlights a decoded code block when the requested language is available.
+   */
   highlight ( str: string, language?: string ): string {
 
     if ( !language ) return str;

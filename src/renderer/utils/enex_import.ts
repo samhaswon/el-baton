@@ -2,7 +2,6 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as pify from 'pify';
 import Metadata from './metadata';
 import Path from './path';
 
@@ -41,23 +40,27 @@ type EnexImportDependencies = {
 
 const defaultDependencies: EnexImportDependencies = {
   getAllowedPath: Path.getAllowedPath,
-  writeAttachment: async ( filePath, content ) => pify ( fs.writeFile )( filePath, Buffer.from ( content ) ),
+  writeAttachment: async ( filePath, content ) => fs.promises.writeFile ( filePath, Buffer.from ( content ) ),
   writeNote: async ( filePath, content ) => {
     try {
-      await pify ( fs.writeFile )( filePath, content );
+      await fs.promises.writeFile ( filePath, content );
     } catch ( error ) {
       const e = error as NodeJS.ErrnoException;
 
       if ( e.code !== 'ENOENT' ) throw e;
 
-      await pify ( fs.mkdir )( path.dirname ( filePath ), { recursive: true } );
-      await pify ( fs.writeFile )( filePath, content );
+      await fs.promises.mkdir ( path.dirname ( filePath ), { recursive: true } );
+      await fs.promises.writeFile ( filePath, content );
     }
   }
 };
 
 const EnexImport = {
 
+  /**
+   * Writes one parsed ENEX note and its attachments into the configured notes
+   * and attachments folders.
+   */
   async dumpNote ( note: DumperNote, importTag: string, paths: EnexImportPaths, dependencies: EnexImportDependencies = defaultDependencies ): Promise<string> {
 
     const attachmentFileNames = await Promise.all ( note.metadata.attachments.map ( async attachment => {

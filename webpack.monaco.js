@@ -12,6 +12,9 @@ const config = {
   output: {
     globalObject: 'self',
     path: path.join(__dirname, 'src', 'renderer', 'template', 'generated', 'javascript')
+  },
+  performance: {
+    hints: false
   }
 }
 
