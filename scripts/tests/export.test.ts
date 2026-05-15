@@ -150,6 +150,7 @@ const Export = require ( '../../src/renderer/containers/main/export' ).default;
 /* HELPERS */
 
 const tempRoot = path.join ( os.tmpdir (), 'el-baton-export-tests' );
+const staticRoot = path.join ( tempRoot, 'static' );
 
 const note = {
   filePath: path.join ( tempRoot, 'source', 'Test Note.md' ),
@@ -166,7 +167,13 @@ const resetTempRoot = async (): Promise<void> => {
 
   await fs.rm ( tempRoot, { recursive: true, force: true } );
   await fs.mkdir ( path.join ( tempRoot, 'source' ), { recursive: true } );
+  await fs.mkdir ( path.join ( staticRoot, 'css' ), { recursive: true } );
+  await fs.mkdir ( path.join ( staticRoot, 'fonts' ), { recursive: true } );
   await fs.writeFile ( sourceAttachmentPath, 'attachment fixture', 'utf8' );
+  await fs.writeFile ( path.join ( staticRoot, 'css', 'katex.min.css' ), '.katex{font-family:KaTeX_Main} @font-face{src:url(fonts/KaTeX_Main-Regular.woff2)}', 'utf8' );
+  await fs.writeFile ( path.join ( staticRoot, 'css', 'notable.css' ), '.preview{font-family:IconFont} @font-face{src:url("../fonts/IconFont.woff2")}', 'utf8' );
+  await fs.writeFile ( path.join ( staticRoot, 'fonts', 'KaTeX_Main-Regular.woff2' ), 'katex font', 'utf8' );
+  await fs.writeFile ( path.join ( staticRoot, 'fonts', 'IconFont.woff2' ), 'icon font', 'utf8' );
 
 };
 
@@ -202,6 +209,7 @@ beforeEach ( async () => {
 
   alerts.length = 0;
   ipcCalls.length = 0;
+  ( globalThis as any ).__static = staticRoot;
   await resetTempRoot ();
 
 } );
@@ -213,6 +221,18 @@ afterEach ( async () => {
 } );
 
 /* TESTS */
+
+test ( 'renderers.html: reads KaTeX CSS and fonts from packaged static assets', async () => {
+
+  const store = createStore ( path.join ( tempRoot, 'export-html' ) );
+  const html = await store.renderers.html ( note, note.filePath, { base64: true, metadata: false, critical: false, favicon: false, scrollable: true } );
+
+  assert.match ( html, /\.katex\{font-family:KaTeX_Main\}/ );
+  assert.match ( html, /\.preview\{font-family:IconFont\}/ );
+  assert.match ( html, /url\(data:font\/woff2;base64,a2F0ZXggZm9udA==\)/ );
+  assert.match ( html, /url\(data:font\/woff2;base64,aWNvbiBmb250\)/ );
+
+} );
 
 test ( 'exportHTML: writes a suffixed html file and copied attachments into the selected directory', async () => {
 
