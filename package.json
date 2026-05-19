@@ -272,7 +272,7 @@
     "html-webpack-plugin": "^5.6.7",
     "icon-font-buildr": "^2.0.0",
     "js-yaml": "^4.1.1",
-    "katex": "^0.16.45",
+    "katex": "^0.16.47",
     "laxy": "^1.0.0",
     "lodash": "^4.18.1",
     "mermaid": "^11.15.0",
