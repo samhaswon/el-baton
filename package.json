@@ -296,7 +296,7 @@
     "tiny-glob": "^0.2.9",
     "tsconfig-paths-webpack-plugin": "^4.2.0",
     "typescript": "^6.0.2",
-    "typescript-eslint": "^8.59.3",
+    "typescript-eslint": "^8.59.4",
     "unstated": "^2.1.1",
     "wait-on": "^9.0.10",
     "webpack": "^5.106.2",
