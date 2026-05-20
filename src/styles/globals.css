@@ -4339,12 +4339,17 @@ html.mac .zen.fullscreen .popover.show,html.no-mac .zen .popover.show {
 }
 
 .preview .mermaid,.preview .plantuml {
-  text-align:center
+  text-align:center;
+  overflow-anchor:none
 }
 
 .preview .mermaid svg,.preview .plantuml svg {
   max-width:100%;
   height:auto
+}
+
+.preview .mermaid:not(:has(svg)):not(:has(.mermaid-error)),.preview .plantuml:not(:has(svg)):not(:has(.plantuml-error)) {
+  min-height:8rem
 }
 
 .preview .mermaid text[font-size="14"],.preview .plantuml text[font-size="14"] {
@@ -4405,8 +4410,7 @@ html.mac .zen.fullscreen .popover.show,html.no-mac .zen .popover.show {
   padding-bottom:calc(1.25rem + 35vh) !important;
   font-size:16px;
   line-height:inherit;
-  position:relative;
-  overflow-anchor:none
+  position:relative
 }
 
 .preview.preview-sync-scroll {
