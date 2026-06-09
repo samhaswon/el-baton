@@ -201,8 +201,8 @@
 - [X] Suggestions for tags based on what exists, excluding what the note is already tagged with.
 - [ ] Use `react-window` on the explorer pane.
     - Or maybe `contain: layout paint !important;`?
-- [ ] Investigate removing the smaller preview for large notes
-    - [ ] Identify how rendering changes could be made more efficient
+- [X] Investigate removing the smaller preview for large notes
+    - [X] Identify how rendering changes could be made more efficient
         - Potentially, could involve applying some form of delta.
         - Could keep the smaller rendering window, but leave the rest of the note intact. Basically, hide that we're only rendering a smaller part of the document. Then, after the specified delay, actually re-render the whole document. If we do this well, the delay could be long.
 - [ ] Ensure mermaid is rendered in a worker and is memoized.
