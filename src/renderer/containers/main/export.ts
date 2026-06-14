@@ -281,7 +281,7 @@ class Export extends Container<ExportState, MainCTX> {
 
     pdf: async ( note: NoteObj, dst: string ) => {
 
-      const html = await this.renderers.html ( note, dst, { base64: true, metadata: false, critical: false, favicon: false, scrollable: false } );
+      const html = await this.renderers.html ( note, note.filePath, { base64: true, metadata: false, critical: false, favicon: false, scrollable: false } );
       const tmpHtmlPath = path.join ( os.tmpdir (), `el-baton-export-${Date.now ()}-${Math.random ().toString ( 36 ).slice ( 2 )}.html` );
       let shouldCleanup = true;
 
