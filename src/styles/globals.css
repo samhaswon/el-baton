@@ -4105,6 +4105,7 @@ html.mac .zen.fullscreen .popover.show,html.no-mac .zen .popover.show {
 }
 
 .preview .task-list-item {
+  list-style-type:none;
   margin-left:-1.3em
 }
 
@@ -4542,6 +4543,7 @@ html.mac .zen.fullscreen .popover.show,html.no-mac .zen .popover.show {
 }
 
 .preview .task-list-item {
+  list-style-type:none;
   margin-left:-1.3em
 }
 

@@ -1,8 +1,20 @@
 #!/usr/bin/env node
 
 const { performance } = require('perf_hooks')
+const { PerformanceObserver } = require('perf_hooks')
+const inspector = require('inspector')
+const path = require('path')
 const { decode } = require('html-entities')
-const cmark = require('cmark-gfm')
+let cmark
+let nativeCmark
+
+try {
+  cmark = require('cmark-gfm')
+} catch (_) {}
+
+try {
+  nativeCmark = require(path.resolve(__dirname, '../../native/markdown/build/Release/markdown_native.node'))
+} catch (_) {}
 const katex = require('katex')
 
 let Prism
@@ -20,8 +32,11 @@ const DEFAULT_OPTIONS = {
   iterations: 120,
   repeat: 20,
   mode: 'full', // cmark | cmark+katex | full
+  implementation: 'native', // legacy | native
   reportEvery: 25,
-  continuous: false
+  continuous: false,
+  allocationSampling: true,
+  forceGcEvery: 0
 }
 
 const CMARK_OPTIONS = {
@@ -288,11 +303,19 @@ function parseArgs (argv) {
     } else if (arg === '--mode' && value) {
       if (value === 'cmark' || value === 'cmark+katex' || value === 'full') options.mode = value
       i++
+    } else if (arg === '--implementation' && value) {
+      if (value === 'legacy' || value === 'native') options.implementation = value
+      i++
     } else if (arg === '--report-every' && value) {
       options.reportEvery = Math.max(1, Number(value) || 1)
       i++
     } else if (arg === '--continuous') {
       options.continuous = true
+    } else if (arg === '--no-allocation-sampling') {
+      options.allocationSampling = false
+    } else if (arg === '--force-gc-every' && value) {
+      options.forceGcEvery = Math.max(0, Number(value) || 0)
+      i++
     } else if (arg === '--help' || arg === '-h') {
       options.help = true
     }
@@ -306,11 +329,14 @@ function usage () {
   console.log('')
   console.log('Options:')
   console.log('  --mode <name>         cmark | cmark+katex | full (default: full)')
+  console.log('  --implementation <x>  native | legacy (default: native)')
   console.log('  --warmup <n>          Warmup runs (default: 8)')
   console.log('  --iterations <n>      Timed runs (default: 120)')
   console.log('  --repeat <n>          Fixture multiplier (default: 20)')
   console.log('  --report-every <n>    Progress log cadence (default: 25)')
   console.log('  --continuous          Run until interrupted (Ctrl+C)')
+  console.log('  --no-allocation-sampling  Disable V8 allocation sampling')
+  console.log('  --force-gc-every <n>  Force GC after every n timed renders (diagnostic only)')
 }
 
 function buildFixture (repeat) {
@@ -417,8 +443,9 @@ function renderKatexInlineAndDisplay (html) {
   })
 }
 
-function renderMarkdown (markdown, mode) {
-  let html = cmark.renderHtmlSync(markdown, CMARK_OPTIONS)
+function renderMarkdown (markdown, mode, implementation) {
+  const renderer = implementation === 'native' ? nativeCmark : cmark
+  let html = renderer.renderHtmlSync(markdown, CMARK_OPTIONS)
   if (mode === 'cmark') return html
 
   html = renderKatexBlocks(html)
@@ -435,8 +462,35 @@ function percentile (values, p) {
   return sorted[index]
 }
 
-function run (markdown, options) {
-  for (let i = 0; i < options.warmup; i++) renderMarkdown(markdown, options.mode)
+const yieldToEventLoop = () => new Promise(resolve => setImmediate(resolve))
+
+function postInspector (session, method, params) {
+  return new Promise((resolve, reject) => {
+    session.post(method, params || {}, (error, result) => error ? reject(error) : resolve(result))
+  })
+}
+
+function sampledAllocationBytes (profile) {
+  return (profile.samples || []).reduce((total, sample) => total + (sample.size || 0), 0)
+}
+
+async function run (markdown, options) {
+  const gcSamples = []
+  const observer = new PerformanceObserver(list => {
+    for (const entry of list.getEntries()) gcSamples.push(entry.duration)
+  })
+  observer.observe({ entryTypes: ['gc'] })
+
+  const session = options.allocationSampling ? new inspector.Session() : null
+  if (session) {
+    session.connect()
+    await postInspector(session, 'HeapProfiler.startSampling', { samplingInterval: 32768 })
+  }
+
+  for (let i = 0; i < options.warmup; i++) renderMarkdown(markdown, options.mode, options.implementation)
+
+  if (global.gc) global.gc()
+  const heapBefore = process.memoryUsage()
 
   const samples = []
   let count = 0
@@ -445,8 +499,18 @@ function run (markdown, options) {
     count++
 
     const start = performance.now()
-    renderMarkdown(markdown, options.mode)
+    renderMarkdown(markdown, options.mode, options.implementation)
     samples.push(performance.now() - start)
+
+    // GC PerformanceObserver entries are delivered asynchronously. Yielding
+    // outside the timed section prevents the observer buffer from dropping
+    // entries during long profiling runs.
+    if (count % 8 === 0) await yieldToEventLoop()
+
+    if (options.forceGcEvery && count % options.forceGcEvery === 0 && global.gc) {
+      global.gc()
+      await yieldToEventLoop()
+    }
 
     if (count % options.reportEvery === 0) {
       const mean = samples.reduce((sum, v) => sum + v, 0) / samples.length
@@ -454,28 +518,38 @@ function run (markdown, options) {
     }
   }
 
-  return samples
+  if (global.gc) global.gc()
+  await yieldToEventLoop()
+  await yieldToEventLoop()
+  const heapAfter = process.memoryUsage()
+  const allocationProfile = session ? await postInspector(session, 'HeapProfiler.stopSampling') : null
+  if (session) session.disconnect()
+  for (const entry of observer.takeRecords()) gcSamples.push(entry.duration)
+  observer.disconnect()
+
+  return { samples, heapBefore, heapAfter, gcSamples, sampledAllocationBytes: allocationProfile ? sampledAllocationBytes(allocationProfile.profile) : undefined }
 }
 
-function main () {
+async function main () {
   const options = parseArgs(process.argv.slice(2))
   if (options.help) {
     usage()
     process.exit(0)
   }
 
-  if (!cmark || typeof cmark.renderHtmlSync !== 'function') {
-    console.error('cmark-gfm did not load correctly.')
+  const renderer = options.implementation === 'native' ? nativeCmark : cmark
+  if (!renderer || typeof renderer.renderHtmlSync !== 'function') {
+    console.error(`${options.implementation} markdown renderer did not load correctly.`)
     process.exit(1)
   }
 
   const markdown = buildFixture(options.repeat)
   console.log('[profile:markdown] start')
   console.log(`[profile:markdown] pid=${process.pid}`)
-  console.log(`[profile:markdown] mode=${options.mode} warmup=${options.warmup} iterations=${options.iterations} repeat=${options.repeat} bytes=${markdown.length}`)
-  console.log(`[profile:markdown] prism=${!!Prism} katex=${!!katex} continuous=${options.continuous}`)
+  console.log(`[profile:markdown] implementation=${options.implementation} mode=${options.mode} warmup=${options.warmup} iterations=${options.iterations} repeat=${options.repeat} bytes=${markdown.length}`)
+  console.log(`[profile:markdown] prism=${!!Prism} katex=${!!katex} allocation-sampling=${options.allocationSampling} force-gc-every=${options.forceGcEvery || 'off'} continuous=${options.continuous}`)
 
-  const samples = run(markdown, options)
+  const { samples, heapBefore, heapAfter, gcSamples, sampledAllocationBytes } = await run(markdown, options)
   const total = samples.reduce((sum, v) => sum + v, 0)
   const mean = samples.length ? total / samples.length : 0
   const min = samples.length ? Math.min(...samples) : 0
@@ -484,6 +558,10 @@ function main () {
 
   console.log('[profile:markdown] done')
   console.log(`[profile:markdown] renders=${samples.length} mean-ms=${mean.toFixed(2)} p95-ms=${p95.toFixed(2)} min-ms=${min.toFixed(2)} max-ms=${max.toFixed(2)}`)
+  console.log(`[profile:markdown] sampled-allocation-bytes=${sampledAllocationBytes === undefined ? 'disabled' : sampledAllocationBytes} heap-used-delta=${heapAfter.heapUsed - heapBefore.heapUsed} rss-delta=${heapAfter.rss - heapBefore.rss} gc-events=${gcSamples.length} gc-ms=${gcSamples.reduce((sum, value) => sum + value, 0).toFixed(2)}`)
 }
 
-main()
+main().catch(error => {
+  console.error(error)
+  process.exitCode = 1
+})

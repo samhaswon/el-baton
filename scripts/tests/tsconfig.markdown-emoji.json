@@ -12,6 +12,7 @@
   "include": [
     "./markdown_emoji.test.ts",
     "../../src/renderer/utils/markdown.ts",
+    "../../src/renderer/utils/markdown_legacy.ts",
     "../../src/common/types.ts",
     "../../src/types/**/*.d.ts"
   ]

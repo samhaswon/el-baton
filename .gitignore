@@ -46,3 +46,5 @@ src/renderer/template/generated/*
 src/renderer/template/generated/fonts/*
 !src/renderer/template/generated/fonts/IconFont.woff2
 src/renderer/template/runtime/
+native/markdown/build/
+native/markdown/generated/

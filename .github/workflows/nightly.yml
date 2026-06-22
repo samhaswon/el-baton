@@ -83,6 +83,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -133,6 +135,7 @@ jobs:
         env:
           EL_BATON_SKIP_ICON_REGEN: ${{ matrix.os == 'windows' && '1' || '0' }}
           EL_BATON_SKIP_ICON_FONT_BUILD: ${{ matrix.os == 'windows' && '1' || '0' }}
+          NOTABLE_NATIVE_ARCH: ${{ matrix.arch }}
         run: npm run -s compile:release
 
       - name: Patch peer ranges

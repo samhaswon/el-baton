@@ -52,6 +52,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -114,6 +116,7 @@ jobs:
           GH_TOKEN: ""
           EL_BATON_SKIP_ICON_REGEN: ${{ matrix.os == 'windows' && '1' || '0' }}
           EL_BATON_SKIP_ICON_FONT_BUILD: ${{ matrix.os == 'windows' && '1' || '0' }}
+          NOTABLE_NATIVE_ARCH: ${{ matrix.arch }}
           npm_config_python: ${{ matrix.os == 'windows' && 'python' || '' }}
         run: npm run -s ${{ matrix.build_script }}
 

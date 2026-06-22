@@ -9,13 +9,12 @@ import Emoji from '@common/emoji';
 import MarkdownPath from '@common/markdown_path';
 import MarkdownRenderHelpers from '@common/markdown_render_helpers';
 import PlantUML from '@common/plantuml';
-import Url from '@common/url';
 import AsciiMath from './asciimath';
 import Highlighter from './highlighter';
 import MermaidCache from './mermaid_cache';
+import MarkdownNative from './markdown_native';
 import PlantUMLCache from './plantuml_cache';
 import Utils from './utils';
-const cmark = require ( 'cmark-gfm' );
 
 const {encodeFilePath} = Utils;
 
@@ -249,8 +248,26 @@ const Markdown = {
 
     // Language-stage transforms that are parser-dependent should run before cmark.
     output = Markdown.applyTransforms ( output, Markdown.extensions.resolveRelativeLinks ( sourceFilePath ) as MarkdownTransformRule[], 'language' );
-    output = Markdown.applyTransforms ( output, Markdown.extensions.encodeSpecialLinks () as MarkdownTransformRule[], 'language' );
-    output = Markdown.applyTransforms ( output, Markdown.extensions.wikilink () as MarkdownTransformRule[], 'language' );
+    output = MarkdownNative.load ().encodeSpecialLinks ( output, Markdown._runtimeConfig.attachmentsToken, Markdown._runtimeConfig.notesToken, Markdown._runtimeConfig.tagsToken );
+    output = MarkdownNative.load ().replaceWikilinks ( output, Markdown._runtimeConfig.notesToken, Markdown._runtimeConfig.notesExt, Markdown._runtimeConfig.notesReSource || Markdown._runtimeConfig.notesRe.source, Markdown._runtimeConfig.notesReFlags || Markdown._runtimeConfig.notesRe.flags );
+
+    return output;
+
+  },
+
+  /**
+   * Production preprocessing path. Parser-independent source passes move to
+   * the native addon as they gain compatibility coverage.
+   */
+  preprocessForNativeCore ( str: string, sourceFilePath?: string ): string {
+
+    let output = Markdown.preprocessMath ( str, true );
+
+    output = MarkdownNative.load ().replaceMacroPlaceholders ( output );
+    output = MarkdownNative.load ().replaceEmojiShortcodes ( output );
+    output = Markdown.applyTransforms ( output, Markdown.extensions.resolveRelativeLinks ( sourceFilePath ) as MarkdownTransformRule[], 'language' );
+    output = MarkdownNative.load ().encodeSpecialLinks ( output, Markdown._runtimeConfig.attachmentsToken, Markdown._runtimeConfig.notesToken, Markdown._runtimeConfig.tagsToken );
+    output = MarkdownNative.load ().replaceWikilinks ( output, Markdown._runtimeConfig.notesToken, Markdown._runtimeConfig.notesExt, Markdown._runtimeConfig.notesReSource || Markdown._runtimeConfig.notesRe.source, Markdown._runtimeConfig.notesReFlags || Markdown._runtimeConfig.notesRe.flags );
 
     return output;
 
@@ -279,15 +296,102 @@ const Markdown = {
     const outputExtensionsAfterMacros = [
       ...Markdown.extensions.attachment (),
       ...Markdown.extensions.note (),
-      ...Markdown.extensions.tag (),
-      ...Markdown.extensions.noProtocolLinks ()
+      ...Markdown.extensions.tag ()
     ];
 
     const withBaseTransforms = Markdown.applyTransforms ( html, outputExtensionsBeforeMacros as any, 'output' ),
           withMacros = MarkdownRenderHelpers.renderMacros ( withBaseTransforms ),
-          withFinalTransforms = Markdown.applyTransforms ( withMacros, outputExtensionsAfterMacros as any, 'output' );
+          withFinalTransforms = Markdown.applyTransforms ( withMacros, outputExtensionsAfterMacros as any, 'output' ),
+          withProtocols = MarkdownNative.load ().normalizeLinkProtocols ( withFinalTransforms );
 
-    return MarkdownRenderHelpers.sanitizeUnsafeHtml ( withFinalTransforms, !Markdown._runtimeConfig.disableScriptSanitization );
+    const sanitizationEnabled = !Markdown._runtimeConfig.disableScriptSanitization,
+          staticallySanitized = MarkdownNative.load ().sanitizeStaticHtml ( withProtocols, sanitizationEnabled );
+
+    return MarkdownRenderHelpers.sanitizeUnsafeHtml ( staticallySanitized, sanitizationEnabled );
+
+  },
+
+  /** Native migration counterpart for deterministic HTML transforms. */
+  postprocessFromNativeCore ( html: string, sourceFilePath?: string ): string {
+
+    const beforeCheckbox = [
+      ...Markdown.extensions.asciimath2tex (),
+      ...Markdown.extensions.katex ()
+    ];
+    const afterCheckbox = Markdown.extensions.resolveRelativeLinks ( sourceFilePath );
+    const outputExtensionsAfterMacros = [
+      ...Markdown.extensions.attachment (),
+      ...Markdown.extensions.note (),
+      ...Markdown.extensions.tag ()
+    ];
+    const withDynamicBlocks = Markdown.applyTransforms ( html, beforeCheckbox as any, 'output' ),
+          withDiagramControls = MarkdownNative.load ().injectDiagramControls ( withDynamicBlocks ),
+          withCopyControls = MarkdownNative.load ().wrapCodeBlocks ( withDiagramControls ),
+          withCheckboxes = MarkdownNative.load ().numberCheckboxes ( withCopyControls ),
+          withBlankTargets = MarkdownNative.load ().addBlankTargets ( withCheckboxes ),
+          withBaseTransforms = Markdown.applyTransforms ( withBlankTargets, afterCheckbox as any, 'output' ),
+          withMacros = MarkdownNative.load ().renderMacros ( withBaseTransforms ),
+          withFinalTransforms = Markdown.applyTransforms ( withMacros, outputExtensionsAfterMacros as any, 'output' ),
+          withProtocols = MarkdownNative.load ().normalizeLinkProtocols ( withFinalTransforms ),
+          sanitizationEnabled = !Markdown._runtimeConfig.disableScriptSanitization,
+          staticallySanitized = MarkdownNative.load ().sanitizeStaticHtml ( withProtocols, sanitizationEnabled );
+
+    return staticallySanitized;
+
+  },
+
+  /** Resolves renderer-owned dynamic slots emitted by the native core. */
+  resolveNativeSlots ( core: { template: string, slots: Array<{ type: string; index?: number; attrs?: string; content?: string; html?: string }> } ): string {
+
+    const resolved = core.slots.map ( slot => {
+      if ( slot.type === 'code' ) {
+        const attrs = slot.attrs || '',
+              content = slot.content || '',
+              original = slot.html || `<pre><code${attrs}>${content}</code></pre>`,
+              language = Highlighter.inferLanguage ( attrs );
+
+        try {
+          if ( language === 'mermaid' ) {
+            const source = decode ( content ),
+                  theme = Markdown._runtimeConfig.mermaidTheme || 'default',
+                  cachedSvg = MermaidCache.get ( `${theme}\u0000${source}` );
+            return MarkdownRenderHelpers.renderMermaidBlock ( source, cachedSvg );
+          }
+          if ( language && [ 'plantuml', 'puml', 'uml' ].includes ( language ) ) {
+            const source = PlantUML.normalizeSource ( decode ( content ) ),
+                  serverUrl = PlantUML.normalizeServerUrl ( Config.plantuml.externalServerUrl ),
+                  cachedResult = PlantUMLCache.get ( `${serverUrl || ''}\u0000${source}` ),
+                  cachedSvg = ( cachedResult && cachedResult.status === 'ok' ) ? cachedResult.svg : undefined;
+            return MarkdownRenderHelpers.renderPlantUMLBlock ( source, cachedSvg );
+          }
+          if ( language && [ 'tex', 'latex', 'katex' ].includes ( language ) ) {
+            const tex = Markdown.normalizeTex ( decode ( content ).replace ( /<br\s*\/?>/gi, '\n' ).replace ( /&nbsp;/gi, ' ' ) );
+            return Markdown.renderKatex ( tex, true );
+          }
+          if ( language === 'asciimath' ) return Markdown.renderKatex ( AsciiMath.toTeX ( decode ( content ) ), true );
+          if (!language) return original;
+          return `<pre><code ${attrs || ''}>${Highlighter.highlight ( content, language )}</code></pre>`;
+        } catch ( error ) {
+          console.error ( `[markdown slot] ${getErrorMessage ( error )}` );
+          return original;
+        }
+      }
+
+      if ( slot.type !== 'katex' || slot.index === undefined ) return '';
+
+      const payload = Markdown._mathPlaceholders[slot.index];
+
+      if ( !payload ) return `MDKATEXPLACEHOLDER${slot.index}END`;
+
+      try {
+        return Markdown.renderKatex ( payload.tex, payload.displayMode );
+      } catch ( error ) {
+        console.error ( `[katex] ${getErrorMessage ( error )}` );
+        return `MDKATEXPLACEHOLDER${slot.index}END`;
+      }
+    });
+
+    return MarkdownNative.load ().finalize ( core.template, resolved );
 
   },
 
@@ -296,10 +400,11 @@ const Markdown = {
    */
   renderPreviewCmark ( str: string, sourceFilePath?: string ): string {
 
-    const preprocessed = Markdown.preprocessForCmark ( str, sourceFilePath ),
-          html = cmark.renderHtmlSync ( preprocessed, Markdown._cmarkOptions );
+    const preprocessed = Markdown.preprocessForNativeCore ( str, sourceFilePath ),
+          core = MarkdownNative.load ().renderCore ( preprocessed, Markdown._cmarkOptions ),
+          html = Markdown.resolveNativeSlots ( core );
 
-    return Markdown.postprocessFromCmark ( html, sourceFilePath );
+    return Markdown.postprocessFromNativeCore ( html, sourceFilePath );
 
   },
 
@@ -311,65 +416,23 @@ const Markdown = {
 
     Markdown.__throwIfAborted ( shouldAbort );
 
-    const preprocessed = Markdown.preprocessForCmark ( str, sourceFilePath );
+    const preprocessed = Markdown.preprocessForNativeCore ( str, sourceFilePath );
 
     await Markdown.__yield ();
     Markdown.__throwIfAborted ( shouldAbort );
 
-    const html = cmark.renderHtmlSync ( preprocessed, Markdown._cmarkOptions );
+    const core = MarkdownNative.load ().renderCore ( preprocessed, Markdown._cmarkOptions ),
+          html = Markdown.resolveNativeSlots ( core );
 
     await Markdown.__yield ();
     Markdown.__throwIfAborted ( shouldAbort );
 
-    const outputExtensionsBeforeMacros = [
-      ...Markdown.extensions.asciimath2tex (),
-      ...Markdown.extensions.katex (),
-      ...Markdown.extensions.mermaid (),
-      ...Markdown.extensions.mermaidOpenExternal (),
-      ...Markdown.extensions.plantuml (),
-      ...Markdown.extensions.plantumlOpenExternal (),
-      ...Markdown.extensions.highlight (),
-      ...Markdown.extensions.copy (),
-      ...Markdown.extensions.checkbox (),
-      ...Markdown.extensions.targetBlankLinks (),
-      ...Markdown.extensions.resolveRelativeLinks ( sourceFilePath )
-    ];
-
-    const outputExtensionsAfterMacros = [
-      ...Markdown.extensions.attachment (),
-      ...Markdown.extensions.note (),
-      ...Markdown.extensions.tag (),
-      ...Markdown.extensions.noProtocolLinks ()
-    ];
-
-    let output = html;
-
-    for ( let index = 0, l = outputExtensionsBeforeMacros.length; index < l; index++ ) {
-      const rule = outputExtensionsBeforeMacros[index];
-      const regex = _.isString ( rule.regex ) ? new RegExp ( rule.regex, 'g' ) : rule.regex;
-      output = output.replace ( regex, rule.replace );
-      if ( ( index % 2 ) === 1 ) {
-        await Markdown.__yield ();
-        Markdown.__throwIfAborted ( shouldAbort );
-      }
-    }
-
-    output = MarkdownRenderHelpers.renderMacros ( output );
+    const output = Markdown.postprocessFromNativeCore ( html, sourceFilePath );
 
     await Markdown.__yield ();
     Markdown.__throwIfAborted ( shouldAbort );
 
-    for ( let index = 0, l = outputExtensionsAfterMacros.length; index < l; index++ ) {
-      const rule = outputExtensionsAfterMacros[index];
-      const regex = _.isString ( rule.regex ) ? new RegExp ( rule.regex, 'g' ) : rule.regex;
-      output = output.replace ( regex, rule.replace );
-      if ( ( index % 2 ) === 1 ) {
-        await Markdown.__yield ();
-        Markdown.__throwIfAborted ( shouldAbort );
-      }
-    }
-
-    return MarkdownRenderHelpers.sanitizeUnsafeHtml ( output, !Markdown._runtimeConfig.disableScriptSanitization );
+    return output;
 
   },
 
@@ -380,7 +443,8 @@ const Markdown = {
 
     const transforms = Markdown.extensions.strip () as MarkdownTransformRule[],
           preprocessed = Markdown.applyTransforms ( str, transforms, 'language' ),
-          html = cmark.renderHtmlSync ( preprocessed, Markdown._cmarkOptions );
+          core = MarkdownNative.load ().renderCore ( preprocessed, Markdown._cmarkOptions ),
+          html = MarkdownNative.load ().finalize ( core.template );
 
     return Markdown.applyTransforms ( html, transforms, 'output' );
 
@@ -399,7 +463,7 @@ const Markdown = {
    * Stashes code spans/fences and math placeholders before markdown parsing so
    * extension syntax is rendered in the intended order.
    */
-  preprocessMath ( str: string ): string {
+  preprocessMath ( str: string, nativeSupSub: boolean = false ): string {
 
     const codeChunks: string[] = [],
           stashCode = ( value: string ) => {
@@ -468,21 +532,36 @@ const Markdown = {
     str = str.replace ( /(^|[^\\])(`+)([^\r\n]*?[^`])\2(?!`)/g, ( match, $1, $2, $3 ) => `${$1}${stashCode ( `${$2}${$3}${$2}` )}` );
 
     // Preserve escaped currency dollars so the HTML-stage KaTeX pass can't mistake them for math delimiters.
-    str = MarkdownRenderHelpers.replaceEscapedDollars ( str );
+    str = nativeSupSub ? MarkdownNative.load ().replaceEscapedDollars ( str ) : MarkdownRenderHelpers.replaceEscapedDollars ( str );
 
     // Stash math first so markdown parsing doesn't alter math content.
     // Escaped delimiters (e.g. `\$`) are not treated as open/close delimiters.
-    str = MarkdownRenderHelpers.replaceMathDelimiters ( str, ( texRaw, displayMode ) => {
-      const tex = Markdown.normalizeTex ( decode ( texRaw )
-        .replace ( /<br\s*\/?>/gi, '\n' )
-        .replace ( /&nbsp;/gi, ' ' ) );
+    if ( nativeSupSub ) {
+      const extracted = MarkdownNative.load ().extractMathDelimiters ( str );
+      Markdown._mathPlaceholders = extracted.math.map ( payload => ({
+        tex: Markdown.normalizeTex ( decode ( MarkdownRenderHelpers.restoreEscapedDollarsForMath ( payload.tex ) )
+          .replace ( /<br\s*\/?>/gi, '\n' )
+          .replace ( /&nbsp;/gi, ' ' ) ),
+        displayMode: payload.displayMode
+      }) );
+      str = extracted.text;
+    } else {
+      str = MarkdownRenderHelpers.replaceMathDelimiters ( str, ( texRaw, displayMode ) => {
+        const tex = Markdown.normalizeTex ( decode ( texRaw )
+          .replace ( /<br\s*\/?>/gi, '\n' )
+          .replace ( /&nbsp;/gi, ' ' ) );
 
-      return stashMath ( tex, displayMode );
-    });
+        return stashMath ( tex, displayMode );
+      });
+    }
 
     // Notable-style superscripts/subscripts.
-    str = str.replace ( /(^|[^\\^])\^([^\s^](?:[^^\n]*?[^\s^])?)\^/g, ( match, $1, $2 ) => `${$1}<sup>${$2}</sup>` );
-    str = str.replace ( /(^|[^\\~])~(?!~)([^\s~](?:[^~\n]*?[^\s~])?)~(?!~)/g, ( match, $1, $2 ) => `${$1}<sub>${$2}</sub>` );
+    if ( nativeSupSub ) {
+      str = MarkdownNative.load ().replaceSuperscriptSubscript ( str );
+    } else {
+      str = str.replace ( /(^|[^\\^])\^([^\s^](?:[^^\n]*?[^\s^])?)\^/g, ( match, $1, $2 ) => `${$1}<sup>${$2}</sup>` );
+      str = str.replace ( /(^|[^\\~])~(?!~)([^\s~](?:[^~\n]*?[^\s~])?)~(?!~)/g, ( match, $1, $2 ) => `${$1}<sub>${$2}</sub>` );
+    }
 
     // Restore code blocks/spans.
     str = str.replace ( /@@__MD_CODE_(\d+)__@@/g, ( match, $1 ) => codeChunks[Number ( $1 )] ?? match );
@@ -1099,25 +1178,6 @@ const Markdown = {
           }
         }
       ];
-
-    },
-
-    /**
-     * Returns transform rules that treat bare host links as HTTPS links.
-     */
-    noProtocolLinks () {
-
-      return [{
-        type: 'output',
-        regex: /<a(.*?)href="(.*?)>/g,
-        replace ( match, $1, $2 ) {
-          if ( $2.startsWith ( '#' ) || Url.isAbsoluteOrProtocolRelative ( $2 ) ) { // URL fragment or absolute URL
-            return match;
-          } else {
-            return `<a${$1}href="https://${$2}>`;
-          }
-        }
-      }];
 
     },
 
