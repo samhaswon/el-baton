@@ -142,6 +142,7 @@ A compact reference for the editor, markdown, and diagram features built into El
 - [KaTeX](#katex)
 - [Mermaid](#mermaid)
 - [PlantUML](#plantuml)
+- [Stored Files](#stored-files)
 
 ## Tutorial
 
@@ -764,7 +765,23 @@ Local PlantUML rendering requires Graphviz (the \`dot\` executable) to be instal
 Download Graphviz: <https://www.graphviz.org/download/>
 
 If you prefer, configure an external PlantUML server in Settings -> PlantUML and use the **Test Server** button to verify connectivity.
-`.trim ().replace ( /\\`/g, '`' );
+
+## Stored Files
+
+El Baton also stores a few app files outside your notes and attachments:
+
+- \`~/.el-baton.json\`: app state such as window layout, open tabs, theme, sorting, and other UI preferences.
+- \`<data directory>/.el-baton.yml\`: workspace global config by default. El Baton will also read supported \`.el-baton.yaml\`, \`.el-baton.json\`, \`.notable.*\`, and \`config.*\` files if they already exist there.
+- \`<app data>/cache/plantuml_cache.sqlite3\`: persistent PlantUML render cache.
+- \`<app data>/runtime/plantuml.jar\`: writable copy of the bundled PlantUML JAR used for local rendering.
+
+\`<app data>\` is Electron's \`userData\` directory for El Baton:
+
+- Windows: \`%APPDATA%/El Baton\`
+- macOS: \`~/Library/Application Support/El Baton\`
+- Linux: \`~/.config/El Baton\` or \`$XDG_CONFIG_HOME/El Baton\`
+`
+.trim ().replace ( /\\`/g, '`' );
 
 /* EXPORT */
 

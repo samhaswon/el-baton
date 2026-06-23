@@ -2,8 +2,9 @@
 
 import {test} from 'node:test';
 import * as assert from 'node:assert/strict';
+import * as path from 'path';
 import MarkdownRenderHelpers from '../../src/common/markdown_render_helpers';
-const cmark = require ( 'cmark-gfm' );
+const cmark = require ( path.resolve ( process.cwd (), 'native/markdown/build/Release/markdown_native.node' ) );
 
 const CMARK_OPTIONS = {
   unsafe: true,
@@ -188,6 +189,20 @@ test ( 'macro rendering: replaces pagebreak placeholders with print break markup
   const output = MarkdownRenderHelpers.renderMacros ( '<p>MDMACROPAGEBREAKPLACEHOLDER</p>' );
 
   assert.equal ( output, '<hr class="pagebreak">' );
+
+});
+
+test ( 'macro rendering: native output matches the legacy helper for nested markup and duplicate headings', () => {
+
+  const html = [
+          '<p>MDMACROTOCPLACEHOLDER</p>',
+          '<h2><em>Intro</em> &amp; <strong>Details</strong></h2>',
+          '<h3 id="kept">Already anchored</h3>',
+          '<h2>Intro &amp; Details</h2>',
+          '<p>MDMACROPAGEBREAKPLACEHOLDER</p>'
+        ].join ( '' );
+
+  assert.equal ( cmark.renderMacros ( html ), MarkdownRenderHelpers.renderMacros ( html ) );
 
 });
 

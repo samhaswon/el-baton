@@ -16,8 +16,6 @@ import Path from '@renderer/utils/path';
 
 /* EXPORT */
 
-declare const __non_webpack_require__: NodeRequire;
-
 const remote = require ( '@electron/remote' );
 
 class Export extends Container<ExportState, MainCTX> {
@@ -105,6 +103,16 @@ class Export extends Container<ExportState, MainCTX> {
 
   }
 
+  _getExportFontPath = ( fontUrl: string ): string => {
+
+    const fontName = path.basename ( fontUrl.replace ( /["']/g, '' ) );
+
+    if ( /^KaTeX_/i.test ( fontName ) ) return `${__static}/fonts/${fontName}`;
+
+    return `${__static}/fonts/IconFont.woff2`;
+
+  }
+
   _renderMermaidsForExport = async ( content: string, theme: 'default' | 'dark' = 'default' ): Promise<string> => {
 
     if ( !content.includes ( 'class="mermaid"' ) ) return content;
@@ -180,7 +188,7 @@ class Export extends Container<ExportState, MainCTX> {
       //TODO: Perhaps we should update the theme we are exporting to, as long as it's light, in order to not waste huge amounts of ink
 
       const css = await this._getResources ([
-        __non_webpack_require__.resolve ( 'katex/dist/katex.min.css' ), // Simply using `require` won't work with WebPack
+        `${__static}/css/katex.min.css`,
         `${__static}/css/notable.css`
       ]);
 
@@ -253,7 +261,7 @@ class Export extends Container<ExportState, MainCTX> {
         const re = /url\("?([^)]*?\.woff2[^)]*?)"?\)/gi;
         const matches = this._stringMatches ( html, re );
         for ( const match of matches ) {
-          const filePath = /katex/i.test ( match[1] ) ? __non_webpack_require__.resolve ( `katex/dist/${match[1]}` ): `${__static}/fonts/IconFont.woff2`; // Simply using `require` won't work with WebPack //UGLY
+          const filePath = this._getExportFontPath ( match[1] );
           const base64 = await File.read ( filePath, 'base64' );
           if ( base64 ) {
             html = html.replace ( match[0], `url(data:font/woff2;base64,${base64})` );
@@ -273,7 +281,7 @@ class Export extends Container<ExportState, MainCTX> {
 
     pdf: async ( note: NoteObj, dst: string ) => {
 
-      const html = await this.renderers.html ( note, dst, { base64: true, metadata: false, critical: false, favicon: false, scrollable: false } );
+      const html = await this.renderers.html ( note, note.filePath, { base64: true, metadata: false, critical: false, favicon: false, scrollable: false } );
       const tmpHtmlPath = path.join ( os.tmpdir (), `el-baton-export-${Date.now ()}-${Math.random ().toString ( 36 ).slice ( 2 )}.html` );
       let shouldCleanup = true;
 

@@ -69,7 +69,7 @@ const shared = {
             presets: [
               babelPresetEnv,
               '@babel/preset-react',
-              ['@babel/preset-typescript', { allowDeclareFields: true }]
+              ['@babel/preset-typescript']
             ],
             // React Compiler must run first in the Babel plugin pipeline.
             plugins: reactCompilerPlugins
@@ -87,7 +87,7 @@ const shared = {
             presets: [
               babelPresetEnv,
               '@babel/preset-react',
-              ['@babel/preset-typescript', { allowDeclareFields: true }]
+              ['@babel/preset-typescript']
             ]
           }
         }

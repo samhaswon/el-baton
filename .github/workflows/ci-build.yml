@@ -52,6 +52,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -73,6 +75,19 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel
 
+      - name: Initialize MSVC build environment
+        if: matrix.os == 'windows'
+        uses: step-security/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch == 'arm64' && 'amd64_arm64' || 'amd64' }}
+
+      - name: Verify Windows C++ toolchain
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          cl
+          msbuild -version
+
       - name: Install dependencies
         env:
           npm_config_python: ${{ matrix.os == 'windows' && 'python' || '' }}
@@ -92,6 +107,10 @@ jobs:
           sudo systemctl start snapd || true
           sudo snap install snapcraft --classic
           echo "/snap/bin" >> "$GITHUB_PATH"
+
+      - name: Prepare Linux electron-builder cache
+        if: matrix.os == 'linux'
+        run: mkdir -p "$RUNNER_TEMP/electron-builder-cache"
 
       - name: Install macOS build dependencies
         if: matrix.os == 'macos'
@@ -114,7 +133,9 @@ jobs:
           GH_TOKEN: ""
           EL_BATON_SKIP_ICON_REGEN: ${{ matrix.os == 'windows' && '1' || '0' }}
           EL_BATON_SKIP_ICON_FONT_BUILD: ${{ matrix.os == 'windows' && '1' || '0' }}
+          NOTABLE_NATIVE_ARCH: ${{ matrix.arch }}
           npm_config_python: ${{ matrix.os == 'windows' && 'python' || '' }}
+          ELECTRON_BUILDER_CACHE: ${{ matrix.os == 'linux' && format('{0}/electron-builder-cache', runner.temp) || '' }}
         run: npm run -s ${{ matrix.build_script }}
 
       - name: Upload build artifacts

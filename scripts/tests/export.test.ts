@@ -12,6 +12,7 @@ import Module = require ( 'node:module' );
 const originalLoad = ( Module as any )._load;
 const alerts: string[] = [];
 const ipcCalls: Array<{ channel: string, payload: any }> = [];
+const pdfHtmlPayloads: string[] = [];
 
 ( Module as any )._load = function patchedLoad ( request: string, parent: NodeModule, isMain: boolean ) {
 
@@ -20,6 +21,9 @@ const ipcCalls: Array<{ channel: string, payload: any }> = [];
       ipcRenderer: {
         invoke: async ( channel: string, payload: any ) => {
           ipcCalls.push ({ channel, payload });
+          if ( channel === 'print-pdf' ) {
+            pdfHtmlPayloads.push ( await fs.readFile ( payload.src, 'utf8' ) );
+          }
         },
         send: ( channel: string, payload: any ) => {
           ipcCalls.push ({ channel, payload });
@@ -59,7 +63,7 @@ const ipcCalls: Array<{ channel: string, payload: any }> = [];
 
   if ( request === 'mime-types' ) {
     return {
-      lookup: () => 'application/octet-stream'
+      lookup: ( filePath: string ) => path.extname ( filePath ).toLowerCase () === '.png' ? 'image/png' : 'application/octet-stream'
     };
   }
 
@@ -116,7 +120,12 @@ const ipcCalls: Array<{ channel: string, payload: any }> = [];
     return {
       __esModule: true,
       default: {
-        render: () => '',
+        render: ( content: string, _limit: number, sourceFilePath?: string ) => content.replace ( /!\[([^\]]*)\]\(([^)]*)\)/g, ( _match, alt, target ) => {
+          const sourceDir = sourceFilePath ? path.dirname ( sourceFilePath ) : tempRoot,
+                filePath = path.resolve ( sourceDir, target );
+
+          return `<img src="file://${filePath}" alt="${alt}">`;
+        }),
         setRuntimeConfig: () => {}
       }
     };
@@ -150,6 +159,7 @@ const Export = require ( '../../src/renderer/containers/main/export' ).default;
 /* HELPERS */
 
 const tempRoot = path.join ( os.tmpdir (), 'el-baton-export-tests' );
+const staticRoot = path.join ( tempRoot, 'static' );
 
 const note = {
   filePath: path.join ( tempRoot, 'source', 'Test Note.md' ),
@@ -166,7 +176,13 @@ const resetTempRoot = async (): Promise<void> => {
 
   await fs.rm ( tempRoot, { recursive: true, force: true } );
   await fs.mkdir ( path.join ( tempRoot, 'source' ), { recursive: true } );
+  await fs.mkdir ( path.join ( staticRoot, 'css' ), { recursive: true } );
+  await fs.mkdir ( path.join ( staticRoot, 'fonts' ), { recursive: true } );
   await fs.writeFile ( sourceAttachmentPath, 'attachment fixture', 'utf8' );
+  await fs.writeFile ( path.join ( staticRoot, 'css', 'katex.min.css' ), '.katex{font-family:KaTeX_Main} @font-face{src:url(fonts/KaTeX_Main-Regular.woff2)}', 'utf8' );
+  await fs.writeFile ( path.join ( staticRoot, 'css', 'notable.css' ), '.preview{font-family:IconFont} @font-face{src:url("../fonts/IconFont.woff2")}', 'utf8' );
+  await fs.writeFile ( path.join ( staticRoot, 'fonts', 'KaTeX_Main-Regular.woff2' ), 'katex font', 'utf8' );
+  await fs.writeFile ( path.join ( staticRoot, 'fonts', 'IconFont.woff2' ), 'icon font', 'utf8' );
 
 };
 
@@ -202,6 +218,8 @@ beforeEach ( async () => {
 
   alerts.length = 0;
   ipcCalls.length = 0;
+  pdfHtmlPayloads.length = 0;
+  ( globalThis as any ).__static = staticRoot;
   await resetTempRoot ();
 
 } );
@@ -213,6 +231,18 @@ afterEach ( async () => {
 } );
 
 /* TESTS */
+
+test ( 'renderers.html: reads KaTeX CSS and fonts from packaged static assets', async () => {
+
+  const store = createStore ( path.join ( tempRoot, 'export-html' ) );
+  const html = await store.renderers.html ( note, note.filePath, { base64: true, metadata: false, critical: false, favicon: false, scrollable: true } );
+
+  assert.match ( html, /\.katex\{font-family:KaTeX_Main\}/ );
+  assert.match ( html, /\.preview\{font-family:IconFont\}/ );
+  assert.match ( html, /url\(data:font\/woff2;base64,a2F0ZXggZm9udA==\)/ );
+  assert.match ( html, /url\(data:font\/woff2;base64,aWNvbiBmb250\)/ );
+
+} );
 
 test ( 'exportHTML: writes a suffixed html file and copied attachments into the selected directory', async () => {
 
@@ -271,5 +301,27 @@ test ( 'exportPDF: writes a suffixed pdf file via the pdf renderer and copied at
   assert.equal ( await fs.readFile ( path.join ( exportDir, 'attachments', 'asset.txt' ), 'utf8' ), 'attachment fixture' );
   assert.deepEqual ( alerts, [] );
   assert.deepEqual ( ipcCalls, [] );
+
+} );
+
+test ( 'renderers.pdf: inlines images relative to the source note before printing', async () => {
+
+  const exportDir = path.join ( tempRoot, 'export-pdf-relative-image' ),
+        imagePath = path.join ( tempRoot, 'source', 'bible', 'mona_lisa_spaghetti.png' ),
+        imageNote = {
+          ...note,
+          plainContent: '![an image of the Mona Lisa, but her hair is replaced with spaghetti](./bible/mona_lisa_spaghetti.png)'
+        };
+
+  await fs.mkdir ( path.dirname ( imagePath ), { recursive: true } );
+  await fs.writeFile ( imagePath, 'png fixture', 'utf8' );
+
+  const store = createStore ( exportDir );
+
+  await store.renderers.pdf ( imageNote, path.join ( exportDir, 'Test Note.pdf' ) );
+
+  assert.equal ( ipcCalls.length, 1 );
+  assert.match ( pdfHtmlPayloads[0], /src="data:image\/png;base64,cG5nIGZpeHR1cmU="/ );
+  assert.doesNotMatch ( pdfHtmlPayloads[0], /file:\/\// );
 
 } );

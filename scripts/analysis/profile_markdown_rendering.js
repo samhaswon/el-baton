@@ -1,12 +1,23 @@
 #!/usr/bin/env node
 
 const { performance } = require('perf_hooks')
+const { PerformanceObserver } = require('perf_hooks')
+const inspector = require('inspector')
+const path = require('path')
 const { decode } = require('html-entities')
-const cmark = require('cmark-gfm')
+let nativeCmark
+
+try {
+  nativeCmark = require(path.resolve(__dirname, '../../native/markdown/build/Release/markdown_native.node'))
+} catch (_) {}
 const katex = require('katex')
 
 let Prism
 let prismLanguages = {}
+const KATEX_CACHE_MAX = 3000
+const KATEX_CACHE_MIN_TEX_LENGTH = 8
+const katexCache = new Map()
+const katexCacheStats = { hits: 0, misses: 0, renderCalls: 0, renderMs: 0 }
 
 try {
   Prism = require('prismjs')
@@ -21,7 +32,9 @@ const DEFAULT_OPTIONS = {
   repeat: 20,
   mode: 'full', // cmark | cmark+katex | full
   reportEvery: 25,
-  continuous: false
+  continuous: false,
+  allocationSampling: true,
+  forceGcEvery: 0
 }
 
 const CMARK_OPTIONS = {
@@ -293,6 +306,11 @@ function parseArgs (argv) {
       i++
     } else if (arg === '--continuous') {
       options.continuous = true
+    } else if (arg === '--no-allocation-sampling') {
+      options.allocationSampling = false
+    } else if (arg === '--force-gc-every' && value) {
+      options.forceGcEvery = Math.max(0, Number(value) || 0)
+      i++
     } else if (arg === '--help' || arg === '-h') {
       options.help = true
     }
@@ -311,6 +329,8 @@ function usage () {
   console.log('  --repeat <n>          Fixture multiplier (default: 20)')
   console.log('  --report-every <n>    Progress log cadence (default: 25)')
   console.log('  --continuous          Run until interrupted (Ctrl+C)')
+  console.log('  --no-allocation-sampling  Disable V8 allocation sampling')
+  console.log('  --force-gc-every <n>  Force GC after every n timed renders (diagnostic only)')
 }
 
 function buildFixture (repeat) {
@@ -386,12 +406,36 @@ function highlightCodeBlocks (html) {
 }
 
 function renderKatexSafe (tex, displayMode) {
+  const shouldMemoize = tex.trim().length >= KATEX_CACHE_MIN_TEX_LENGTH
+  const cacheKey = `${displayMode ? '1' : '0'}::${tex}`
+
+  if (shouldMemoize && katexCache.has(cacheKey)) {
+    const cached = katexCache.get(cacheKey)
+    katexCache.delete(cacheKey)
+    katexCache.set(cacheKey, cached)
+    katexCacheStats.hits++
+    return cached
+  }
+
+  if (shouldMemoize) katexCacheStats.misses++
+
   try {
-    return katex.renderToString(tex, {
+    const renderStart = performance.now()
+    const rendered = katex.renderToString(tex, {
       throwOnError: false,
       strict: 'ignore',
-      displayMode
+      displayMode,
+      output: 'html'
     })
+    katexCacheStats.renderCalls++
+    katexCacheStats.renderMs += performance.now() - renderStart
+
+    if (shouldMemoize) {
+      katexCache.set(cacheKey, rendered)
+      if (katexCache.size > KATEX_CACHE_MAX) katexCache.delete(katexCache.keys().next().value)
+    }
+
+    return rendered
   } catch (error) {
     return displayMode ? `<pre><code>${tex}</code></pre>` : `$${tex}$`
   }
@@ -417,15 +461,26 @@ function renderKatexInlineAndDisplay (html) {
   })
 }
 
-function renderMarkdown (markdown, mode) {
-  let html = cmark.renderHtmlSync(markdown, CMARK_OPTIONS)
+function renderMarkdown (markdown, mode, stageSamples) {
+  const renderer = nativeCmark
+  let start = performance.now()
+  let html = renderer.renderHtmlSync(markdown, CMARK_OPTIONS)
+  if (stageSamples) stageSamples.parser.push(performance.now() - start)
   if (mode === 'cmark') return html
 
+  start = performance.now()
   html = renderKatexBlocks(html)
+  if (stageSamples) stageSamples.katexBlocks.push(performance.now() - start)
+
+  start = performance.now()
   html = renderKatexInlineAndDisplay(html)
+  if (stageSamples) stageSamples.katexInline.push(performance.now() - start)
   if (mode === 'cmark+katex') return html
 
-  return highlightCodeBlocks(html)
+  start = performance.now()
+  html = highlightCodeBlocks(html)
+  if (stageSamples) stageSamples.highlight.push(performance.now() - start)
+  return html
 }
 
 function percentile (values, p) {
@@ -435,18 +490,71 @@ function percentile (values, p) {
   return sorted[index]
 }
 
-function run (markdown, options) {
+const yieldToEventLoop = () => new Promise(resolve => setImmediate(resolve))
+
+function postInspector (session, method, params) {
+  return new Promise((resolve, reject) => {
+    session.post(method, params || {}, (error, result) => error ? reject(error) : resolve(result))
+  })
+}
+
+function sampledAllocationBytes (profile) {
+  return (profile.samples || []).reduce((total, sample) => total + (sample.size || 0), 0)
+}
+
+async function run (markdown, options) {
+  const gcSamples = []
+  const observer = new PerformanceObserver(list => {
+    for (const entry of list.getEntries()) gcSamples.push(entry.duration)
+  })
+  observer.observe({ entryTypes: ['gc'] })
+
+  const session = options.allocationSampling ? new inspector.Session() : null
+  if (session) {
+    session.connect()
+    await postInspector(session, 'HeapProfiler.startSampling', { samplingInterval: 32768 })
+  }
+
+  katexCache.clear()
+  katexCacheStats.hits = 0
+  katexCacheStats.misses = 0
+  katexCacheStats.renderCalls = 0
+  katexCacheStats.renderMs = 0
   for (let i = 0; i < options.warmup; i++) renderMarkdown(markdown, options.mode)
+  const warmupKatexCacheStats = { ...katexCacheStats, entries: katexCache.size }
+  katexCacheStats.hits = 0
+  katexCacheStats.misses = 0
+  katexCacheStats.renderCalls = 0
+  katexCacheStats.renderMs = 0
+
+  if (global.gc) global.gc()
+  const heapBefore = process.memoryUsage()
 
   const samples = []
+  const stageSamples = {
+    parser: [],
+    katexBlocks: [],
+    katexInline: [],
+    highlight: []
+  }
   let count = 0
 
   while (options.continuous || count < options.iterations) {
     count++
 
     const start = performance.now()
-    renderMarkdown(markdown, options.mode)
+    renderMarkdown(markdown, options.mode, stageSamples)
     samples.push(performance.now() - start)
+
+    // GC PerformanceObserver entries are delivered asynchronously. Yielding
+    // outside the timed section prevents the observer buffer from dropping
+    // entries during long profiling runs.
+    if (count % 8 === 0) await yieldToEventLoop()
+
+    if (options.forceGcEvery && count % options.forceGcEvery === 0 && global.gc) {
+      global.gc()
+      await yieldToEventLoop()
+    }
 
     if (count % options.reportEvery === 0) {
       const mean = samples.reduce((sum, v) => sum + v, 0) / samples.length
@@ -454,18 +562,28 @@ function run (markdown, options) {
     }
   }
 
-  return samples
+  if (global.gc) global.gc()
+  await yieldToEventLoop()
+  await yieldToEventLoop()
+  const heapAfter = process.memoryUsage()
+  const allocationProfile = session ? await postInspector(session, 'HeapProfiler.stopSampling') : null
+  if (session) session.disconnect()
+  for (const entry of observer.takeRecords()) gcSamples.push(entry.duration)
+  observer.disconnect()
+
+  return { samples, stageSamples, heapBefore, heapAfter, gcSamples, katexCacheStats: { ...katexCacheStats, entries: katexCache.size }, warmupKatexCacheStats, sampledAllocationBytes: allocationProfile ? sampledAllocationBytes(allocationProfile.profile) : undefined }
 }
 
-function main () {
+async function main () {
   const options = parseArgs(process.argv.slice(2))
   if (options.help) {
     usage()
     process.exit(0)
   }
 
-  if (!cmark || typeof cmark.renderHtmlSync !== 'function') {
-    console.error('cmark-gfm did not load correctly.')
+  const renderer = nativeCmark
+  if (!renderer || typeof renderer.renderHtmlSync !== 'function') {
+    console.error('Native markdown renderer did not load correctly.')
     process.exit(1)
   }
 
@@ -473,9 +591,9 @@ function main () {
   console.log('[profile:markdown] start')
   console.log(`[profile:markdown] pid=${process.pid}`)
   console.log(`[profile:markdown] mode=${options.mode} warmup=${options.warmup} iterations=${options.iterations} repeat=${options.repeat} bytes=${markdown.length}`)
-  console.log(`[profile:markdown] prism=${!!Prism} katex=${!!katex} continuous=${options.continuous}`)
+  console.log(`[profile:markdown] prism=${!!Prism} katex=${!!katex} allocation-sampling=${options.allocationSampling} force-gc-every=${options.forceGcEvery || 'off'} continuous=${options.continuous}`)
 
-  const samples = run(markdown, options)
+  const { samples, stageSamples, heapBefore, heapAfter, gcSamples, katexCacheStats, warmupKatexCacheStats, sampledAllocationBytes } = await run(markdown, options)
   const total = samples.reduce((sum, v) => sum + v, 0)
   const mean = samples.length ? total / samples.length : 0
   const min = samples.length ? Math.min(...samples) : 0
@@ -484,6 +602,12 @@ function main () {
 
   console.log('[profile:markdown] done')
   console.log(`[profile:markdown] renders=${samples.length} mean-ms=${mean.toFixed(2)} p95-ms=${p95.toFixed(2)} min-ms=${min.toFixed(2)} max-ms=${max.toFixed(2)}`)
+  console.log(`[profile:markdown] stages parser-addon-ms=${(stageSamples.parser.reduce((sum, value) => sum + value, 0) / Math.max(1, stageSamples.parser.length)).toFixed(2)} katex-blocks-ms=${(stageSamples.katexBlocks.reduce((sum, value) => sum + value, 0) / Math.max(1, stageSamples.katexBlocks.length)).toFixed(2)} katex-inline-ms=${(stageSamples.katexInline.reduce((sum, value) => sum + value, 0) / Math.max(1, stageSamples.katexInline.length)).toFixed(2)} highlight-js-ms=${(stageSamples.highlight.reduce((sum, value) => sum + value, 0) / Math.max(1, stageSamples.highlight.length)).toFixed(2)}`)
+  console.log(`[profile:markdown] katex-cache warmup-hits=${warmupKatexCacheStats.hits} warmup-misses=${warmupKatexCacheStats.misses} warmup-entries=${warmupKatexCacheStats.entries} measured-hits=${katexCacheStats.hits} measured-misses=${katexCacheStats.misses} entries=${katexCacheStats.entries} render-calls=${katexCacheStats.renderCalls} render-ms=${katexCacheStats.renderMs.toFixed(2)}`)
+  console.log(`[profile:markdown] sampled-allocation-bytes=${sampledAllocationBytes === undefined ? 'disabled' : sampledAllocationBytes} heap-used-delta=${heapAfter.heapUsed - heapBefore.heapUsed} rss-delta=${heapAfter.rss - heapBefore.rss} gc-events=${gcSamples.length} gc-ms=${gcSamples.reduce((sum, value) => sum + value, 0).toFixed(2)}`)
 }
 
-main()
+main().catch(error => {
+  console.error(error)
+  process.exitCode = 1
+})

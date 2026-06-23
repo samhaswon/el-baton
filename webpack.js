@@ -80,7 +80,7 @@ const config = {
             presets: [
               babelPresetEnv,
               '@babel/preset-react',
-              ['@babel/preset-typescript', { allowDeclareFields: true }]
+              ['@babel/preset-typescript']
             ],
             plugins: reactCompilerPlugins
           }

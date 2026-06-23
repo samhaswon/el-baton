@@ -173,9 +173,8 @@ const MarkdownRenderHelpers = {
 
     const base = text
       .toLowerCase ()
-      .replace ( /[^a-z0-9\s-]/g, ' ' )
+      .replace ( /[^a-z0-9\s-]/g, '' )
       .replace ( /\s+/g, '-' )
-      .replace ( /-+/g, '-' )
       .replace ( /^-+|-+$/g, '' ) || 'section';
 
     counts[base] = ( counts[base] || 0 ) + 1;

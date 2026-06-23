@@ -2,7 +2,7 @@
   "name": "el-baton",
   "productName": "El Baton",
   "description": "Conduct your knowledge.",
-  "version": "0.0.0-nightly22",
+  "version": "0.0.0-nightly24",
   "scripts": {
     "clean:env": "rm -rf node_modules package-lock.json",
     "clean:deps": "npx del-cli \"node_modules/**/{README,LICENSE,license,.travis.yml,tsconfig.json,*.{md,MD,map,png,ts}}\" \"node_modules/monaco-editor/{dev,min}\" \"!node_modules/**/*.d.ts\"",
@@ -16,13 +16,15 @@
     "bundle:main": "node ./scripts/build/run_webpack.js ./webpack.main.js dist/main/main.js",
     "bundle:renderer": "node ./scripts/build/run_webpack.js ./webpack.renderer.js dist/renderer/index.html",
     "icon:build": "node ./scripts/build/generate_icons.js",
-    "compile": "npm run icon:build && npm run icon:font && npm run monaco && npm run template:assets && npm run clean:deps && cross-env NODE_ENV=development npm run bundle:main && cross-env NODE_ENV=development npm run bundle:renderer && npm run script:build:snapshot-dist",
-    "compile:release": "npm run icon:build && npm run icon:font && npm run monaco && npm run template:assets && npm run clean:deps && cross-env NODE_ENV=production npm run bundle:main && cross-env NODE_ENV=production npm run bundle:renderer && npm run script:build:snapshot-dist",
+    "native:build": "node ./scripts/build/build_markdown_native.js",
+    "native:build:node": "node ./scripts/build/build_markdown_native.js --node",
+    "compile": "npm run native:build && npm run icon:build && npm run icon:font && npm run monaco && npm run template:assets && npm run clean:deps && cross-env NODE_ENV=development npm run bundle:main && cross-env NODE_ENV=development npm run bundle:renderer && npm run script:build:snapshot-dist",
+    "compile:release": "npm run native:build && npm run icon:build && npm run icon:font && npm run monaco && npm run template:assets && npm run clean:deps && cross-env NODE_ENV=production npm run bundle:main && cross-env NODE_ENV=production npm run bundle:renderer && npm run script:build:snapshot-dist",
     "build:mac": "npm run compile:release && npm run script:build:patch-peers && electron-builder --mac --publish never",
     "build:mac:x64": "npm run compile:release && npm run script:build:patch-peers && electron-builder --mac --x64 --publish never",
     "build:mac:arm64": "npm run compile:release && npm run script:build:patch-peers && electron-builder --mac --arm64 --publish never",
     "build:win": "npm run compile:release && npm run script:build:patch-peers && electron-builder --win --x64 --publish never && npm run script:build:fixlatestwin",
-    "build:win:arm64": "npm run compile:release && npm run script:build:patch-peers && electron-builder --win --arm64 --publish never && npm run script:build:fixlatestwin",
+    "build:win:arm64": "cross-env NOTABLE_NATIVE_ARCH=arm64 npm run compile:release && npm run script:build:patch-peers && electron-builder --win --arm64 --publish never && npm run script:build:fixlatestwin",
     "build:linux": "npm run compile:release && npm run script:build:patch-peers && electron-builder --linux --x64 --publish never && npm run script:build:fixlatestlinux",
     "build:linux:arm64": "npm run compile:release && npm run script:build:patch-peers && electron-builder --linux --arm64 --publish never && npm run script:build:fixlatestlinux",
     "build:linux:ci": "npm run compile:release && npm run script:build:patch-peers && electron-builder --linux AppImage deb rpm --x64 --publish never && npm run script:build:fixlatestlinux",
@@ -34,7 +36,6 @@
     "script:build:patch-peers": "node ./scripts/build/patch_peer_deps.js",
     "script:build:fixlatestlinux": "node -e \"require ( './scripts/build/fix_latest_linux' )()\"",
     "script:build:fixlatestwin": "node -e \"require ( './scripts/build/fix_latest_win' )()\"",
-    "benchmark:markdown": "node ./scripts/analysis/benchmark_markdown_parsers.js",
     "profile:markdown-rendering": "node ./scripts/analysis/profile_markdown_rendering.js",
     "screenshots:demo": "node ./scripts/analysis/capture_demo_screenshots.js",
     "lint": "eslint .",
@@ -42,8 +43,9 @@
     "test:emoji:github": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/emoji_github.test.ts src/common/emoji.ts && node --test .tmp/tests/scripts/tests/emoji_github.test.js",
     "test:editor-tabs": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/editor_tabs.test.ts src/common/editor_tabs.ts && node --test .tmp/tests/scripts/tests/editor_tabs.test.js",
     "test:markdown-path": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/markdown_path_resolution.test.ts src/common/markdown_path.ts && node --test .tmp/tests/scripts/tests/markdown_path_resolution.test.js",
-    "test:markdown-emoji": "npx tsc --project scripts/tests/tsconfig.markdown-emoji.json && node --test .tmp/tests/scripts/tests/markdown_emoji.test.js",
-    "test:markdown-rendering": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/markdown_rendering_helpers.test.ts src/common/markdown_render_helpers.ts && node --test .tmp/tests/scripts/tests/markdown_rendering_helpers.test.js",
+    "test:markdown-emoji": "npm run -s native:build:node && npx tsc --project scripts/tests/tsconfig.markdown-emoji.json && node --test .tmp/tests/scripts/tests/markdown_emoji.test.js",
+    "test:markdown-native": "npm run -s native:build:node && npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/markdown_native.test.ts && node --test .tmp/tests/markdown_native.test.js",
+    "test:markdown-rendering": "npm run -s native:build:node && npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/markdown_rendering_helpers.test.ts src/common/markdown_render_helpers.ts && node --test .tmp/tests/scripts/tests/markdown_rendering_helpers.test.js",
     "test:markdown-table": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/markdown_table.test.ts src/common/markdown_table.ts && node --test .tmp/tests/scripts/tests/markdown_table.test.js",
     "test:markdown": "npm run -s test:markdown-path && npm run -s test:markdown-rendering && npm run -s test:markdown-table && npm run -s test:markdown-emoji",
     "test:export": "npx tsc --project scripts/tests/tsconfig.export.json && node --test .tmp/tests/scripts/tests/export.test.js",
@@ -90,6 +92,15 @@
         "to": "dist",
         "filter": [
           "**/*"
+        ]
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "dist/native",
+        "to": "native",
+        "filter": [
+          "markdown_native.node"
         ]
       }
     ],
@@ -200,7 +211,6 @@
     "react"
   ],
   "dependencies": {
-    "cmark-gfm": "^0.9.0",
     "node-plantuml": "^0.9.0"
   },
   "optionalDependencies": {
@@ -218,18 +228,15 @@
     "cli-table2": {
       "lodash": "^4.18.1"
     },
-    "tmp": "0.2.5",
-    "@xmldom/xmldom": "0.8.11",
-    "dompurify": "^3.4.2",
-    "cmark-gfm": {
-      "node-addon-api": "^8.6.0"
-    }
+    "node-addon-api": "^8.8.0",
+    "tmp": "0.2.7",
+    "dompurify": "^3.4.11"
   },
   "devDependencies": {
-    "@babel/core": "^7.29.0",
-    "@babel/preset-env": "^7.29.2",
-    "@babel/preset-react": "^7.28.5",
-    "@babel/preset-typescript": "^7.28.5",
+    "@babel/core": "^8.0.1",
+    "@babel/preset-env": "^8.0.2",
+    "@babel/preset-react": "^8.0.1",
+    "@babel/preset-typescript": "^8.0.1",
     "@electron/remote": "^2.1.3",
     "@notable/dumper": "^4.0.3",
     "@types/katex": "^0.16.8",
@@ -237,7 +244,7 @@
     "@types/mime-types": "^3.0.1",
     "@types/node": "^25.6.0",
     "@types/prismjs": "^1.26.6",
-    "@types/react": "^19.2.14",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "asciimath2tex": "^1.5.0",
     "babel-loader": "^10.1.1",
@@ -245,7 +252,7 @@
     "calls-batch": "^2.0.3",
     "cash-dom": "^8.1.5",
     "chokidar": "^5.0.0",
-    "concurrently": "^9.2.1",
+    "concurrently": "^10.0.3",
     "copy-webpack-plugin": "^14.0.0",
     "crc-32": "^1.2.2",
     "critically": "^2.0.1",
@@ -254,16 +261,16 @@
     "css-minimizer-webpack-plugin": "^8.0.0",
     "del-cli": "^7.0.0",
     "diff": "^9.0.0",
-    "electron": "^42.0.1",
-    "electron-builder": "^26.8.1",
-    "electron-builder-squirrel-windows": "^26.8.1",
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3",
+    "electron-builder-squirrel-windows": "^26.15.3",
     "electron-context-menu": "^4.1.2",
     "electron-devtools-installer": "^4.0.0",
     "electron-dialog": "^2.0.0",
     "electron-store": "^11.0.2",
-    "electron-updater": "^6.8.3",
+    "electron-updater": "^6.8.9",
     "electron-window-state": "^5.0.3",
-    "eslint": "^10.3.0",
+    "eslint": "^10.5.0",
     "execa": "^9.6.1",
     "extract-zip": "^2.0.1",
     "gemoji": "^8.1.0",
@@ -271,36 +278,37 @@
     "html-entities": "^2.6.0",
     "html-webpack-plugin": "^5.6.7",
     "icon-font-buildr": "^2.0.0",
-    "js-yaml": "^4.1.1",
-    "katex": "^0.16.45",
+    "js-yaml": "^4.2.0",
+    "katex": "^0.17.0",
     "laxy": "^1.0.0",
     "lodash": "^4.18.1",
     "mermaid": "^11.15.0",
     "mime-types": "^3.0.2",
-    "mini-css-extract-plugin": "^2.10.1",
+    "mini-css-extract-plugin": "^2.10.2",
     "monaco-editor": "^0.55.1",
-    "playwright": "^1.60.0",
+    "node-addon-api": "^8.8.0",
+    "node-gyp": "^12.4.0",
+    "playwright": "^1.61.0",
     "prismjs": "^1.30.0",
     "prop-types": "^15.8.1",
-    "react": "^19.2.6",
+    "react": "^19.2.7",
     "react-compiler-runtime": "^1.0.0",
     "react-component-identity": "^1.0.1",
     "react-component-renderless": "^1.0.2",
-    "react-dom": "^19.2.6",
+    "react-dom": "^19.2.7",
     "react-log-updates": "^1.0.7",
     "react-router-static": "^1.0.0",
     "react-window": "^2.2.7",
-    "showdown": "^2.1.0",
     "style-loader": "^4.0.0",
-    "terser-webpack-plugin": "^5.6.0",
+    "terser-webpack-plugin": "^5.6.1",
     "tiny-glob": "^0.2.9",
     "tsconfig-paths-webpack-plugin": "^4.2.0",
-    "typescript": "^6.0.2",
-    "typescript-eslint": "^8.59.3",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1",
     "unstated": "^2.1.1",
     "wait-on": "^9.0.10",
-    "webpack": "^5.106.2",
-    "webpack-cli": "^7.0.2",
-    "webpack-dev-server": "^5.2.4"
+    "webpack": "^5.107.2",
+    "webpack-cli": "^7.0.3",
+    "webpack-dev-server": "^5.2.5"
   }
 }

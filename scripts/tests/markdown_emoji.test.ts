@@ -113,3 +113,11 @@ test ( 'markdown emoji: preserves shortcodes inside inline code spans', () => {
   assert.equal ( output, 'Code `:question:` text ❓' );
 
 } );
+
+test ( 'markdown emoji: preserves shortcodes inside fenced code blocks', () => {
+
+  const output = Markdown.preprocessForNativeCore ( '```txt\n:question:\n```\n\n:question:' );
+
+  assert.equal ( output, '```txt\n:question:\n```\n\n❓' );
+
+} );

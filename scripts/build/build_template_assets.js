@@ -8,6 +8,7 @@ const templateGeneratedPath = path.join(rootPath, 'src', 'renderer', 'template',
 const templateRuntimePath = path.join(rootPath, 'src', 'renderer', 'template', 'runtime')
 const templateRuntimeCSSPath = path.join(templateRuntimePath, 'css')
 const resourcesIconPath = path.join(rootPath, 'resources', 'icon')
+const katexDistPath = path.join(rootPath, 'node_modules', 'katex', 'dist')
 
 const toPosixPath = targetPath => path.relative(rootPath, targetPath).split(path.sep).join('/')
 
@@ -74,6 +75,8 @@ const build = () => {
 
     copyDirectoryIfExists(path.join(templateGeneratedPath, 'fonts'), path.join(templateRuntimePath, 'fonts'))
     copyDirectoryIfExists(path.join(templateGeneratedPath, 'javascript'), path.join(templateRuntimePath, 'javascript'))
+    copyDirectoryIfExists(path.join(katexDistPath, 'fonts'), path.join(templateRuntimePath, 'fonts'))
+    copyFileIfExists(path.join(katexDistPath, 'katex.min.css'), path.join(templateRuntimeCSSPath, 'katex.min.css'))
 
     copyFileIfExists(path.join(resourcesIconPath, 'icon.png'), path.join(templateRuntimePath, 'images', 'icon.png'))
     copyFileIfExists(path.join(resourcesIconPath, 'icon.ico'), path.join(templateRuntimePath, 'images', 'icon.ico'))
@@ -104,6 +107,8 @@ const watch = async () => {
     path.join(templateBasePath, 'images'),
     path.join(templateBasePath, 'javascript'),
     templateGeneratedPath,
+    path.join(katexDistPath, 'fonts'),
+    path.join(katexDistPath, 'katex.min.css'),
     path.join(resourcesIconPath, 'icon.png'),
     path.join(resourcesIconPath, 'icon.ico')
   ], {

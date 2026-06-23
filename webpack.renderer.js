@@ -29,7 +29,6 @@ const config = {
     allowedHosts: ['localhost', '127.0.0.1']
   },
   externals: {
-    'cmark-gfm': 'commonjs2 cmark-gfm',
     spellchecker: 'commonjs2 spellchecker'
   },
   module: {
