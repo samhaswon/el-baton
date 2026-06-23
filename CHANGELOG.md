@@ -32,6 +32,11 @@
 - Quality and validation:
   - Added substantial unit test coverage for markdown-related features and helpers (emoji, paths, KaTeX ranges, tables, PlantUML/cache, sorting, config, suggestions).
   - Added CI test workflows and UI smoke/screenshot automation to validate behavior continuously.
+- Markdown engine overhaul:
+  - Added a native C++ Markdown processing pipeline on top of `cmark-gfm`, then fused and optimized its passes for better performance.
+- Build and platform reliability:
+  - Hardened CI and release workflows for Linux and Windows.
+  - Fixed transient build failures and removed redundant build setup steps after the new flow stabilized.
 
 # Notable Changelog
 
