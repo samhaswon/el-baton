@@ -67,7 +67,6 @@ const resolveAlias = ( request: string ): string | undefined => {
 } );
 
 const Markdown = require ( '../../src/renderer/utils/markdown' ).default;
-const MarkdownLegacy = require ( '../../src/renderer/utils/markdown_legacy' ).default;
 
 Markdown.setRuntimeConfig ({
   cwd: undefined,
@@ -120,32 +119,5 @@ test ( 'markdown emoji: preserves shortcodes inside fenced code blocks', () => {
   const output = Markdown.preprocessForNativeCore ( '```txt\n:question:\n```\n\n:question:' );
 
   assert.equal ( output, '```txt\n:question:\n```\n\n❓' );
-
-} );
-
-test ( 'markdown native: matches the legacy pipeline for core markdown fixtures', () => {
-
-  const fixtures = [
-    '# Heading\n\nText :question: with `:rocket:`.',
-    'Inline $x^2$ and display $$y^2$$.',
-    '[[@toc]]\n\n- [x] completed\n- [ ] pending',
-    '[[A note|target]] and `[[not a link]]`',
-    'A [link](https://example.com) and ~~strike~~.',
-    '```ts\nconst value: number = 1;\n```',
-    '```mermaid\ngraph TD\nA-->B\n```',
-    '```plantuml\n@startuml\nAlice -> Bob: hello\n@enduml\n```'
-  ];
-
-  for ( const fixture of fixtures ) {
-    const normalizeCmarkUpgradeDifference = ( html: string ) => html
-      .replace ( /<input type="checkbox"=""/g, '<input type="checkbox"' )
-      .replace ( / disabled=""/g, '' )
-      .replace ( /<li class="task-list-item">/g, '<li>' )
-      .replace ( /<input type="checkbox"([^>]*)\sdata-nth="(\d+)"\s*\/?\s*>/g, ( match, attrs, nth ) => {
-        const normalizedAttrs = String ( attrs ).replace ( /\s*\/\s*/g, ' ' ).replace ( /\s+/g, ' ' ).trim ();
-        return `<input type="checkbox"${normalizedAttrs ? ` ${normalizedAttrs}` : ''} data-nth="${nth}">`;
-      });
-    assert.equal ( normalizeCmarkUpgradeDifference ( Markdown.renderPreviewCmark ( fixture ) ), normalizeCmarkUpgradeDifference ( MarkdownLegacy.renderPreview ( fixture ) ) );
-  }
 
 } );

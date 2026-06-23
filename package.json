@@ -251,7 +251,6 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "calls-batch": "^2.0.3",
     "cash-dom": "^8.1.5",
-    "cmark-gfm": "^0.9.0",
     "chokidar": "^5.0.0",
     "concurrently": "^10.0.3",
     "copy-webpack-plugin": "^14.0.0",

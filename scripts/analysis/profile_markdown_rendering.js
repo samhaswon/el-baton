@@ -5,12 +5,7 @@ const { PerformanceObserver } = require('perf_hooks')
 const inspector = require('inspector')
 const path = require('path')
 const { decode } = require('html-entities')
-let cmark
 let nativeCmark
-
-try {
-  cmark = require('cmark-gfm')
-} catch (_) {}
 
 try {
   nativeCmark = require(path.resolve(__dirname, '../../native/markdown/build/Release/markdown_native.node'))
@@ -36,7 +31,6 @@ const DEFAULT_OPTIONS = {
   iterations: 120,
   repeat: 20,
   mode: 'full', // cmark | cmark+katex | full
-  implementation: 'native', // legacy | native
   reportEvery: 25,
   continuous: false,
   allocationSampling: true,
@@ -307,9 +301,6 @@ function parseArgs (argv) {
     } else if (arg === '--mode' && value) {
       if (value === 'cmark' || value === 'cmark+katex' || value === 'full') options.mode = value
       i++
-    } else if (arg === '--implementation' && value) {
-      if (value === 'legacy' || value === 'native') options.implementation = value
-      i++
     } else if (arg === '--report-every' && value) {
       options.reportEvery = Math.max(1, Number(value) || 1)
       i++
@@ -333,7 +324,6 @@ function usage () {
   console.log('')
   console.log('Options:')
   console.log('  --mode <name>         cmark | cmark+katex | full (default: full)')
-  console.log('  --implementation <x>  native | legacy (default: native)')
   console.log('  --warmup <n>          Warmup runs (default: 8)')
   console.log('  --iterations <n>      Timed runs (default: 120)')
   console.log('  --repeat <n>          Fixture multiplier (default: 20)')
@@ -471,8 +461,8 @@ function renderKatexInlineAndDisplay (html) {
   })
 }
 
-function renderMarkdown (markdown, mode, implementation, stageSamples) {
-  const renderer = implementation === 'native' ? nativeCmark : cmark
+function renderMarkdown (markdown, mode, stageSamples) {
+  const renderer = nativeCmark
   let start = performance.now()
   let html = renderer.renderHtmlSync(markdown, CMARK_OPTIONS)
   if (stageSamples) stageSamples.parser.push(performance.now() - start)
@@ -530,7 +520,7 @@ async function run (markdown, options) {
   katexCacheStats.misses = 0
   katexCacheStats.renderCalls = 0
   katexCacheStats.renderMs = 0
-  for (let i = 0; i < options.warmup; i++) renderMarkdown(markdown, options.mode, options.implementation)
+  for (let i = 0; i < options.warmup; i++) renderMarkdown(markdown, options.mode)
   const warmupKatexCacheStats = { ...katexCacheStats, entries: katexCache.size }
   katexCacheStats.hits = 0
   katexCacheStats.misses = 0
@@ -553,7 +543,7 @@ async function run (markdown, options) {
     count++
 
     const start = performance.now()
-    renderMarkdown(markdown, options.mode, options.implementation, stageSamples)
+    renderMarkdown(markdown, options.mode, stageSamples)
     samples.push(performance.now() - start)
 
     // GC PerformanceObserver entries are delivered asynchronously. Yielding
@@ -591,16 +581,16 @@ async function main () {
     process.exit(0)
   }
 
-  const renderer = options.implementation === 'native' ? nativeCmark : cmark
+  const renderer = nativeCmark
   if (!renderer || typeof renderer.renderHtmlSync !== 'function') {
-    console.error(`${options.implementation} markdown renderer did not load correctly.`)
+    console.error('Native markdown renderer did not load correctly.')
     process.exit(1)
   }
 
   const markdown = buildFixture(options.repeat)
   console.log('[profile:markdown] start')
   console.log(`[profile:markdown] pid=${process.pid}`)
-  console.log(`[profile:markdown] implementation=${options.implementation} mode=${options.mode} warmup=${options.warmup} iterations=${options.iterations} repeat=${options.repeat} bytes=${markdown.length}`)
+  console.log(`[profile:markdown] mode=${options.mode} warmup=${options.warmup} iterations=${options.iterations} repeat=${options.repeat} bytes=${markdown.length}`)
   console.log(`[profile:markdown] prism=${!!Prism} katex=${!!katex} allocation-sampling=${options.allocationSampling} force-gc-every=${options.forceGcEvery || 'off'} continuous=${options.continuous}`)
 
   const { samples, stageSamples, heapBefore, heapAfter, gcSamples, katexCacheStats, warmupKatexCacheStats, sampledAllocationBytes } = await run(markdown, options)
