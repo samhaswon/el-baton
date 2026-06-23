@@ -88,6 +88,19 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel
 
+      - name: Initialize MSVC build environment
+        if: matrix.os == 'windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch == 'arm64' && 'amd64_arm64' || 'amd64' }}
+
+      - name: Verify Windows C++ toolchain
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          cl
+          msbuild -version
+
       - name: Install dependencies
         env:
           npm_config_python: ${{ matrix.os == 'windows' && 'python' || '' }}
