@@ -35,6 +35,16 @@ test ( 'markdown native: returns KaTeX placeholders as typed slots and injects r
 
 } );
 
+test ( 'markdown native: preserves malformed placeholder indices without throwing', () => {
+
+  const index = '9'.repeat ( 128 ),
+        core = native.renderCore ( `MDKATEXPLACEHOLDER${index}END` );
+
+  assert.deepEqual ( core.slots, [] );
+  assert.match ( core.template, new RegExp ( `MDKATEXPLACEHOLDER${index}END` ) );
+
+} );
+
 test ( 'markdown native: prepares escaped dollars, math slots, and sup/sub in one pass', () => {
 
   const prepared = native.prepareMath ( 'Cost \\$ and $x^2$ with a^b^ and H~2~O.' );
@@ -114,6 +124,15 @@ test ( 'markdown native: matches the supported sanitizer attack matrix', () => {
   ];
 
   for ( const [input, expected] of cases ) assert.equal ( native.sanitizeStaticHtml ( input, true ), expected );
+
+} );
+
+test ( 'markdown native: sanitizes long quoted attribute lists without overflowing offsets', () => {
+
+  const padding = 'x'.repeat ( 256 ),
+        html = `<iframe data-padding="${padding}" srcdoc="<script>evil()</script>" src="javascript:alert(1)"></iframe>`;
+
+  assert.equal ( native.sanitizeStaticHtml ( html, true ), `<iframe data-padding="${padding}"></iframe>` );
 
 } );
 

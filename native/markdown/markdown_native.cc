@@ -10,6 +10,7 @@ extern "C" {
 
 #include <array>
 #include <cctype>
+#include <limits>
 #include <string>
 #include <regex>
 #include <unordered_map>
@@ -64,6 +65,16 @@ bool AttachExtensions(const Napi::Object& options, cmark_parser* parser) {
     }
     cmark_parser_attach_syntax_extension(parser, extension);
   }
+  return true;
+}
+
+bool ParseSizeT(std::string_view value, size_t* output) {
+  size_t parsed = 0;
+  for (const char character : value) {
+    if (character < '0' || character > '9' || parsed > (std::numeric_limits<size_t>::max() - static_cast<size_t>(character - '0')) / 10) return false;
+    parsed = parsed * 10 + static_cast<size_t>(character - '0');
+  }
+  *output = parsed;
   return true;
 }
 
@@ -143,8 +154,13 @@ Napi::Value RenderCore(const Napi::CallbackInfo& info) {
       output.push_back(rendered[index++]);
       continue;
     }
+    size_t math_index = 0;
+    if (!ParseSizeT(std::string_view(rendered).substr(index + kPrefix.size(), digits - index - kPrefix.size()), &math_index)) {
+      output.push_back(rendered[index++]);
+      continue;
+    }
     const size_t slot = slots.size();
-    slots.push_back({"katex", static_cast<size_t>(std::stoull(rendered.substr(index + kPrefix.size(), digits - index - kPrefix.size()))), "", "", ""});
+    slots.push_back({"katex", math_index, "", "", ""});
     output += "MDNATIVESLOT" + std::to_string(slot) + "END";
     index = digits + 3;
   }
@@ -190,7 +206,12 @@ Napi::Value Finalize(const Napi::CallbackInfo& info) {
       output.push_back(input[index++]);
       continue;
     }
-    const size_t slot = static_cast<size_t>(std::stoull(input.substr(index + kPrefix.size(), digits - index - kPrefix.size())));
+    size_t slot = 0;
+    if (!ParseSizeT(std::string_view(input).substr(index + kPrefix.size(), digits - index - kPrefix.size()), &slot)) {
+      output.append(input, index, digits + 3 - index);
+      index = digits + 3;
+      continue;
+    }
     const Napi::Value replacement = slot < slots.Length() ? slots.Get(static_cast<uint32_t>(slot)) : env.Undefined();
     if (replacement.IsString()) output += replacement.As<Napi::String>().Utf8Value();
     else output.append(input, index, digits + 3 - index);
@@ -919,7 +940,7 @@ size_t FindTagEnd(const std::string& input, size_t start) {
 }
 
 std::string SanitizeTag(const std::string& tag) {
-  if (tag.size() < 3 || tag[1] == '/' || tag[1] == '!' || tag[1] == '?') return tag;
+  if (tag.size() < 3 || tag.back() != '>' || tag[1] == '/' || tag[1] == '!' || tag[1] == '?') return tag;
   size_t index = 1;
   while (index < tag.size() && std::isspace(static_cast<unsigned char>(tag[index]))) ++index;
   while (index < tag.size() && (std::isalnum(static_cast<unsigned char>(tag[index])) || tag[index] == ':' || tag[index] == '-')) ++index;
@@ -938,18 +959,22 @@ std::string SanitizeTag(const std::string& tag) {
       ++index;
       while (index < body_end && std::isspace(static_cast<unsigned char>(tag[index]))) ++index;
       if (index < body_end && (tag[index] == '\'' || tag[index] == '"')) {
-        const char quote = tag[index++], value_start = index;
+        const char quote = tag[index++];
+        const size_t value_start = index;
         while (index < body_end && tag[index] != quote) ++index;
-        value.assign(tag, value_start, index - value_start);
+        if (value_start > index || index > body_end) return tag;
+        value = std::string(tag.data() + value_start, index - value_start);
         if (index < body_end) ++index;
       } else {
         const size_t value_start = index;
         while (index < body_end && !std::isspace(static_cast<unsigned char>(tag[index])) && tag[index] != '>') ++index;
-        value.assign(tag, value_start, index - value_start);
+        if (value_start > index || index > body_end) return tag;
+        value = std::string(tag.data() + value_start, index - value_start);
       }
     }
     const bool event = name.size() > 2 && (name[0] == 'o' || name[0] == 'O') && (name[1] == 'n' || name[1] == 'N') && std::isalpha(static_cast<unsigned char>(name[2]));
     const bool remove = event || EqualsInsensitive(name, "srcdoc") || (IsUrlAttribute(name) && IsUnsafeUrlProtocol(value));
+    if (attribute_start > index || index > body_end) return tag;
     if (!remove) output.append(tag, attribute_start, index - attribute_start);
   }
   output.push_back('>');
@@ -1135,7 +1160,7 @@ Napi::Value RenderMacros(const Napi::CallbackInfo& info) {
   for (std::sregex_iterator match(input.begin(), input.end(), headings), end; match != end; ++match) {
     const std::smatch& current = *match;
     with_anchors.append(input, offset, static_cast<size_t>(current.position()) - offset);
-    const int level = std::stoi(current[1].str());
+    const int level = current[1].str()[0] - '0';
     const std::string attrs = current[2].matched ? current[2].str() : "";
     const std::string inner_html = current[3].str();
     const std::string text = StripHtml(inner_html);
