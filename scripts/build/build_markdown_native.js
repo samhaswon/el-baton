@@ -17,8 +17,15 @@ if ( runtime === 'electron' ) args.push ( `--target=${electronVersion}`, '--dist
 const generate = cp.spawnSync ( process.execPath, [path.join ( rootPath, 'scripts', 'build', 'generate_markdown_emoji_table.js' )], { cwd: rootPath, stdio: 'inherit' } );
 if ( generate.status !== 0 ) process.exit ( generate.status || 1 );
 
-const result = cp.spawnSync ( executable, args, { cwd: rootPath, stdio: 'inherit' } );
+// Windows command shims (`*.cmd`) must run through cmd.exe. Without `shell`
+// Node can fail before node-gyp starts, leaving CI with only a silent exit 1.
+const result = cp.spawnSync ( executable, args, {
+  cwd: rootPath,
+  stdio: 'inherit',
+  shell: process.platform === 'win32'
+} );
 
+if ( result.error ) throw result.error;
 if ( result.status !== 0 ) process.exit ( result.status || 1 );
 if ( !fs.existsSync ( outputPath ) ) throw new Error ( `[markdown-native] Missing build output: ${outputPath}` );
 

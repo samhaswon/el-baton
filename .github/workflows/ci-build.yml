@@ -108,6 +108,10 @@ jobs:
           sudo snap install snapcraft --classic
           echo "/snap/bin" >> "$GITHUB_PATH"
 
+      - name: Prepare Linux electron-builder cache
+        if: matrix.os == 'linux'
+        run: mkdir -p "$RUNNER_TEMP/electron-builder-cache"
+
       - name: Install macOS build dependencies
         if: matrix.os == 'macos'
         run: brew install inkscape imagemagick
@@ -131,6 +135,7 @@ jobs:
           EL_BATON_SKIP_ICON_FONT_BUILD: ${{ matrix.os == 'windows' && '1' || '0' }}
           NOTABLE_NATIVE_ARCH: ${{ matrix.arch }}
           npm_config_python: ${{ matrix.os == 'windows' && 'python' || '' }}
+          ELECTRON_BUILDER_CACHE: ${{ matrix.os == 'linux' && format('{0}/electron-builder-cache', runner.temp) || '' }}
         run: npm run -s ${{ matrix.build_script }}
 
       - name: Upload build artifacts
