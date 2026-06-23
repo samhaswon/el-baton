@@ -79,7 +79,7 @@ const Markdown = {
       strict: 'ignore',
       displayMode: false,
       errorColor: '#F44336',
-      output: "html"
+      output: "mathml"
     }
   } as MarkdownRuntimeConfig,
   _cmarkOptions: {
