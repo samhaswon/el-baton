@@ -163,8 +163,7 @@
         "snap"
       ],
       "icon": "resources/icon",
-      "category": "Utility",
-      "desktopName": "com.elbaton.app"
+      "category": "Utility"
     },
     "snap": {
       "grade": "stable",
