@@ -21,6 +21,7 @@ type MarkdownNativeBinding = {
   encodeSpecialLinks: ( markdown: string, attachmentsToken: string, notesToken: string, tagsToken: string ) => string;
   replaceSuperscriptSubscript: ( markdown: string ) => string;
   extractMathDelimiters: ( markdown: string ) => { text: string, math: Array<{ tex: string, displayMode: boolean }> };
+  prepareMath: ( markdown: string ) => { text: string, math: Array<{ tex: string, displayMode: boolean }> };
   numberCheckboxes: ( html: string ) => string;
   addBlankTargets: ( html: string ) => string;
   normalizeLinkProtocols: ( html: string ) => string;

@@ -535,6 +535,80 @@ Napi::Value ExtractMathDelimiters(const Napi::CallbackInfo& info) {
   return result;
 }
 
+// Combines the three math-source passes so the renderer crosses the native
+// boundary once after JavaScript has stashed code spans and fences.
+Napi::Value PrepareMath(const Napi::CallbackInfo& info) {
+  const Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsString()) {
+    Napi::TypeError::New(env, "Expected markdown to be a string").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  constexpr std::string_view kEscapedDollar = "MDESCAPEDDOLLARPLACEHOLDER";
+  const std::string input = info[0].As<Napi::String>().Utf8Value();
+  std::string escaped;
+  escaped.reserve(input.size());
+  for (size_t index = 0; index < input.size();) {
+    if (input[index] == '\\' && index + 1 < input.size() && input[index + 1] == '$') {
+      escaped += kEscapedDollar;
+      index += 2;
+    } else escaped.push_back(input[index++]);
+  }
+
+  struct Payload { std::string tex; bool display; };
+  std::vector<Payload> payloads;
+  std::string extracted;
+  extracted.reserve(escaped.size());
+  for (size_t index = 0; index < escaped.size();) {
+    if (escaped[index] != '$' || IsEscaped(escaped, index)) { extracted.push_back(escaped[index++]); continue; }
+    const bool display = index + 1 < escaped.size() && escaped[index + 1] == '$';
+    const size_t delimiter = display ? 2 : 1;
+    size_t close = index + delimiter;
+    for (; close < escaped.size(); ++close) {
+      if (!display && escaped[close] == '\n') break;
+      if (escaped[close] != '$' || IsEscaped(escaped, close)) continue;
+      if (display ? close + 1 < escaped.size() && escaped[close + 1] == '$'
+                  : (close == 0 || escaped[close - 1] != '$') && (close + 1 == escaped.size() || escaped[close + 1] != '$')) break;
+    }
+    if (close >= escaped.size() || (!display && escaped[close] != '$') || (display && (close + 1 >= escaped.size() || escaped[close + 1] != '$'))) { extracted.push_back(escaped[index++]); continue; }
+    const std::string tex = escaped.substr(index + delimiter, close - index - delimiter);
+    if (tex.empty()) { extracted.append(escaped, index, close + delimiter - index); index = close + delimiter; continue; }
+    const size_t slot = payloads.size();
+    payloads.push_back({tex, display});
+    extracted += "MDKATEXPLACEHOLDER" + std::to_string(slot) + "END";
+    index = close + delimiter;
+  }
+
+  std::string output;
+  output.reserve(extracted.size());
+  for (size_t index = 0; index < extracted.size();) {
+    const char marker = extracted[index];
+    const bool superscript = marker == '^';
+    const bool subscript = marker == '~' && (index + 1 >= extracted.size() || extracted[index + 1] != '~');
+    const bool escaped_marker = index > 0 && extracted[index - 1] == '\\';
+    const bool doubled = index > 0 && extracted[index - 1] == marker;
+    if ((!superscript && !subscript) || escaped_marker || doubled) { output.push_back(extracted[index++]); continue; }
+    size_t end = index + 1;
+    while (end < extracted.size() && extracted[end] != marker && extracted[end] != '\n') ++end;
+    if (end >= extracted.size() || extracted[end] != marker || end == index + 1 || std::isspace(static_cast<unsigned char>(extracted[index + 1])) || std::isspace(static_cast<unsigned char>(extracted[end - 1]))) { output.push_back(extracted[index++]); continue; }
+    output += superscript ? "<sup>" : "<sub>";
+    output.append(extracted, index + 1, end - index - 1);
+    output += superscript ? "</sup>" : "</sub>";
+    index = end + 1;
+  }
+
+  Napi::Object result = Napi::Object::New(env);
+  result.Set("text", output);
+  Napi::Array math = Napi::Array::New(env, payloads.size());
+  for (uint32_t index = 0; index < payloads.size(); ++index) {
+    Napi::Object payload = Napi::Object::New(env);
+    payload.Set("tex", payloads[index].tex);
+    payload.Set("displayMode", payloads[index].display);
+    math.Set(index, payload);
+  }
+  result.Set("math", math);
+  return result;
+}
+
 Napi::Value NumberCheckboxes(const Napi::CallbackInfo& info) {
   const Napi::Env env = info.Env();
   if (info.Length() < 1 || !info[0].IsString()) {
@@ -806,22 +880,110 @@ bool IsUnsafeUrlProtocol(const std::string& raw_value) {
       normalized.rfind("data:image/jpeg;", 0) == 0 || normalized.rfind("data:image/webp;", 0) == 0);
 }
 
-std::string StripUnsafeUrlAttributes(const std::string& input) {
-  static const std::regex attributes(
-    "\\s+(href|src|xlink:href|action|formaction|poster)\\s*=\\s*(?:\\\"([^\\\"]*)\\\"|'([^']*)'|([^\\s>]+))",
-    std::regex::icase
-  );
+bool EqualsInsensitive(std::string_view left, std::string_view right) {
+  if (left.size() != right.size()) return false;
+  for (size_t index = 0; index < left.size(); ++index) {
+    if (std::tolower(static_cast<unsigned char>(left[index])) != std::tolower(static_cast<unsigned char>(right[index]))) return false;
+  }
+  return true;
+}
+
+bool StartsWithInsensitive(const std::string& input, size_t offset, std::string_view value) {
+  return offset + value.size() <= input.size() && EqualsInsensitive(std::string_view(input).substr(offset, value.size()), value);
+}
+
+bool IsBlockedElement(std::string_view name) {
+  return EqualsInsensitive(name, "script") || EqualsInsensitive(name, "style") || EqualsInsensitive(name, "title") ||
+    EqualsInsensitive(name, "textarea") || EqualsInsensitive(name, "xmp") || EqualsInsensitive(name, "noembed") ||
+    EqualsInsensitive(name, "noframes") || EqualsInsensitive(name, "plaintext");
+}
+
+bool IsUrlAttribute(std::string_view name) {
+  return EqualsInsensitive(name, "href") || EqualsInsensitive(name, "src") || EqualsInsensitive(name, "xlink:href") ||
+    EqualsInsensitive(name, "action") || EqualsInsensitive(name, "formaction") || EqualsInsensitive(name, "poster");
+}
+
+size_t FindTagEnd(const std::string& input, size_t start) {
+  char quote = 0;
+  for (size_t index = start; index < input.size(); ++index) {
+    const char character = input[index];
+    if (quote) {
+      if (character == quote) quote = 0;
+    } else if (character == '\'' || character == '"') {
+      quote = character;
+    } else if (character == '>') {
+      return index;
+    }
+  }
+  return std::string::npos;
+}
+
+std::string SanitizeTag(const std::string& tag) {
+  if (tag.size() < 3 || tag[1] == '/' || tag[1] == '!' || tag[1] == '?') return tag;
+  size_t index = 1;
+  while (index < tag.size() && std::isspace(static_cast<unsigned char>(tag[index]))) ++index;
+  while (index < tag.size() && (std::isalnum(static_cast<unsigned char>(tag[index])) || tag[index] == ':' || tag[index] == '-')) ++index;
+  std::string output = tag.substr(0, index);
+  const size_t body_end = tag.size() - 1;
+  while (index < body_end) {
+    const size_t attribute_start = index;
+    while (index < body_end && std::isspace(static_cast<unsigned char>(tag[index]))) ++index;
+    if (index >= body_end || tag[index] == '/') { output.append(tag, attribute_start, body_end - attribute_start); break; }
+    const size_t name_start = index;
+    while (index < body_end && !std::isspace(static_cast<unsigned char>(tag[index])) && tag[index] != '=' && tag[index] != '/' && tag[index] != '>') ++index;
+    const std::string_view name(tag.data() + name_start, index - name_start);
+    while (index < body_end && std::isspace(static_cast<unsigned char>(tag[index]))) ++index;
+    std::string value;
+    if (index < body_end && tag[index] == '=') {
+      ++index;
+      while (index < body_end && std::isspace(static_cast<unsigned char>(tag[index]))) ++index;
+      if (index < body_end && (tag[index] == '\'' || tag[index] == '"')) {
+        const char quote = tag[index++], value_start = index;
+        while (index < body_end && tag[index] != quote) ++index;
+        value.assign(tag, value_start, index - value_start);
+        if (index < body_end) ++index;
+      } else {
+        const size_t value_start = index;
+        while (index < body_end && !std::isspace(static_cast<unsigned char>(tag[index])) && tag[index] != '>') ++index;
+        value.assign(tag, value_start, index - value_start);
+      }
+    }
+    const bool event = name.size() > 2 && (name[0] == 'o' || name[0] == 'O') && (name[1] == 'n' || name[1] == 'N') && std::isalpha(static_cast<unsigned char>(name[2]));
+    const bool remove = event || EqualsInsensitive(name, "srcdoc") || (IsUrlAttribute(name) && IsUnsafeUrlProtocol(value));
+    if (!remove) output.append(tag, attribute_start, index - attribute_start);
+  }
+  output.push_back('>');
+  return output;
+}
+
+std::string SanitizeHtmlOnePass(const std::string& input) {
   std::string output;
   output.reserve(input.size());
-  size_t offset = 0;
-  for (std::sregex_iterator match(input.begin(), input.end(), attributes), end; match != end; ++match) {
-    const std::smatch& current = *match;
-    output.append(input, offset, static_cast<size_t>(current.position()) - offset);
-    const std::string value = current[2].matched ? current[2].str() : current[3].matched ? current[3].str() : current[4].str();
-    if (!IsUnsafeUrlProtocol(value)) output += current.str();
-    offset = static_cast<size_t>(current.position() + current.length());
+  for (size_t index = 0; index < input.size();) {
+    if (input[index] != '<') { output.push_back(input[index++]); continue; }
+    const size_t tag_end = FindTagEnd(input, index + 1);
+    if (tag_end == std::string::npos) { output.append(input, index, std::string::npos); break; }
+    const std::string tag = input.substr(index, tag_end - index + 1);
+    size_t name_start = index + 1;
+    while (name_start < tag_end && std::isspace(static_cast<unsigned char>(input[name_start]))) ++name_start;
+    const bool closing = name_start < tag_end && input[name_start] == '/';
+    if (closing) ++name_start;
+    const size_t name_end = [&] { size_t cursor = name_start; while (cursor < tag_end && (std::isalnum(static_cast<unsigned char>(input[cursor])) || input[cursor] == ':' || input[cursor] == '-')) ++cursor; return cursor; }();
+    const std::string_view name(input.data() + name_start, name_end - name_start);
+    if (IsBlockedElement(name)) {
+      if (closing) { index = tag_end + 1; continue; }
+      const std::string needle = "</" + std::string(name);
+      size_t close_start = tag_end + 1;
+      while (close_start < input.size() && !StartsWithInsensitive(input, close_start, needle)) ++close_start;
+      if (close_start < input.size()) {
+        const size_t close_end = FindTagEnd(input, close_start + needle.size());
+        index = close_end == std::string::npos ? input.size() : close_end + 1;
+      } else index = tag_end + 1;
+      continue;
+    }
+    output += SanitizeTag(tag);
+    index = tag_end + 1;
   }
-  output.append(input, offset, std::string::npos);
   return output;
 }
 
@@ -1001,17 +1163,7 @@ Napi::Value SanitizeStaticHtml(const Napi::CallbackInfo& info) {
     return env.Undefined();
   }
   if (!info[1].ToBoolean().Value()) return info[0];
-  std::string output = info[0].As<Napi::String>().Utf8Value();
-  const std::regex blocked("<(script|style|title|textarea|xmp|noembed|noframes|plaintext)\\b[^>]*>[\\s\\S]*?</\\1\\s*>", std::regex::icase);
-  const std::regex orphaned("</?(script|style|title|textarea|xmp|noembed|noframes|plaintext)\\b[^>]*>", std::regex::icase);
-  const std::regex events("\\s+on[a-z]+\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)", std::regex::icase);
-  const std::regex srcdoc("\\s+srcdoc\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)", std::regex::icase);
-  output = std::regex_replace(output, blocked, "");
-  output = std::regex_replace(output, orphaned, "");
-  output = std::regex_replace(output, events, "");
-  output = std::regex_replace(output, srcdoc, "");
-  output = StripUnsafeUrlAttributes(output);
-  return Napi::String::New(env, output);
+  return Napi::String::New(env, SanitizeHtmlOnePass(info[0].As<Napi::String>().Utf8Value()));
 }
 
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
@@ -1026,6 +1178,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("encodeSpecialLinks", Napi::Function::New(env, EncodeSpecialLinks));
   exports.Set("replaceSuperscriptSubscript", Napi::Function::New(env, ReplaceSuperscriptSubscript));
   exports.Set("extractMathDelimiters", Napi::Function::New(env, ExtractMathDelimiters));
+  exports.Set("prepareMath", Napi::Function::New(env, PrepareMath));
   exports.Set("numberCheckboxes", Napi::Function::New(env, NumberCheckboxes));
   exports.Set("addBlankTargets", Napi::Function::New(env, AddBlankTargets));
   exports.Set("normalizeLinkProtocols", Napi::Function::New(env, NormalizeLinkProtocols));

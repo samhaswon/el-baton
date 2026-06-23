@@ -35,6 +35,15 @@ test ( 'markdown native: returns KaTeX placeholders as typed slots and injects r
 
 } );
 
+test ( 'markdown native: prepares escaped dollars, math slots, and sup/sub in one pass', () => {
+
+  const prepared = native.prepareMath ( 'Cost \\$ and $x^2$ with a^b^ and H~2~O.' );
+
+  assert.equal ( prepared.text, 'Cost MDESCAPEDDOLLARPLACEHOLDER and MDKATEXPLACEHOLDER0END with a<sup>b</sup> and H<sub>2</sub>O.' );
+  assert.deepEqual ( prepared.math, [{ tex: 'x^2', displayMode: false }] );
+
+} );
+
 test ( 'markdown native: returns rendered fenced code blocks as typed slots', () => {
 
   const core = native.renderCore ( '```ts\nconst value = 1;\n```', {

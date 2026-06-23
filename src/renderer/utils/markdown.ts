@@ -531,13 +531,10 @@ const Markdown = {
     // Stash inline code spans.
     str = str.replace ( /(^|[^\\])(`+)([^\r\n]*?[^`])\2(?!`)/g, ( match, $1, $2, $3 ) => `${$1}${stashCode ( `${$2}${$3}${$2}` )}` );
 
-    // Preserve escaped currency dollars so the HTML-stage KaTeX pass can't mistake them for math delimiters.
-    str = nativeSupSub ? MarkdownNative.load ().replaceEscapedDollars ( str ) : MarkdownRenderHelpers.replaceEscapedDollars ( str );
-
-    // Stash math first so markdown parsing doesn't alter math content.
-    // Escaped delimiters (e.g. `\$`) are not treated as open/close delimiters.
     if ( nativeSupSub ) {
-      const extracted = MarkdownNative.load ().extractMathDelimiters ( str );
+      // One native pass handles escaped dollars, delimiter extraction, and
+      // superscript/subscript conversion after code has been stashed.
+      const extracted = MarkdownNative.load ().prepareMath ( str );
       Markdown._mathPlaceholders = extracted.math.map ( payload => ({
         tex: Markdown.normalizeTex ( decode ( MarkdownRenderHelpers.restoreEscapedDollarsForMath ( payload.tex ) )
           .replace ( /<br\s*\/?>/gi, '\n' )
@@ -546,6 +543,8 @@ const Markdown = {
       }) );
       str = extracted.text;
     } else {
+      // Preserve escaped currency dollars so the HTML-stage KaTeX pass can't mistake them for math delimiters.
+      str = MarkdownRenderHelpers.replaceEscapedDollars ( str );
       str = MarkdownRenderHelpers.replaceMathDelimiters ( str, ( texRaw, displayMode ) => {
         const tex = Markdown.normalizeTex ( decode ( texRaw )
           .replace ( /<br\s*\/?>/gi, '\n' )
@@ -556,9 +555,7 @@ const Markdown = {
     }
 
     // Notable-style superscripts/subscripts.
-    if ( nativeSupSub ) {
-      str = MarkdownNative.load ().replaceSuperscriptSubscript ( str );
-    } else {
+    if ( !nativeSupSub ) {
       str = str.replace ( /(^|[^\\^])\^([^\s^](?:[^^\n]*?[^\s^])?)\^/g, ( match, $1, $2 ) => `${$1}<sup>${$2}</sup>` );
       str = str.replace ( /(^|[^\\~])~(?!~)([^\s~](?:[^~\n]*?[^\s~])?)~(?!~)/g, ( match, $1, $2 ) => `${$1}<sub>${$2}</sub>` );
     }

@@ -19,6 +19,10 @@ const katex = require('katex')
 
 let Prism
 let prismLanguages = {}
+const KATEX_CACHE_MAX = 3000
+const KATEX_CACHE_MIN_TEX_LENGTH = 8
+const katexCache = new Map()
+const katexCacheStats = { hits: 0, misses: 0, renderCalls: 0, renderMs: 0 }
 
 try {
   Prism = require('prismjs')
@@ -412,12 +416,36 @@ function highlightCodeBlocks (html) {
 }
 
 function renderKatexSafe (tex, displayMode) {
+  const shouldMemoize = tex.trim().length >= KATEX_CACHE_MIN_TEX_LENGTH
+  const cacheKey = `${displayMode ? '1' : '0'}::${tex}`
+
+  if (shouldMemoize && katexCache.has(cacheKey)) {
+    const cached = katexCache.get(cacheKey)
+    katexCache.delete(cacheKey)
+    katexCache.set(cacheKey, cached)
+    katexCacheStats.hits++
+    return cached
+  }
+
+  if (shouldMemoize) katexCacheStats.misses++
+
   try {
-    return katex.renderToString(tex, {
+    const renderStart = performance.now()
+    const rendered = katex.renderToString(tex, {
       throwOnError: false,
       strict: 'ignore',
-      displayMode
+      displayMode,
+      output: 'html'
     })
+    katexCacheStats.renderCalls++
+    katexCacheStats.renderMs += performance.now() - renderStart
+
+    if (shouldMemoize) {
+      katexCache.set(cacheKey, rendered)
+      if (katexCache.size > KATEX_CACHE_MAX) katexCache.delete(katexCache.keys().next().value)
+    }
+
+    return rendered
   } catch (error) {
     return displayMode ? `<pre><code>${tex}</code></pre>` : `$${tex}$`
   }
@@ -443,16 +471,26 @@ function renderKatexInlineAndDisplay (html) {
   })
 }
 
-function renderMarkdown (markdown, mode, implementation) {
+function renderMarkdown (markdown, mode, implementation, stageSamples) {
   const renderer = implementation === 'native' ? nativeCmark : cmark
+  let start = performance.now()
   let html = renderer.renderHtmlSync(markdown, CMARK_OPTIONS)
+  if (stageSamples) stageSamples.parser.push(performance.now() - start)
   if (mode === 'cmark') return html
 
+  start = performance.now()
   html = renderKatexBlocks(html)
+  if (stageSamples) stageSamples.katexBlocks.push(performance.now() - start)
+
+  start = performance.now()
   html = renderKatexInlineAndDisplay(html)
+  if (stageSamples) stageSamples.katexInline.push(performance.now() - start)
   if (mode === 'cmark+katex') return html
 
-  return highlightCodeBlocks(html)
+  start = performance.now()
+  html = highlightCodeBlocks(html)
+  if (stageSamples) stageSamples.highlight.push(performance.now() - start)
+  return html
 }
 
 function percentile (values, p) {
@@ -487,19 +525,35 @@ async function run (markdown, options) {
     await postInspector(session, 'HeapProfiler.startSampling', { samplingInterval: 32768 })
   }
 
+  katexCache.clear()
+  katexCacheStats.hits = 0
+  katexCacheStats.misses = 0
+  katexCacheStats.renderCalls = 0
+  katexCacheStats.renderMs = 0
   for (let i = 0; i < options.warmup; i++) renderMarkdown(markdown, options.mode, options.implementation)
+  const warmupKatexCacheStats = { ...katexCacheStats, entries: katexCache.size }
+  katexCacheStats.hits = 0
+  katexCacheStats.misses = 0
+  katexCacheStats.renderCalls = 0
+  katexCacheStats.renderMs = 0
 
   if (global.gc) global.gc()
   const heapBefore = process.memoryUsage()
 
   const samples = []
+  const stageSamples = {
+    parser: [],
+    katexBlocks: [],
+    katexInline: [],
+    highlight: []
+  }
   let count = 0
 
   while (options.continuous || count < options.iterations) {
     count++
 
     const start = performance.now()
-    renderMarkdown(markdown, options.mode, options.implementation)
+    renderMarkdown(markdown, options.mode, options.implementation, stageSamples)
     samples.push(performance.now() - start)
 
     // GC PerformanceObserver entries are delivered asynchronously. Yielding
@@ -527,7 +581,7 @@ async function run (markdown, options) {
   for (const entry of observer.takeRecords()) gcSamples.push(entry.duration)
   observer.disconnect()
 
-  return { samples, heapBefore, heapAfter, gcSamples, sampledAllocationBytes: allocationProfile ? sampledAllocationBytes(allocationProfile.profile) : undefined }
+  return { samples, stageSamples, heapBefore, heapAfter, gcSamples, katexCacheStats: { ...katexCacheStats, entries: katexCache.size }, warmupKatexCacheStats, sampledAllocationBytes: allocationProfile ? sampledAllocationBytes(allocationProfile.profile) : undefined }
 }
 
 async function main () {
@@ -549,7 +603,7 @@ async function main () {
   console.log(`[profile:markdown] implementation=${options.implementation} mode=${options.mode} warmup=${options.warmup} iterations=${options.iterations} repeat=${options.repeat} bytes=${markdown.length}`)
   console.log(`[profile:markdown] prism=${!!Prism} katex=${!!katex} allocation-sampling=${options.allocationSampling} force-gc-every=${options.forceGcEvery || 'off'} continuous=${options.continuous}`)
 
-  const { samples, heapBefore, heapAfter, gcSamples, sampledAllocationBytes } = await run(markdown, options)
+  const { samples, stageSamples, heapBefore, heapAfter, gcSamples, katexCacheStats, warmupKatexCacheStats, sampledAllocationBytes } = await run(markdown, options)
   const total = samples.reduce((sum, v) => sum + v, 0)
   const mean = samples.length ? total / samples.length : 0
   const min = samples.length ? Math.min(...samples) : 0
@@ -558,6 +612,8 @@ async function main () {
 
   console.log('[profile:markdown] done')
   console.log(`[profile:markdown] renders=${samples.length} mean-ms=${mean.toFixed(2)} p95-ms=${p95.toFixed(2)} min-ms=${min.toFixed(2)} max-ms=${max.toFixed(2)}`)
+  console.log(`[profile:markdown] stages parser-addon-ms=${(stageSamples.parser.reduce((sum, value) => sum + value, 0) / Math.max(1, stageSamples.parser.length)).toFixed(2)} katex-blocks-ms=${(stageSamples.katexBlocks.reduce((sum, value) => sum + value, 0) / Math.max(1, stageSamples.katexBlocks.length)).toFixed(2)} katex-inline-ms=${(stageSamples.katexInline.reduce((sum, value) => sum + value, 0) / Math.max(1, stageSamples.katexInline.length)).toFixed(2)} highlight-js-ms=${(stageSamples.highlight.reduce((sum, value) => sum + value, 0) / Math.max(1, stageSamples.highlight.length)).toFixed(2)}`)
+  console.log(`[profile:markdown] katex-cache warmup-hits=${warmupKatexCacheStats.hits} warmup-misses=${warmupKatexCacheStats.misses} warmup-entries=${warmupKatexCacheStats.entries} measured-hits=${katexCacheStats.hits} measured-misses=${katexCacheStats.misses} entries=${katexCacheStats.entries} render-calls=${katexCacheStats.renderCalls} render-ms=${katexCacheStats.renderMs.toFixed(2)}`)
   console.log(`[profile:markdown] sampled-allocation-bytes=${sampledAllocationBytes === undefined ? 'disabled' : sampledAllocationBytes} heap-used-delta=${heapAfter.heapUsed - heapBefore.heapUsed} rss-delta=${heapAfter.rss - heapBefore.rss} gc-events=${gcSamples.length} gc-ms=${gcSamples.reduce((sum, value) => sum + value, 0).toFixed(2)}`)
 }
 
