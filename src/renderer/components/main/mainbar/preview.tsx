@@ -308,6 +308,9 @@ const Preview = ({ content, onScroll, onWheel, onAnchorNavigate, previewRef, isE
     if ( appliedHtmlRef.current === html ) return;
 
     patchPreviewContent ( previewContentNode, html );
+    previewContentNode.querySelectorAll<HTMLAnchorElement> ( 'a[href]' ).forEach ( anchor => {
+      if ( !anchor.title ) anchor.title = anchor.href;
+    });
 
     appliedHtmlRef.current = html;
   }, [html] );

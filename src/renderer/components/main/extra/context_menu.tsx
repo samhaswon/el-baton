@@ -45,6 +45,7 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
     this.initTagMenu ();
     this.initTrashMenu ();
     this.initEditorMenu ();
+    this.initLinkMenu ();
     this.initFallbackMenu ();
 
     window.addEventListener ( 'contextmenu', this._onContextMenu );
@@ -288,7 +289,31 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
 
   initFallbackMenu = () => {
 
-    this._makeMenu ( ( x, y ) => !this._getItem ( x, y, '.attachment, .monaco-editor, .note, .popover-note-tags-list .tag, .sidebar .tag, .preview .tag, .tag[data-tag="__TRASH__"]' ) );
+    this._makeMenu ( ( x, y ) => !this._getItem ( x, y, 'a[href], .attachment, .monaco-editor, .note, .popover-note-tags-list .tag, .sidebar .tag, .preview .tag, .tag[data-tag="__TRASH__"]' ), [
+      { role: 'copy' },
+      { type: 'separator' },
+      { role: 'selectAll' }
+    ], this.updateFallbackMenu );
+
+  }
+
+  initLinkMenu = () => {
+
+    this._makeMenu ( 'a[href]', [
+      {
+        label: 'Copy Link',
+        click: () => this.props.container.clipboard.set ( ( this.ele as HTMLAnchorElement ).href )
+      },
+      {
+        role: 'copy'
+      },
+      {
+        type: 'separator'
+      },
+      {
+        role: 'selectAll'
+      }
+    ], this.updateLinkMenu );
 
   }
 
@@ -387,6 +412,18 @@ class ContextMenu extends Component<{ container: IMain }, {}> {
   updateTrashMenu = ( items: MenuItemConstructorOptions[] ) => {
 
     items[0].enabled = !this.props.container.trash.isEmpty ();
+
+  }
+
+  updateFallbackMenu = ( items: MenuItemConstructorOptions[] ) => {
+
+    items[0].enabled = !window.getSelection ()?.isCollapsed;
+
+  }
+
+  updateLinkMenu = ( items: MenuItemConstructorOptions[] ) => {
+
+    items[1].enabled = !window.getSelection ()?.isCollapsed;
 
   }
 

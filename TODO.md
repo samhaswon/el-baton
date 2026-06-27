@@ -274,7 +274,7 @@
     - Autofill within math blocks and inline math with the addition of all supported KaTeX functions
     - Disable underscore auto completion in math blocks and inline math
 - [ ] Fix broken note links (`@note/<filename>`)
-- [ ] UI: Right-clicking on links in the preview does nothing.
+- [X] UI: Right-clicking on links in the preview does nothing.
     - Hovering should show the actual link
     - Right-clicking should show the standard copy dialogue, also generally.
 - [ ] Scroll synchronization breaks under headings with significant amounts of text and/or quotes.
