@@ -277,7 +277,7 @@
 - [X] UI: Right-clicking on links in the preview does nothing.
     - Hovering should show the actual link
     - Right-clicking should show the standard copy dialogue, also generally.
-- [ ] Scroll synchronization breaks under headings with significant amounts of text and/or quotes.
+- [X] Scroll synchronization breaks under headings with significant amounts of text and/or quotes.
 
 ## Mobile App
 

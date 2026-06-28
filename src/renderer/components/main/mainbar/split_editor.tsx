@@ -9,7 +9,7 @@ import Layout from '@renderer/components/main/layout';
 import Editor from './editor';
 import Preview from './preview';
 
-type ScrollAnchorKind = 'heading' | 'p' | 'li' | 'blockquote' | 'table' | 'pre' | 'pre-end' | 'hr' | 'details' | 'summary' | 'details-end' | 'media' | 'media-end';
+type ScrollAnchorKind = 'heading' | 'p' | 'p-end' | 'li' | 'blockquote' | 'blockquote-end' | 'table' | 'pre' | 'pre-end' | 'hr' | 'details' | 'summary' | 'details-end' | 'media' | 'media-end' | 'macro' | 'macro-end';
 type SourceAnchor = { line: number, kind: ScrollAnchorKind, key?: string };
 type PreviewAnchor = { top: number, kind: ScrollAnchorKind, key?: string };
 type SourceLineMap = { content: string, actualToVisible: number[], visibleToActual: Array<{ visible: number, actual: number }>, visibleMaxUnits: number };
@@ -100,15 +100,14 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
           scrollHeight = monaco.getScrollHeight (),
           layoutInfo = monaco.getLayoutInfo (),
           model = monaco.getModel (),
-          visibleRanges = monaco.getVisibleRanges (),
-          firstVisibleLine = visibleRanges && visibleRanges[0] ? visibleRanges[0].startLineNumber : 1,
           lineCount = model ? model.getLineCount () : 1,
-          lineTop = monaco.getTopForLineNumber ( firstVisibleLine ),
-          nextLineTop = monaco.getTopForLineNumber ( Math.min ( lineCount, firstVisibleLine + 1 ) ),
+          scrollLineNumber = this.__getLineNumberAtScrollTop ( monaco, scrollTop, lineCount ),
+          lineTop = monaco.getTopForLineNumber ( scrollLineNumber ),
+          nextLineTop = scrollLineNumber < lineCount ? monaco.getTopForLineNumber ( scrollLineNumber + 1 ) : scrollHeight,
           lineHeight = Math.max ( 1, nextLineTop - lineTop || 20 ),
           lineMap = this.__getSourceLineMap (),
           actualMaxUnits = Math.max ( 1, lineCount - 1 ),
-          actualUnits = _.clamp ( ( firstVisibleLine - 1 ) + ( ( scrollTop - lineTop ) / lineHeight ), 0, actualMaxUnits ),
+          actualUnits = _.clamp ( ( scrollLineNumber - 1 ) + ( ( scrollTop - lineTop ) / lineHeight ), 0, actualMaxUnits ),
           sourceMaxUnits = lineMap.visibleMaxUnits,
           sourceUnits = _.clamp ( this.__mapActualToVisibleSourceUnits ( actualUnits, lineMap ), 0, sourceMaxUnits ),
           viewportHeight = layoutInfo ? layoutInfo.height : 0,
@@ -119,6 +118,28 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     }
 
     return { monaco, scrollTop, maxScrollTop, viewportHeight, lineCount, lineHeight, sourceUnits, sourceMaxUnits, actualMaxUnits, actualUnits, lineMap };
+
+  }
+
+  __getLineNumberAtScrollTop = ( monaco: MonacoEditor, scrollTop: number, lineCount: number ) => {
+
+    let low = 1,
+        high = Math.max ( 1, lineCount ),
+        best = 1;
+
+    while ( low <= high ) {
+      const middle = Math.floor ( ( low + high ) / 2 ),
+            top = monaco.getTopForLineNumber ( middle );
+
+      if ( top <= scrollTop ) {
+        best = middle;
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
+    }
+
+    return best;
 
   }
 
@@ -262,7 +283,6 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         inBlockquote = false,
         closedDetailsDepth = 0,
         fenceKind: 'pre' | 'media' | undefined = undefined,
-        fenceMediaKey: string | undefined = undefined,
         mediaSequence = 0,
         detailsSequence = 0;
 
@@ -279,6 +299,14 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       anchors.push ({ line, kind, key });
     };
 
+    const closeFlowBlocks = ( line: number ) => {
+      const anchorLine = Math.min ( lines.length, Math.max ( 1, line ) + 0.92 );
+      if ( inParagraph ) pushAnchor ( anchorLine, 'p-end' );
+      if ( inBlockquote ) pushAnchor ( anchorLine, 'blockquote-end' );
+      inParagraph = false;
+      inBlockquote = false;
+    };
+
     for ( let index = 0, l = lines.length; index < l; index++ ) {
 
       const line = lines[index],
@@ -286,20 +314,19 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
             lineNumber = index + 1;
 
       if ( !trimmed ) {
-        inParagraph = false;
+        closeFlowBlocks ( lineNumber - 1 );
         inTable = false;
-        inBlockquote = false;
         continue;
       }
 
       if ( closedDetailsDepth > 0 && !/<\/?details\b/i.test ( line ) && !/<summary\b/i.test ( line ) ) {
-        inParagraph = false;
+        closeFlowBlocks ( lineNumber - 1 );
         inTable = false;
-        inBlockquote = false;
         continue;
       }
 
       if ( /^\s{0,3}(?:```+|~~~+)/.test ( line ) ) {
+        closeFlowBlocks ( lineNumber - 1 );
         if ( !inFence ) {
           const languageMatch = line.match ( /^\s{0,3}(?:```+|~~~+)\s*([a-z0-9_-]+)/i ),
                 language = languageMatch && languageMatch[1] ? languageMatch[1].toLowerCase () : '';
@@ -307,15 +334,13 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
           fenceKind = this.__isDiagramFenceLanguage ( language ) ? 'media' : 'pre';
 
           if ( fenceKind === 'media' ) {
-            fenceMediaKey = `m:${++mediaSequence}`;
-            pushAnchor ( lineNumber, 'media', fenceMediaKey );
+            pushAnchor ( lineNumber, 'media' );
           } else {
             pushAnchor ( lineNumber, 'pre' );
           }
         } else {
           if ( fenceKind === 'media' ) {
-            pushAnchor ( lineNumber, 'media-end', fenceMediaKey );
-            fenceMediaKey = undefined;
+            pushAnchor ( lineNumber, 'media-end' );
           } else {
             pushAnchor ( lineNumber, 'pre-end' );
           }
@@ -323,9 +348,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         }
 
         inFence = !inFence;
-        inParagraph = false;
         inTable = false;
-        inBlockquote = false;
         continue;
       }
 
@@ -371,28 +394,25 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       }
 
       if ( /<\/?details\b/i.test ( line ) || /<summary\b/i.test ( line ) ) {
-        inParagraph = false;
+        closeFlowBlocks ( lineNumber - 1 );
         inTable = false;
-        inBlockquote = false;
         continue;
       }
 
       if ( closedDetailsDepth > 0 ) {
-        inParagraph = false;
+        closeFlowBlocks ( lineNumber - 1 );
         inTable = false;
-        inBlockquote = false;
         continue;
       }
 
       const markdownImageMatch = line.match ( /^\s{0,3}!\[[^\]]*\]\((?:[^()\\]|\\.|(?:\([^)]*\)))*\)/ );
 
       if ( markdownImageMatch ) {
-        const mediaKey = `m:${++mediaSequence}`;
-        pushAnchor ( lineNumber, 'media', mediaKey );
-        pushAnchor ( Math.min ( lines.length, lineNumber + 0.92 ), 'media-end', mediaKey );
-        inParagraph = false;
+        closeFlowBlocks ( lineNumber - 1 );
+        mediaSequence++;
+        pushAnchor ( lineNumber, 'media' );
+        pushAnchor ( Math.min ( lines.length, lineNumber + 0.92 ), 'media-end' );
         inTable = false;
-        inBlockquote = false;
         continue;
       }
 
@@ -408,13 +428,13 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         if ( !mediaType ) continue;
 
         const mediaKey = `m:${++mediaSequence}`;
-        pushAnchor ( lineNumber, 'media', mediaKey );
+        pushAnchor ( lineNumber, 'media' );
         consumedByMedia = true;
 
         const isSelfContained = mediaType === 'img' || /\/\s*>$/.test ( mediaTag ) || new RegExp ( `<\\s*\\/\\s*${mediaType}\\s*>`, 'i' ).test ( line );
 
         if ( isSelfContained ) {
-          pushAnchor ( Math.min ( lines.length, lineNumber + 0.92 ), 'media-end', mediaKey );
+          pushAnchor ( Math.min ( lines.length, lineNumber + 0.92 ), 'media-end' );
         } else {
           htmlMediaStack.push ({ type: mediaType, key: mediaKey });
         }
@@ -431,24 +451,20 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
         if ( !closingType ) continue;
 
-        let closingKey: string | undefined = undefined;
-
         for ( let stackIndex = htmlMediaStack.length - 1; stackIndex >= 0; stackIndex-- ) {
           if ( htmlMediaStack[stackIndex].type !== closingType ) continue;
-          closingKey = htmlMediaStack[stackIndex].key;
           htmlMediaStack.splice ( stackIndex, 1 );
           break;
         }
 
-        pushAnchor ( lineNumber, 'media-end', closingKey );
+        pushAnchor ( lineNumber, 'media-end' );
         consumedByMedia = true;
 
       }
 
       if ( consumedByMedia ) {
-        inParagraph = false;
+        closeFlowBlocks ( lineNumber - 1 );
         inTable = false;
-        inBlockquote = false;
         continue;
       }
 
@@ -456,23 +472,40 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
             hasClosingParagraphTag = /<\/p>/i.test ( line );
 
       if ( hasOpeningParagraphTag ) {
+        closeFlowBlocks ( lineNumber - 1 );
         pushAnchor ( lineNumber, 'p' );
         inParagraph = !hasClosingParagraphTag;
+        if ( hasClosingParagraphTag ) pushAnchor ( Math.min ( lines.length, lineNumber + 0.92 ), 'p-end' );
         inTable = false;
         inBlockquote = false;
         continue;
       }
 
       if ( hasClosingParagraphTag ) {
-        inParagraph = false;
+        closeFlowBlocks ( lineNumber );
         inTable = false;
-        inBlockquote = false;
+        continue;
+      }
+
+      if ( /^\s*\[\[@toc\]\]\s*$/i.test ( line ) ) {
+        closeFlowBlocks ( lineNumber - 1 );
+        pushAnchor ( lineNumber, 'macro' );
+        pushAnchor ( Math.min ( lines.length, lineNumber + 0.92 ), 'macro-end' );
+        inTable = false;
+        continue;
+      }
+
+      if ( /^\s*\[\[@pagebreak\]\]\s*$/i.test ( line ) ) {
+        closeFlowBlocks ( lineNumber - 1 );
+        pushAnchor ( lineNumber, 'hr' );
+        inTable = false;
         continue;
       }
 
       const headingMatch = line.match ( /^\s{0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$/ );
 
       if ( headingMatch ) {
+        closeFlowBlocks ( lineNumber - 1 );
         const normalizedText = headingMatch[2].trim ().toLowerCase (),
               occurrence = ( headingOccurrences[normalizedText] || 0 ) + 1,
               key = `h:${normalizedText}:${occurrence}`;
@@ -480,40 +513,36 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         headingOccurrences[normalizedText] = occurrence;
 
         pushAnchor ( lineNumber, 'heading', key );
-        inParagraph = false;
         inTable = false;
-        inBlockquote = false;
         continue;
       }
 
       if ( /^\s{0,3}(?:---+|\*\*\*+|___+)\s*$/.test ( line ) ) {
+        closeFlowBlocks ( lineNumber - 1 );
         pushAnchor ( lineNumber, 'hr' );
-        inParagraph = false;
         inTable = false;
-        inBlockquote = false;
         continue;
       }
 
       if ( /^\s{0,3}\|.+\|\s*$/.test ( line ) ) {
+        closeFlowBlocks ( lineNumber - 1 );
         if ( !inTable ) {
           pushAnchor ( lineNumber, 'table' );
         }
-        inParagraph = false;
         inTable = true;
-        inBlockquote = false;
         continue;
       } else {
         inTable = false;
       }
 
       if ( /^\s{0,3}(?:[-*+]|\d+[.)])\s+/.test ( line ) ) {
+        closeFlowBlocks ( lineNumber - 1 );
         pushAnchor ( lineNumber, 'li' );
-        inParagraph = false;
-        inBlockquote = false;
         continue;
       }
 
       if ( /^\s{0,3}>\s?/.test ( line ) ) {
+        if ( inParagraph ) closeFlowBlocks ( lineNumber - 1 );
         if ( !inBlockquote ) {
           pushAnchor ( lineNumber, 'blockquote' );
         }
@@ -521,6 +550,8 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         inBlockquote = true;
         continue;
       }
+
+      if ( inBlockquote ) closeFlowBlocks ( lineNumber - 1 );
 
       if ( !inParagraph ) {
         pushAnchor ( lineNumber, 'p' );
@@ -530,6 +561,8 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       inBlockquote = false;
 
     }
+
+    closeFlowBlocks ( lines.length );
 
     this._sourceAnchorCacheContent = content;
     this._sourceAnchorCache = anchors;
@@ -688,8 +721,16 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
       return previewKind === 'blockquote' || previewKind === 'li';
     }
 
+    if ( sourceKind === 'p-end' ) {
+      return previewKind === 'blockquote-end';
+    }
+
     if ( sourceKind === 'blockquote' ) {
       return previewKind === 'p';
+    }
+
+    if ( sourceKind === 'blockquote-end' ) {
+      return previewKind === 'p-end';
     }
 
     if ( sourceKind === 'media' ) {
@@ -706,6 +747,14 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     if ( sourceKind === 'pre-end' ) {
       return previewKind === 'pre-end' || previewKind === 'media-end';
+    }
+
+    if ( sourceKind === 'macro' ) {
+      return previewKind === 'macro';
+    }
+
+    if ( sourceKind === 'macro-end' ) {
+      return previewKind === 'macro-end';
     }
 
     return false;
@@ -860,7 +909,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     }
 
     const sourceAnchors = this.__getSourceAnchors (),
-          blockNodes = Array.from ( preview.node.querySelectorAll ( 'h1, h2, h3, h4, h5, h6, p, pre, li, blockquote, table, hr, details, summary, .mermaid, .plantuml, iframe, img, video, figure' ) ) as HTMLElement[],
+          blockNodes = Array.from ( preview.node.querySelectorAll ( 'h1, h2, h3, h4, h5, h6, p, pre, li, blockquote, table, hr, details, summary, .mermaid, .plantuml, .macro-toc, iframe, img, video, figure' ) ) as HTMLElement[],
           anchors: { source: number, preview: number }[] = [],
           previewAnchors: PreviewAnchor[] = [],
           previewContentNode = ( preview.node.querySelector ( '.preview-content' ) as HTMLElement | null ) || preview.node;
@@ -877,18 +926,29 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
             top = this.__getPreviewNodeTop ( node, previewContentNode );
 
       if ( !this.__isPreviewAnchorNodeVisible ( node ) ) continue;
+      if ( !node.classList.contains ( 'macro-toc' ) && node.closest ( '.macro-toc' ) ) continue;
       if ( ( tag === 'img' || tag === 'iframe' || tag === 'video' || tag === 'figure' ) && node.closest ( '.mermaid, .plantuml' ) ) continue;
       if ( tag !== 'blockquote' && node.closest ( 'blockquote' ) ) continue;
+      if ( tag !== 'li' && node.closest ( 'li' ) ) continue;
 
       const isDiagramBlock = node.classList.contains ( 'mermaid' ) || node.classList.contains ( 'plantuml' ),
             isMediaBlock = isDiagramBlock || tag === 'img' || tag === 'iframe' || tag === 'video' || tag === 'figure';
 
-      if ( isMediaBlock ) {
-        const mediaKey = `m:${++previewMediaSequence}`,
-              endTop = top + Math.max ( 0, node.offsetHeight - 1 );
+      if ( node.classList.contains ( 'macro-toc' ) ) {
+        const endTop = top + Math.max ( 0, node.offsetHeight - 1 );
 
-        previewAnchors.push ({ top, kind: 'media', key: mediaKey });
-        previewAnchors.push ({ top: endTop, kind: 'media-end', key: mediaKey });
+        previewAnchors.push ({ top, kind: 'macro' });
+        previewAnchors.push ({ top: endTop, kind: 'macro-end' });
+
+        continue;
+      }
+
+      if ( isMediaBlock ) {
+        previewMediaSequence++;
+        const endTop = top + Math.max ( 0, node.offsetHeight - 1 );
+
+        previewAnchors.push ({ top, kind: 'media' });
+        previewAnchors.push ({ top: endTop, kind: 'media-end' });
 
         continue;
       }
@@ -901,11 +961,15 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
         previewHeadingOccurrences[normalizedText] = occurrence;
         previewAnchors.push ({ top, kind: 'heading', key });
       } else if ( tag === 'p' ) {
+        const endTop = top + Math.max ( 0, node.offsetHeight - 1 );
         previewAnchors.push ({ top, kind: 'p' });
+        previewAnchors.push ({ top: endTop, kind: 'p-end' });
       } else if ( tag === 'li' ) {
         previewAnchors.push ({ top, kind: 'li' });
       } else if ( tag === 'blockquote' ) {
+        const endTop = top + Math.max ( 0, node.offsetHeight - 1 );
         previewAnchors.push ({ top, kind: 'blockquote' });
+        previewAnchors.push ({ top: endTop, kind: 'blockquote-end' });
       } else if ( tag === 'table' ) {
         previewAnchors.push ({ top, kind: 'table' });
       } else if ( tag === 'pre' ) {
