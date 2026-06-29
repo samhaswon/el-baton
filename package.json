@@ -242,7 +242,7 @@
     "@types/katex": "^0.16.8",
     "@types/lodash": "^4.17.24",
     "@types/mime-types": "^3.0.1",
-    "@types/node": "^25.6.0",
+    "@types/node": "^26.0.1",
     "@types/prismjs": "^1.26.6",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
