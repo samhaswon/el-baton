@@ -17,7 +17,12 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfig, setConfigVal
     status: 'idle',
     message: ''
   });
+  const [cacheState, setCacheState] = React.useState<{ status: 'idle' | 'clearing' | 'ok' | 'error', message: string }> ({
+    status: 'idle',
+    message: ''
+  });
   const testRequestIdRef = React.useRef ( 0 );
+  const cacheRequestIdRef = React.useRef ( 0 );
   const spellcheckWords = config.spellcheck.addedWords || [];
 
   const normalizeSpellcheckWord = ( word: string ): string => {
@@ -65,6 +70,24 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfig, setConfigVal
 
     return () => {
       ipc.removeListener ( 'plantuml-test-server-result', onTestResult );
+    };
+  }, [] );
+
+  React.useEffect ( () => {
+    const onClearResult = ( _event, response: { id: number, ok: boolean, error?: string } ) => {
+
+      if ( response.id !== cacheRequestIdRef.current ) return;
+
+      setCacheState ( response.ok
+        ? { status: 'ok', message: 'Persistent caches cleared.' }
+        : { status: 'error', message: response.error || 'Could not clear persistent caches.' } );
+
+    };
+
+    ipc.on ( 'clear-persistent-caches-result', onClearResult );
+
+    return () => {
+      ipc.removeListener ( 'clear-persistent-caches-result', onClearResult );
     };
   }, [] );
 
@@ -173,6 +196,14 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfig, setConfigVal
       status: 'idle',
       message: ''
     });
+  };
+  const clearPersistentCaches = () => {
+    if ( !window.confirm ( 'Clear persistent caches? Cached diagrams and downloaded resources will be fetched or rendered again when needed.' ) ) return;
+
+    const id = ++cacheRequestIdRef.current;
+
+    setCacheState ({ status: 'clearing', message: 'Clearing persistent caches...' });
+    ipc.send ( 'clear-persistent-caches', { id } );
   };
 
   return (
@@ -702,6 +733,15 @@ const SettingsView = ({ config, filePath, refreshConfig, setConfig, setConfigVal
                       <option value={String ( 256 * 1024 * 1024 )}>256 MB</option>
                     </select>
                   </div>
+                </div>
+              </div>
+              <div className="settings-field">
+                <div className="settings-meta">
+                  <div className="settings-label">Persistent caches</div>
+                  <div className={`settings-field-copy xsmall ${cacheState.status === 'error' ? 'text-warning' : ''}`}>Clears stored PlantUML renders and downloaded resources. {cacheState.message}</div>
+                </div>
+                <div className="settings-control">
+                  <button type="button" className="button settings-action" disabled={cacheState.status === 'clearing'} onClick={clearPersistentCaches}>{cacheState.status === 'clearing' ? 'Clearing…' : 'Clear Caches'}</button>
                 </div>
               </div>
             </div>

@@ -329,6 +329,18 @@ class PlantUMLSQLiteCache {
   }
 
   /**
+   * Removes every stored render result while retaining the initialized database.
+   */
+  clear (): Promise<void> {
+
+    return this._enqueue ( () => this._withRecovery ( async () => {
+      await this._ensureDatabase ();
+      await this._run ( 'DELETE FROM plantuml_cache' );
+    } ) );
+
+  }
+
+  /**
    * Closes the active database connection.
    */
   close () {

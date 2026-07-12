@@ -471,6 +471,7 @@ class Main extends Route {
     this.___plantumlRender ();
     this.___plantumlTestServer ();
     this.___plantumlOpenExternal ();
+    this.___clearPersistentCaches ();
 
   }
 
@@ -482,6 +483,7 @@ class Main extends Route {
     ipc.removeListener ( 'plantuml-render', this.__plantumlRender );
     ipc.removeListener ( 'plantuml-test-server', this.__plantumlTestServer );
     ipc.removeListener ( 'plantuml-open-external', this.__plantumlOpenExternal );
+    ipc.removeListener ( 'clear-persistent-caches', this.__clearPersistentCaches );
 
     const win = this.win;
     const webContents = win && typeof win.isDestroyed === 'function' && !win.isDestroyed () ? win.webContents : undefined;
@@ -867,6 +869,37 @@ class Main extends Route {
     if ( !url || !/^https?:\/\//i.test ( url ) ) return;
 
     shell.openExternal ( url );
+
+  }
+
+  /* PERSISTENT CACHES */
+
+  ___clearPersistentCaches = () => {
+
+    ipc.on ( 'clear-persistent-caches', this.__clearPersistentCaches );
+
+  }
+
+  __clearPersistentCaches = async ( event: any, request: { id: number } ) => {
+
+    const sender = event.sender;
+
+    try {
+      await Promise.all ([
+        PlantUMLService.clearCache (),
+        sender.session.clearCache ()
+      ]);
+
+      if ( !sender.isDestroyed () ) sender.send ( 'clear-persistent-caches-result', { id: request.id, ok: true } );
+    } catch ( error ) {
+      if ( sender.isDestroyed () ) return;
+
+      sender.send ( 'clear-persistent-caches-result', {
+        id: request.id,
+        ok: false,
+        error: error instanceof Error ? error.message : String ( error )
+      });
+    }
 
   }
 

@@ -96,6 +96,26 @@ test ( 'plantuml sqlite cache: prunes when maxBytes is exceeded', async () => {
 
 } );
 
+test ( 'plantuml sqlite cache: clears stored entries', async () => {
+
+  await withTempDir ( async dirPath => {
+
+    const dbPath = path.join ( dirPath, 'plantuml.sqlite3' ),
+          cache = new PlantUMLSQLiteCache ( dbPath );
+
+    await cache.set ( 'first', { status: 'ok' } );
+    await cache.set ( 'second', { status: 'ok' } );
+    await cache.clear ();
+
+    assert.equal ( await cache.get ( 'first' ), undefined );
+    assert.equal ( await cache.get ( 'second' ), undefined );
+
+    cache.close ();
+
+  } );
+
+} );
+
 test ( 'plantuml sqlite cache: recovers if database file disappears from disk', async () => {
 
   await withTempDir ( async dirPath => {

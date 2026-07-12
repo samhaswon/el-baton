@@ -403,6 +403,15 @@ const PlantUMLService = {
   },
 
   /**
+   * Removes all persisted PlantUML render results.
+   */
+  async clearCache (): Promise<void> {
+
+    await this._getCache ().clear ();
+
+  },
+
+  /**
    * Closes the persistent cache connection.
    */
   close () {
