@@ -1,0 +1,7 @@
+#pragma once
+
+#define CMARK_GFM_VERSION ((0 << 24) | (29 << 16) | (0 << 8) | 13)
+#define CMARK_GFM_VERSION_STRING "0.29.0.gfm.13"
+#define CMARK_GFM_VERSION_MAJOR 0
+#define CMARK_GFM_VERSION_MINOR 29
+#define CMARK_GFM_VERSION_PATCH 0

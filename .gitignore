@@ -40,6 +40,7 @@ dist
 releases
 releases-test/
 extracted/
+**build/
 .tmp/
 src/renderer/template/generated/*
 !src/renderer/template/generated/fonts/

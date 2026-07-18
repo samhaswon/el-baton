@@ -1,0 +1,10 @@
+:root { color-scheme: light; }
+html, body { min-height: 100%; }
+body { margin: 0; background: #fff; color: #1f1f1f; }
+#preview-shell { box-sizing: border-box; min-height: 100vh; }
+#preview { min-height: 1px; }
+.render-block { overflow-wrap: anywhere; }
+.render-block[data-sync-mode="anchor"] { min-height: 1px; }
+img, svg { max-width: 100%; }
+#debug-overlay { position: fixed; z-index: 1000; right: 10px; bottom: 28px; max-width: 360px; padding: 7px 9px; border: 1px solid rgb(255 255 255 / 14%); border-radius: 5px; background: rgb(20 20 20 / 82%); box-shadow: 0 2px 12px rgb(0 0 0 / 25%); color: white; font: 10px/1.4 monospace; pointer-events: none; white-space: pre; }
+.qt-render-error { color: #d32f2f; white-space: pre-wrap; }
