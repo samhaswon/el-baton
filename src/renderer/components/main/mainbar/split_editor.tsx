@@ -3,6 +3,7 @@
 
 import * as _ from 'lodash';
 import * as React from 'react';
+import {scheduleAtNextAnimationFrame} from 'monaco-editor/esm/vs/base/browser/dom.js';
 import {connect} from 'overstated';
 import Main from '@renderer/containers/main';
 import Layout from '@renderer/components/main/layout';
@@ -21,7 +22,7 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
   _previewRef = React.createRef<HTMLDivElement> ();
   _ignoreSourceScrollUntil = 0;
   _ignorePreviewScrollUntil = 0;
-  _sourceSyncFrame = 0;
+  _sourceSyncFrame?: { dispose: () => void };
   _previewSyncFrame = 0;
   _anchorsFrame = 0;
   _previewToggleNode: HTMLDivElement | null = null;
@@ -84,7 +85,8 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     this._previewToggleNode?.removeEventListener ( 'click', this.__previewDetailsClick, true );
     this._previewToggleNode = null;
 
-    window.cancelAnimationFrame ( this._sourceSyncFrame );
+    this._sourceSyncFrame?.dispose ();
+    this._sourceSyncFrame = undefined;
     window.cancelAnimationFrame ( this._previewSyncFrame );
     window.cancelAnimationFrame ( this._anchorsFrame );
 
@@ -1504,9 +1506,12 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
   __handleSourceWheel = ( event: WheelEvent ) => {
 
     if ( !this.props.splitViewSyncEnabled ) return;
-    if ( event.defaultPrevented ) return;
     if ( event.ctrlKey || event.metaKey || event.altKey ) return;
     if ( Math.abs ( event.deltaY ) <= Math.abs ( event.deltaX ) ) return;
+
+    this._blockSourceMouseMoveUntil = Date.now () + 140;
+
+    if ( event.defaultPrevented ) return;
 
     const source = this.__getSourceMetrics ();
 
@@ -1518,7 +1523,6 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
     if ( Math.abs ( nextScrollTop - source.scrollTop ) < 0.5 ) return;
 
     event.preventDefault ();
-    this._blockSourceMouseMoveUntil = Date.now () + 140;
 
     source.monaco.setScrollTop ( nextScrollTop );
 
@@ -1551,15 +1555,20 @@ class SplitEditor extends React.PureComponent<{ isFocus: boolean, isZen: boolean
 
     if ( this._sourceSyncFrame ) return;
 
-    this._sourceSyncFrame = window.requestAnimationFrame ( () => {
-      this._sourceSyncFrame = 0;
+    // Monaco renders at priority 100. Read preview layout first so its DOM writes
+    // do not turn this synchronization read into a forced layout of the editor.
+    this._sourceSyncFrame = scheduleAtNextAnimationFrame ( window, () => {
+      this._sourceSyncFrame = undefined;
       this.__syncFromSource ();
-    });
+    }, 101 );
 
   }
 
   __handleSourceScroll = () => {
 
+    // Streaming new lines under a stationary pointer produces mousemove events.
+    // Monaco hit-tests them by synchronously flushing its pending render.
+    this._blockSourceMouseMoveUntil = Date.now () + 140;
     this.__scheduleSourceSync ();
 
   }
