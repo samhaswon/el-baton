@@ -1,24 +1,48 @@
 # Qt editor experiment
 
-This isolated prototype compares QScintilla plus QWebEngineView with the
-existing Monaco/Electron editor path. It does not replace or modify the
-Electron application.
+This directory began as an isolated comparison of QScintilla plus
+QWebEngineView against Monaco/Electron. The experiment established a viable
+native editing and rendering path, and its code is now built as `qt_editor_core`
+for the native application in `native/`.
+
+The directory remains useful for focused rendering benchmarks and protocol
+tests. It does not replace or modify the retained Electron reference
+implementation. Current application status belongs in
+[`../../native/PORT_STATUS.md`](../../native/PORT_STATUS.md); this document
+describes the rendering core and its repeatable comparison modes.
 
 ## Build
 
-Install the packages listed in the repository's `NOTES.md`, then configure and
-build independently:
+The canonical build uses the repository's project-local toolchain:
 
 ```bash
-cmake -S experiments/qt_editor -B experiments/qt_editor/build -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+source .deps/qt-toolchain.env
+qt-cmake -S . -B build/native -G Ninja -C .deps/qt-toolchain.cmake
+cmake --build build/native
+ctest --test-dir build/native --output-on-failure
+```
+
+That produces the full application at `build/native/bin/el-baton` and runs the
+rendering-core tests along with the native application tests.
+
+For an intentionally standalone experiment build, first prepare the same local
+Qt, QScintilla, and PlantUML dependencies with
+`scripts/bootstrap_qt_toolchain.sh`, then configure this subdirectory with the
+generated initial cache:
+
+```bash
+source .deps/qt-toolchain.env
+qt-cmake -S experiments/qt_editor -B experiments/qt_editor/build -G Ninja \
+  -C .deps/qt-toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
 cmake --build experiments/qt_editor/build
 ctest --test-dir experiments/qt_editor/build --output-on-failure
 ```
 
-The configure step intentionally fails when Qt WebEngine, WebChannel,
-QScintilla, or the repository-pinned KaTeX/Mermaid assets are unavailable. It
-does not substitute another editor, renderer, or JavaScript runtime.
+The configure step intentionally fails when Qt WebEngine, WebChannel, SVG,
+QScintilla, yaml-cpp, Hunspell, the pinned PlantUML JAR, Node, or the
+repository-pinned web assets are unavailable. It does not substitute another
+editor, renderer, or JavaScript runtime. Node generates/copies assets at build
+time and is not launched by the application.
 
 Run with a document path:
 
@@ -27,7 +51,8 @@ experiments/qt_editor/build/qt_editor resources/demo_data/seed/notes/\
 "Malformer Dataset Notes.md"
 ```
 
-The File/Open action can load another Markdown or benchmark document.
+The File/Open action can load another Markdown or benchmark document. Prefer
+the full native executable for application feature testing.
 
 ## Benchmark modes
 

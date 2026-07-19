@@ -10,6 +10,12 @@ I couldn't find a note-taking app that ticked all the boxes I'm interested in: n
 
 So I built my own.
 
+> **Native Qt port:** A C++/Qt 6 port is now under active development alongside
+> the Electron application. The Electron implementation remains the behavioral
+> reference while important workflows are brought to parity. See the
+> [native developer guide](native/README.md) and [port status](native/PORT_STATUS.md)
+> for the current build instructions, implemented features, and remaining work.
+
 ## Features
 
 ```
