@@ -33,6 +33,7 @@ Thumbs.db
 .Trashes
 
 # Other paths to ignore
+.deps/
 .codex
 bower_components
 node_modules

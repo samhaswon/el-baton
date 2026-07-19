@@ -5,6 +5,10 @@
 #include <cmark-gfm.h>
 
 #include <QElapsedTimer>
+#include <QFile>
+#include <QHash>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QRegularExpression>
 #include <QUrl>
 
@@ -174,7 +178,82 @@ QString preprocessMath(const QString& source) {
   return output;
 }
 
+const QHash<QString, QString>& emojiShortcodes() {
+  static const QHash<QString, QString> shortcodes = [] {
+    QHash<QString, QString> result;
+    QFile file(QStringLiteral(QT_EDITOR_EMOJI_JSON));
+    if (!file.open(QIODevice::ReadOnly)) return result;
+    const QJsonObject object = QJsonDocument::fromJson(file.readAll()).object();
+    for (auto iterator = object.constBegin(); iterator != object.constEnd(); ++iterator) {
+      result.insert(iterator.key(), iterator.value().toString());
+    }
+    return result;
+  }();
+  return shortcodes;
+}
+
+QString replaceEmojiOnLine(const QString& line) {
+  static const QRegularExpression shortcode(QStringLiteral(":([a-z0-9_+\\-]+):"),
+                                            QRegularExpression::CaseInsensitiveOption);
+  QString output;
+  qsizetype cursor = 0;
+  while (cursor < line.size()) {
+    if (line.at(cursor) == QLatin1Char('`')) {
+      qsizetype ticks = 1;
+      while (cursor + ticks < line.size() && line.at(cursor + ticks) == QLatin1Char('`')) ++ticks;
+      const QString delimiter(ticks, QLatin1Char('`'));
+      const qsizetype close = line.indexOf(delimiter, cursor + ticks);
+      const qsizetype end = close < 0 ? line.size() : close + ticks;
+      output += line.sliced(cursor, end - cursor);
+      cursor = end;
+      continue;
+    }
+    const QRegularExpressionMatch match = shortcode.match(line, cursor);
+    const qsizetype nextCode = line.indexOf(QLatin1Char('`'), cursor);
+    if (nextCode >= 0 && (!match.hasMatch() || nextCode < match.capturedStart())) {
+      output += line.sliced(cursor, nextCode - cursor);
+      cursor = nextCode;
+      continue;
+    }
+    if (!match.hasMatch()) {
+      output += line.sliced(cursor);
+      break;
+    }
+    output += line.sliced(cursor, match.capturedStart() - cursor);
+    const QString replacement = emojiShortcodes().value(match.captured(1).toLower());
+    output += replacement.isEmpty() ? match.captured(0) : replacement;
+    cursor = match.capturedEnd();
+  }
+  return output;
+}
+
+QString replaceEmojiShortcodes(const QString& source) {
+  QStringList lines = source.split(QLatin1Char('\n'), Qt::KeepEmptyParts);
+  static const QRegularExpression fence(QStringLiteral("^ {0,3}(`{3,}|~{3,})(.*)$"));
+  bool inFence = false;
+  QChar fenceCharacter;
+  qsizetype fenceLength = 0;
+  for (QString& line : lines) {
+    const QRegularExpressionMatch match = fence.match(line);
+    if (match.hasMatch()) {
+      const QString marker = match.captured(1);
+      if (!inFence) {
+        inFence = true;
+        fenceCharacter = marker.front();
+        fenceLength = marker.size();
+      } else if (marker.front() == fenceCharacter && marker.size() >= fenceLength &&
+                 match.captured(2).trimmed().isEmpty()) {
+        inFence = false;
+      }
+      continue;
+    }
+    if (!inFence) line = replaceEmojiOnLine(line);
+  }
+  return lines.join(QLatin1Char('\n'));
+}
+
 QString preprocessReferenceSyntax(QString source) {
+  source = replaceEmojiShortcodes(source);
   source.replace(QRegularExpression(QStringLiteral("\\[\\[@toc\\]\\]"), QRegularExpression::CaseInsensitiveOption),
                  QStringLiteral("MDMACROTOCPLACEHOLDER"));
   source.replace(QRegularExpression(QStringLiteral("\\[\\[@pagebreak\\]\\]"), QRegularExpression::CaseInsensitiveOption),
@@ -271,6 +350,10 @@ QString postprocessCodeBlocks(QString html) {
       // sequence. Carry an opaque UTF-8 payload through sanitization instead.
       replacement = QStringLiteral("<div class=\"mermaid qt-mermaid\" data-source-b64=\"") +
                     encodePayload(source) + QStringLiteral("\"></div>");
+    } else if (name == QStringLiteral("plantuml") || name == QStringLiteral("puml") ||
+               name == QStringLiteral("uml")) {
+      replacement = QStringLiteral("<div class=\"plantuml qt-plantuml\" data-source-b64=\"") +
+                    encodePayload(source) + QStringLiteral("\"></div>");
     } else if (name == QStringLiteral("tex") || name == QStringLiteral("latex") || name == QStringLiteral("katex")) {
       replacement = QStringLiteral("<span class=\"qt-katex\" data-tex=\"") +
                     escapeAttribute(source) + QStringLiteral("\" data-display=\"1\"></span>");
@@ -352,10 +435,15 @@ void postprocessReferenceHtml(QVector<QString>& blocks) {
   toc += QStringLiteral("</ul></div>");
 
   qsizetype checkbox = 0;
+  qsizetype detailsIndex = 0;
   static const QRegularExpression checkboxTag(QStringLiteral("<input type=\"checkbox\"([^>]*)>"),
                                               QRegularExpression::CaseInsensitiveOption);
+  static const QRegularExpression detailsTag(QStringLiteral("<details(?![^>]*\\bdata-nth=)([^>]*)>"),
+                                             QRegularExpression::CaseInsensitiveOption);
   static const QRegularExpression externalAnchor(QStringLiteral("<a(?![^>]*\\btarget=)([^>]*\\bhref=\"(?!#)[^\"]+\"[^>]*)>"),
                                                  QRegularExpression::CaseInsensitiveOption);
+  static const QRegularExpression fileHref(QStringLiteral("href=\"(file:[^\"]+)\""),
+                                           QRegularExpression::CaseInsensitiveOption);
   static const QRegularExpression codeBlock(QStringLiteral("<pre><code([^>]*)>([\\s\\S]*?)</code></pre>"));
   for (QString& html : blocks) {
     html.replace(QStringLiteral("<p>MDMACROTOCPLACEHOLDER</p>"), toc);
@@ -376,7 +464,26 @@ void postprocessReferenceHtml(QVector<QString>& blocks) {
       offset = match.capturedStart() + replacement.size();
     }
     html.replace(QStringLiteral("<li><input type=\"checkbox\""), QStringLiteral("<li class=\"task-list-item\"><input type=\"checkbox\""));
+
+    offset = 0;
+    while (true) {
+      const QRegularExpressionMatch match = detailsTag.match(html, offset);
+      if (!match.hasMatch()) break;
+      const QString replacement = QStringLiteral("<details data-nth=\"%1\"%2>")
+          .arg(detailsIndex++).arg(match.captured(1));
+      html.replace(match.capturedStart(), match.capturedLength(), replacement);
+      offset = match.capturedStart() + replacement.size();
+    }
     html.replace(externalAnchor, QStringLiteral("<a target=\"_blank\"\\1>"));
+    qsizetype fileOffset = 0;
+    while (true) {
+      const QRegularExpressionMatch match = fileHref.match(html, fileOffset);
+      if (!match.hasMatch()) break;
+      const QString encoded = QString::fromLatin1(QUrl::toPercentEncoding(match.captured(1)));
+      const QString replacement = QStringLiteral("href=\"@file/%1\"").arg(encoded);
+      html.replace(match.capturedStart(), match.capturedLength(), replacement);
+      fileOffset = match.capturedStart() + replacement.size();
+    }
 
     offset = 0;
     while (true) {
@@ -424,6 +531,53 @@ bool blockRangeChanged(const RenderedBlock& left, const RenderedBlock& right) {
   return left.range.start != right.range.start || left.range.end != right.range.end;
 }
 
+int detailsDepthDelta(const RenderedBlock& block) {
+  // Only raw HTML blocks can establish a container across cmark's top-level
+  // nodes. Looking at Markdown/code block source here would mistake examples
+  // containing literal <details> text for real containers.
+  if (block.kind != QStringLiteral("html_block")) return 0;
+
+  static const QRegularExpression tag(
+      QStringLiteral("<\\s*(/?)\\s*details\\b[^>]*>"),
+      QRegularExpression::CaseInsensitiveOption);
+  int delta = 0;
+  QRegularExpressionMatchIterator matches = tag.globalMatch(block.source);
+  while (matches.hasNext()) {
+    const QRegularExpressionMatch match = matches.next();
+    if (match.captured(1) == QStringLiteral("/")) {
+      --delta;
+    } else if (!match.captured(0).chopped(1).trimmed().endsWith(QLatin1Char('/'))) {
+      ++delta;
+    }
+  }
+  return delta;
+}
+
+QVector<RenderedBlock> groupDetailsContainers(QVector<RenderedBlock> blocks,
+                                               QStringView markdown) {
+  QVector<RenderedBlock> grouped;
+  grouped.reserve(blocks.size());
+  for (qsizetype index = 0; index < blocks.size(); ++index) {
+    RenderedBlock block = std::move(blocks[index]);
+    int depth = detailsDepthDelta(block);
+    if (depth <= 0) {
+      grouped.append(std::move(block));
+      continue;
+    }
+
+    block.kind = QStringLiteral("details");
+    while (depth > 0 && index + 1 < blocks.size()) {
+      RenderedBlock child = std::move(blocks[++index]);
+      depth += detailsDepthDelta(child);
+      block.range.end = child.range.end;
+      block.html += child.html;
+    }
+    block.source = markdown.sliced(block.range.start, block.range.end - block.range.start).toString();
+    grouped.append(std::move(block));
+  }
+  return grouped;
+}
+
 }  // namespace
 
 MarkdownPipeline::MarkdownPipeline() = default;
@@ -433,7 +587,10 @@ QString MarkdownPipeline::plainContent(const QString& fileContent) {
   if (!fileContent.startsWith(QStringLiteral("---\n")) && !fileContent.startsWith(QStringLiteral("---\r\n"))) return fileContent;
   static const QRegularExpression closing(QStringLiteral("\\r?\\n(?:---|\\.\\.\\.)[ \\t]*\\r?\\n"));
   const QRegularExpressionMatch match = closing.match(fileContent, 3);
-  return match.hasMatch() ? fileContent.sliced(match.capturedEnd()) : fileContent;
+  if (!match.hasMatch()) return fileContent;
+  QString body = fileContent.sliced(match.capturedEnd());
+  if (body.startsWith(QLatin1Char('\n'))) body.remove(0, 1);
+  return body;
 }
 
 RenderResult MarkdownPipeline::render(const QString& markdown, quint64 generation, qint64 inputTimestampNs) {
@@ -458,13 +615,18 @@ RenderResult MarkdownPipeline::render(const QString& markdown, quint64 generatio
   QVector<QString> renderedBlocks = renderTopLevel(renderDocument);
   postprocessReferenceHtml(renderedBlocks);
   QVector<RenderedBlock> current;
+  qsizetype renderedIndex = 0;
   for (cmark_node* node = cmark_node_first_child(document.root); node; node = cmark_node_next(node)) {
     RenderedBlock block;
     block.kind = QString::fromUtf8(cmark_node_get_type_string(node));
     block.range = sourceRange(node, utf8, starts);
     block.source = markdown.sliced(block.range.start, block.range.end - block.range.start);
+    block.html = renderedIndex < renderedBlocks.size()
+        ? renderedBlocks.at(renderedIndex) : renderFragment(block.source);
     current.append(std::move(block));
+    ++renderedIndex;
   }
+  current = groupDetailsContainers(std::move(current), markdown);
   result.timings.parseMs = timer.nsecsElapsed() / 1'000'000.0;
 
   timer.restart();
@@ -551,9 +713,6 @@ RenderResult MarkdownPipeline::render(const QString& markdown, quint64 generatio
     const int match = matchedOld.at(index);
     block.id = match >= 0 ? previousBlocks_.at(match).id
                           : QStringLiteral("block-%1").arg(nextBlockId_++);
-    // Math placeholders do not intentionally change top-level structure. Fall
-    // back to fragment rendering if malformed input makes the trees diverge.
-    block.html = index < renderedBlocks.size() ? renderedBlocks.at(index) : renderFragment(block.source);
     if (match < 0 || blockContentChanged(previousBlocks_.at(match), block)) result.blocks.append(block);
     else if (blockRangeChanged(previousBlocks_.at(match), block)) result.rangeUpdates.append(block);
   }

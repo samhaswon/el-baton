@@ -86,6 +86,20 @@ class MarkdownPipelineTest final : public QObject {
              QStringLiteral("graph TD\nA -->\n"));
   }
 
+  void plantUmlFencesBecomeOpaqueLocalRenderRequests() {
+    MarkdownPipeline pipeline;
+    const RenderResult result = pipeline.render(
+        QStringLiteral("```puml\nAlice -> Bob : <hello>\n```\n"), 1);
+    QCOMPARE(result.allBlocks.size(), 1);
+    const QString html = result.allBlocks.front().html;
+    QVERIFY(html.contains(QStringLiteral("class=\"plantuml qt-plantuml\"")));
+    static const QRegularExpression payload(QStringLiteral("data-source-b64=\"([^\"]+)\""));
+    const QRegularExpressionMatch match = payload.match(html);
+    QVERIFY(match.hasMatch());
+    QCOMPARE(QString::fromUtf8(QByteArray::fromBase64(match.captured(1).toLatin1())),
+             QStringLiteral("Alice -> Bob : <hello>\n"));
+  }
+
   void rawHtmlAndGfmExtensionsAreEnabled() {
     MarkdownPipeline pipeline;
     const RenderResult result = pipeline.render(QStringLiteral(
@@ -98,6 +112,34 @@ class MarkdownPipelineTest final : public QObject {
     QCOMPARE(blocks.at(0).html, QStringLiteral("<section data-value=\"kept\"><b>raw</b></section>\n"));
     QVERIFY(blocks.at(1).html.contains(QStringLiteral("<del>gone</del>")));
     QVERIFY(blocks.at(2).html.contains(QStringLiteral("<table>")));
+  }
+
+  void multilineDetailsOwnTheirRenderedMarkdownContents() {
+    MarkdownPipeline pipeline;
+    const QString markdown = QStringLiteral(
+        "<details open>\n"
+        "<summary>More</summary>\n\n"
+        "First paragraph.\n\n"
+        "<details>\n"
+        "<summary>Nested</summary>\n\n"
+        "- nested item\n\n"
+        "</details>\n\n"
+        "Last paragraph.\n\n"
+        "</details>\n\n"
+        "After details.\n");
+
+    const RenderResult result = pipeline.render(markdown, 1);
+    QCOMPARE(result.allBlocks.size(), 2);
+    const RenderedBlock& details = result.allBlocks.at(0);
+    QCOMPARE(details.kind, QStringLiteral("details"));
+    QCOMPARE(details.source, markdown.first(markdown.indexOf(QStringLiteral("\n\nAfter details."))));
+    QVERIFY(details.html.startsWith(QStringLiteral("<details data-nth=\"0\" open>")));
+    QVERIFY(details.html.contains(QStringLiteral("<p>First paragraph.</p>")));
+    QVERIFY(details.html.contains(QStringLiteral("<details data-nth=\"1\">")));
+    QVERIFY(details.html.contains(QStringLiteral("<li>nested item</li>")));
+    QVERIFY(details.html.contains(QStringLiteral("<p>Last paragraph.</p>")));
+    QVERIFY(details.html.endsWith(QStringLiteral("</details>\n")));
+    QCOMPARE(result.allBlocks.at(1).source, QStringLiteral("After details."));
   }
 
   void fullReplacementPublishesEveryBlockInOrder() {
@@ -129,6 +171,9 @@ class MarkdownPipelineTest final : public QObject {
   void removesFrontMatterLikeTheReferenceEditor() {
     const QString file = QStringLiteral("---\ntitle: Test\ntags: [one]\n---\n# Body\n");
     QCOMPARE(MarkdownPipeline::plainContent(file), QStringLiteral("# Body\n"));
+    QCOMPARE(
+        MarkdownPipeline::plainContent(QStringLiteral("---\ntitle: Test\n---\n\n# Body\n")),
+        QStringLiteral("# Body\n"));
     QCOMPARE(MarkdownPipeline::plainContent(QStringLiteral("---\nunclosed\n")), QStringLiteral("---\nunclosed\n"));
   }
 
@@ -136,8 +181,9 @@ class MarkdownPipelineTest final : public QObject {
     MarkdownPipeline pipeline;
     const RenderResult result = pipeline.render(QStringLiteral(
         "# Heading\n\n[[@toc]]\n\n[[@pagebreak]]\n\n"
-        "[[A note]]\n\n- [x] done\n\n```ts\nconst value = 1;\n```\n"), 1);
-    QCOMPARE(result.allBlocks.size(), 6);
+        "[[A note]]\n\n- [x] done\n\n<details open><summary>More</summary>Text</details>\n\n"
+        "[Local](file:///workspace/support.txt)\n\n```ts\nconst value = 1;\n```\n"), 1);
+    QCOMPARE(result.allBlocks.size(), 8);
     const QString html = [&] {
       QString combined;
       for (const RenderedBlock& block : result.allBlocks) combined += block.html;
@@ -150,7 +196,22 @@ class MarkdownPipelineTest final : public QObject {
     QVERIFY(html.contains(QStringLiteral("href=\"@note/A%20note.md\"")));
     QVERIFY(html.contains(QStringLiteral("class=\"task-list-item\"")));
     QVERIFY(html.contains(QStringLiteral("data-nth=\"0\"")));
+    QVERIFY(html.contains(QStringLiteral("<details data-nth=\"0\" open>")));
+    QVERIFY(html.contains(QStringLiteral("href=\"@file/file%3A%2F%2F%2Fworkspace%2Fsupport.txt\"")));
     QVERIFY(html.contains(QStringLiteral("class=\"copy-wrapper\"")));
+  }
+
+  void replacesEmojiShortcodesOutsideCode() {
+    MarkdownPipeline pipeline;
+    const RenderResult result = pipeline.render(QStringLiteral(
+        "A :cat: and :unknown_shortcode:.\n\n"
+        "`:cat:`\n\n"
+        "```text\n:cat:\n```\n"), 1);
+    QString html;
+    for (const RenderedBlock& block : result.allBlocks) html += block.html;
+    QVERIFY(html.contains(QStringLiteral("A 🐱 and :unknown_shortcode:.")));
+    QVERIFY(html.contains(QStringLiteral("<code>:cat:</code>")));
+    QVERIFY(html.contains(QStringLiteral(":cat:")));
   }
 };
 

@@ -13,7 +13,9 @@ sudo apt install \
     qt6-tools-dev-tools \
     qt6-webengine-dev \
     qt6-webchannel-dev \
-    libqscintilla2-qt6-dev
+    libqscintilla2-qt6-dev \
+    libyaml-cpp-dev \
+    libhunspell-dev
 ```
 
 # Qt editor experiment instructions

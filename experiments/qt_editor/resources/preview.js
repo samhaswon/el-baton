@@ -9,7 +9,8 @@
     resizeObserver: null, applyingSourceScroll: false, previewScrollFrame: 0,
     applyingUpdate: false, pendingUpdate: null, syncTimes: [], droppedSync: 0,
     frameTimes: [], renderTimes: [], activeUntil: 0, samplingFrames: false, lastFrameReportAt: 0,
-    metrics: {}, documentBaseUrl: '', mermaidCache: new Map(), hiddenMermaidNodes: new Map(),
+    metrics: {}, diagnosticsEnabled: false, documentBaseUrl: '', mermaidCache: new Map(), hiddenMermaidNodes: new Map(),
+    plantUmlCache: new Map(), plantUmlNodes: new Map(), plantUmlRequest: 0,
     katexMarkupCache: new Map(), katexRequest: 0, katexPending: new Map()
   };
 
@@ -53,6 +54,12 @@
     }
   }
 
+  const plantUmlSource = mermaidSource;
+
+  function plantUmlKey(source, update) {
+    return `${update.plantUmlServerUrl || ''}\0${source}`;
+  }
+
   function captureAnchor() {
     rebuildGeometry();
     const item = geometryAt(scrollContainer.scrollTop);
@@ -86,10 +93,16 @@
     node.dataset.rendered = '1';
   }
 
+  function installPlantUmlSvg(node, svg) {
+    node.innerHTML = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } });
+    node.dataset.rendered = '1';
+  }
+
   function makeBlock(block, update) {
     const node = document.createElement('section');
     node.className = 'render-block';
     node.dataset.blockId = block.id;
+    node.dataset.kind = block.kind || '';
     node.dataset.sourceStart = String(block.sourceStart);
     node.dataset.sourceEnd = String(block.sourceEnd);
     node.dataset.syncMode = block.syncMode || 'interpolate';
@@ -115,6 +128,17 @@
       const cached = state.mermaidCache.get(mermaidKey(source, update));
       if (cached) { diagram.innerHTML = cached; diagram.dataset.rendered = '1'; }
     });
+    node.querySelectorAll('.qt-plantuml').forEach(diagram => {
+      const source = plantUmlSource(diagram).trim();
+      if (!source) { diagram.hidden = true; return; }
+      const cached = state.plantUmlCache.get(plantUmlKey(source, update));
+      if (cached?.ok) installPlantUmlSvg(diagram, cached.svg);
+      else if (cached) {
+        diagram.innerHTML = `<div class="plantuml-error"></div>`;
+        diagram.firstElementChild.textContent = cached.error || 'Unknown local PlantUML error';
+        diagram.dataset.rendered = '1';
+      }
+    });
     node.querySelectorAll('img').forEach(image => image.addEventListener('load', invalidateGeometry, { once: true }));
     state.resizeObserver.observe(node);
     return node;
@@ -130,6 +154,18 @@
       state.katexPending.set(requestId, { generation: state.generation, nodes: mathNodes,
         keys: mathNodes.map(node => katexKey(node, update.katexConfig)), started: performance.now() });
       katexWorker.postMessage({ requestId, expressions, config: update.katexConfig || {} });
+    }
+
+    const plantUmlDiagrams = changedNodes.flatMap(node => [...node.querySelectorAll('.qt-plantuml:not([data-rendered])')])
+      .filter(node => plantUmlSource(node).trim());
+    if (plantUmlDiagrams.length) {
+      const requests = plantUmlDiagrams.map(node => {
+        const source = plantUmlSource(node);
+        const id = `${update.generation}:plantuml:${++state.plantUmlRequest}`;
+        state.plantUmlNodes.set(id, { node, source, cacheKey: plantUmlKey(source, update) });
+        return { id, source };
+      });
+      state.bridge.requestPlantUmlRender({ generation: update.generation, requests });
     }
 
     const diagrams = changedNodes.flatMap(node => [...node.querySelectorAll('.qt-mermaid:not([data-rendered])')])
@@ -174,11 +210,12 @@
 
   async function applyUpdate(update) {
     if (update.generation <= state.generation) return;
+    state.diagnosticsEnabled = update.overlayEnabled === true;
+    overlay.hidden = !state.diagnosticsEnabled;
     markUiActive(1000);
     state.generation = update.generation;
     state.documentBaseUrl = update.documentBaseUrl || '';
     state.metrics = { ...state.metrics, ...(update.timings || {}) };
-    overlay.hidden = update.overlayEnabled === false;
     const patchStarted = performance.now();
     const anchor = captureAnchor();
     const changedNodes = [];
@@ -305,7 +342,31 @@
     reportWhenStable();
   }
 
+  function applyPlantUmlResults(batch) {
+    for (const result of batch.results || []) {
+      const pending = state.plantUmlNodes.get(result.id);
+      state.plantUmlNodes.delete(result.id);
+      if (!pending) continue;
+      state.plantUmlCache.set(pending.cacheKey, result);
+      if (state.plantUmlCache.size > 400) state.plantUmlCache.delete(state.plantUmlCache.keys().next().value);
+      const node = pending.node;
+      if (batch.generation !== state.generation || !node?.isConnected) continue;
+      if (result.ok) installPlantUmlSvg(node, result.svg);
+      else {
+        const error = document.createElement('div');
+        error.className = 'plantuml-error';
+        error.textContent = result.error || 'Unknown local PlantUML error';
+        node.replaceChildren(error);
+        node.dataset.rendered = '1';
+      }
+    }
+    state.metrics.plantUmlMs = batch.plantUmlMs || 0;
+    invalidateGeometry();
+    reportWhenStable();
+  }
+
   function reportWhenStable() {
+    if (!state.diagnosticsEnabled) return;
     const started = performance.now();
     let lastHeight = -1, stableFrames = 0;
     function sample() {
@@ -320,7 +381,7 @@
   }
 
   function reportMetrics() {
-    if (!state.bridge) return;
+    if (!state.bridge || !state.diagnosticsEnabled) return;
     const now = performance.now();
     state.frameTimes = state.frameTimes.filter(time => time >= now - 1000);
     state.renderTimes = state.renderTimes.filter(time => time >= now - 1000);
@@ -350,6 +411,7 @@
   }
 
   function markUiActive(durationMs) {
+    if (!state.diagnosticsEnabled) return;
     state.activeUntil = Math.max(state.activeUntil, performance.now() + durationMs);
     if (state.samplingFrames) return;
     state.samplingFrames = true;
@@ -384,15 +446,36 @@
       return;
     }
     const anchor = event.target.closest('a[href]');
+    const task = event.target.closest('input[type="checkbox"][data-nth]');
+    if (task) {
+      state.bridge?.requestTaskToggle(Number(task.dataset.nth), task.checked);
+      return;
+    }
     if (!anchor) return;
     const href = anchor.getAttribute('href') || '';
     if (href.startsWith('#')) {
       const destination = document.getElementById(decodeURIComponent(href.slice(1)));
       if (destination) { event.preventDefault(); destination.scrollIntoView({ block: 'start' }); }
+    } else if (href.startsWith('@note/')) {
+      event.preventDefault(); state.bridge?.requestInternalLink('note', href.slice('@note/'.length));
+    } else if (href.startsWith('@attachment/')) {
+      event.preventDefault(); state.bridge?.requestInternalLink('attachment', href.slice('@attachment/'.length));
+    } else if (href.startsWith('@tag/')) {
+      event.preventDefault(); state.bridge?.requestInternalLink('tag', href.slice('@tag/'.length));
+    } else if (href.startsWith('@file/')) {
+      event.preventDefault(); state.bridge?.requestInternalLink('file', href.slice('@file/'.length));
+    } else if (/^file:/i.test(anchor.href)) {
+      event.preventDefault(); state.bridge?.requestInternalLink('file', anchor.href);
     } else if (/^https?:/i.test(anchor.href)) {
       event.preventDefault(); state.bridge?.requestExternalLink(anchor.href);
     }
   });
+
+  root.addEventListener('toggle', event => {
+    const details = event.target.closest('details[data-nth]');
+    if (!details || state.applyingUpdate) return;
+    state.bridge?.requestDetailsToggle(Number(details.dataset.nth), details.open);
+  }, true);
 
   state.resizeObserver = new ResizeObserver(invalidateGeometry);
   scrollContainer.addEventListener('scroll', onPreviewScroll, { passive: true });
@@ -404,6 +487,7 @@
     state.bridge.renderPublished.connect(enqueueUpdate);
     state.bridge.sourceScrollPublished.connect(applySourceScroll);
     state.bridge.mermaidResultsPublished.connect(applyHiddenMermaidResults);
+    state.bridge.plantUmlResultsPublished.connect(applyPlantUmlResults);
     state.bridge.reportReady('preview');
   });
 })();

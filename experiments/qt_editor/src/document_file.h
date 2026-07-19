@@ -1,0 +1,46 @@
+#pragma once
+
+#include <QString>
+#include <QStringList>
+
+#include <optional>
+
+namespace qt_editor {
+
+enum class NoteFlag { Deleted, Favorited, Pinned };
+
+class DocumentFile final {
+ public:
+  [[nodiscard]] static std::optional<DocumentFile> load(
+      const QString& path,
+      QString* errorMessage = nullptr);
+  [[nodiscard]] static std::optional<DocumentFile> create(
+      const QString& path,
+      const QString& title,
+      QString* errorMessage = nullptr);
+
+  [[nodiscard]] const QString& path() const { return path_; }
+  [[nodiscard]] const QString& body() const { return body_; }
+  [[nodiscard]] const QString& metadataPrefix() const { return metadataPrefix_; }
+  [[nodiscard]] bool metadataFlag(NoteFlag flag) const;
+  [[nodiscard]] QStringList tags() const;
+  [[nodiscard]] bool saveBody(
+      const QString& body,
+      QString* errorMessage = nullptr,
+      bool updateModified = false);
+  [[nodiscard]] bool setMetadataFlag(NoteFlag flag, bool enabled, QString* errorMessage = nullptr);
+  [[nodiscard]] bool setTags(const QStringList& tags, QString* errorMessage = nullptr);
+  [[nodiscard]] bool writeCopy(
+      const QString& path,
+      const QString& title,
+      const QString& body,
+      QString* errorMessage = nullptr) const;
+
+ private:
+  QString path_;
+  QString metadataPrefix_;
+  QString bodyGutterPrefix_;
+  QString body_;
+};
+
+}  // namespace qt_editor

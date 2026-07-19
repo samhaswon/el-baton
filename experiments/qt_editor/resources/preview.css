@@ -1,10 +1,20 @@
-:root { color-scheme: light; }
+:root { color-scheme: dark; --qt-surface: #1f1f1f; --qt-surface-raised: #262626; --qt-border: #000; --qt-text: #f6f6f6; --qt-muted: #afafaf; --qt-accent: #6796e6; }
 html, body { min-height: 100%; }
-body { margin: 0; background: #fff; color: #1f1f1f; }
+body { margin: 0; background: var(--qt-surface); color: var(--qt-text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 #preview-shell { box-sizing: border-box; min-height: 100vh; }
 #preview { min-height: 1px; }
-.render-block { overflow-wrap: anywhere; }
+.render-block { display: flow-root; margin: 0 0 16px; overflow-wrap: anywhere; }
+.render-block:last-child { margin-bottom: 0; }
+.render-block[data-kind="heading"] { margin-top: 24px; }
+.render-block > :first-child { margin-top: 0 !important; }
+.render-block > :last-child { margin-bottom: 0 !important; }
 .render-block[data-sync-mode="anchor"] { min-height: 1px; }
 img, svg { max-width: 100%; }
+a { text-underline-offset: 2px; }
+html { scrollbar-color: #555 var(--qt-surface); scrollbar-width: thin; }
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: var(--qt-surface); }
+::-webkit-scrollbar-thumb { background: #555; border: 3px solid var(--qt-surface); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #686868; }
 #debug-overlay { position: fixed; z-index: 1000; right: 10px; bottom: 28px; max-width: 360px; padding: 7px 9px; border: 1px solid rgb(255 255 255 / 14%); border-radius: 5px; background: rgb(20 20 20 / 82%); box-shadow: 0 2px 12px rgb(0 0 0 / 25%); color: white; font: 10px/1.4 monospace; pointer-events: none; white-space: pre; }
 .qt-render-error { color: #d32f2f; white-space: pre-wrap; }
