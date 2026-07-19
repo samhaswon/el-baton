@@ -10,7 +10,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Network Widgets WebChannel WebEngineWidgets Test)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Concurrent Core Gui Network Widgets WebChannel WebEngineWidgets Test)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(HUNSPELL REQUIRED IMPORTED_TARGET hunspell)
 find_package(yaml-cpp REQUIRED)
 find_package(ZLIB REQUIRED)
 find_program(NODE_EXECUTABLE node REQUIRED)
@@ -119,6 +121,7 @@ function(qt_editor_enable_webengine_asan_workaround target)
 endfunction()
 
 set(QT_EDITOR_SOURCES
+  resources/reference_icons.qrc
   src/benchmark_options.cpp
   src/document_file.cpp
   src/global_config_store.cpp
@@ -127,13 +130,16 @@ set(QT_EDITOR_SOURCES
   src/markdown_pipeline.cpp
   src/plantuml_renderer.cpp
   src/preview_bridge.cpp
+  src/reference_icons.cpp
   src/settings_store.cpp
+  src/spell_checker.cpp
   src/sync_controller.cpp
   src/workspace_repository.cpp
   src/workspace_watcher.cpp
 )
 
 set(QT_EDITOR_EMOJI_JSON "${CMAKE_CURRENT_BINARY_DIR}/generated/emoji-shortcodes.json")
+set(QT_EDITOR_CHEATSHEET_MARKDOWN "${CMAKE_CURRENT_BINARY_DIR}/generated/cheatsheet.md")
 add_custom_command(
   OUTPUT "${QT_EDITOR_EMOJI_JSON}"
   COMMAND "${NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/generate_qt_emoji_map.mjs"
@@ -146,12 +152,27 @@ add_custom_command(
 )
 add_custom_target(qt_editor_emoji_data DEPENDS "${QT_EDITOR_EMOJI_JSON}")
 
+add_custom_command(
+  OUTPUT "${QT_EDITOR_CHEATSHEET_MARKDOWN}"
+  COMMAND "${NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/generate_qt_cheatsheet.mjs"
+          "${QT_EDITOR_CHEATSHEET_MARKDOWN}"
+  DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/generate_qt_cheatsheet.mjs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../src/common/emoji.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../src/renderer/components/main/mainbar/cheatsheet_content.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../node_modules/typescript/lib/typescript.js"
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../.."
+  VERBATIM
+)
+add_custom_target(qt_editor_cheatsheet_data DEPENDS "${QT_EDITOR_CHEATSHEET_MARKDOWN}")
+
 add_library(qt_editor_core STATIC ${QT_EDITOR_SOURCES})
-add_dependencies(qt_editor_core qt_editor_emoji_data)
+add_dependencies(qt_editor_core qt_editor_emoji_data qt_editor_cheatsheet_data)
 target_include_directories(qt_editor_core PUBLIC src ${QSCINTILLA_INCLUDE_DIR})
 target_link_libraries(qt_editor_core PUBLIC
   qt_editor_build_options
   Qt6::Core
+  Qt6::Concurrent
   Qt6::Gui
   Qt6::Network
   Qt6::Widgets
@@ -160,6 +181,7 @@ target_link_libraries(qt_editor_core PUBLIC
   qt_editor_cmark
   yaml-cpp
   ZLIB::ZLIB
+  PkgConfig::HUNSPELL
   ${QSCINTILLA_LIBRARY}
 )
 
@@ -183,6 +205,7 @@ configure_file(resources/mermaid_renderer.js "${QT_EDITOR_WEB_DIR}/mermaid_rende
 configure_file("${PLANTUML_JAR}" "${CMAKE_CURRENT_BINARY_DIR}/plantuml.jar" COPYONLY)
 configure_file(../../src/renderer/template/runtime/css/notable.css "${QT_EDITOR_WEB_DIR}/vendor/notable.css" COPYONLY)
 configure_file(../../node_modules/katex/dist/katex.min.js "${QT_EDITOR_WEB_DIR}/vendor/katex/katex.min.js" COPYONLY)
+configure_file(../../node_modules/katex/dist/contrib/mhchem.min.js "${QT_EDITOR_WEB_DIR}/vendor/katex/mhchem.min.js" COPYONLY)
 configure_file(../../node_modules/katex/dist/katex.min.css "${QT_EDITOR_WEB_DIR}/vendor/katex/katex.min.css" COPYONLY)
 configure_file(../../node_modules/mermaid/dist/mermaid.min.js "${QT_EDITOR_WEB_DIR}/vendor/mermaid.min.js" COPYONLY)
 configure_file(../../node_modules/dompurify/dist/purify.min.js "${QT_EDITOR_WEB_DIR}/vendor/purify.min.js" COPYONLY)
@@ -196,6 +219,7 @@ configure_file(../../node_modules/prismjs/components/prism-python.min.js "${QT_E
 file(COPY ../../node_modules/katex/dist/fonts/ DESTINATION "${QT_EDITOR_WEB_DIR}/vendor/katex/fonts")
 target_compile_definitions(qt_editor_core PUBLIC QT_EDITOR_WEB_DIR="${QT_EDITOR_WEB_DIR}")
 target_compile_definitions(qt_editor_core PRIVATE QT_EDITOR_EMOJI_JSON="${QT_EDITOR_EMOJI_JSON}")
+target_compile_definitions(qt_editor_core PRIVATE QT_EDITOR_CHEATSHEET_MARKDOWN="${QT_EDITOR_CHEATSHEET_MARKDOWN}")
 target_compile_definitions(qt_editor_core PUBLIC QT_EDITOR_PLANTUML_JAR="${CMAKE_CURRENT_BINARY_DIR}/plantuml.jar")
 
 include(CTest)
@@ -228,4 +252,22 @@ if(BUILD_TESTING)
   add_executable(plantuml_renderer_tests tests/plantuml_renderer_test.cpp)
   target_link_libraries(plantuml_renderer_tests PRIVATE qt_editor_core Qt6::Test)
   add_test(NAME plantuml_renderer_tests COMMAND plantuml_renderer_tests)
+
+  add_executable(spell_checker_tests tests/spell_checker_test.cpp)
+  target_link_libraries(spell_checker_tests PRIVATE qt_editor_core Qt6::Test)
+  add_test(NAME spell_checker_tests COMMAND spell_checker_tests)
+
+  add_executable(reference_icons_tests tests/reference_icons_test.cpp)
+  target_link_libraries(reference_icons_tests PRIVATE qt_editor_core Qt6::Test)
+  add_test(NAME reference_icons_tests COMMAND reference_icons_tests)
+
+  add_executable(cheatsheet_content_tests tests/cheatsheet_content_test.cpp)
+  target_compile_definitions(cheatsheet_content_tests PRIVATE
+    QT_EDITOR_CHEATSHEET_MARKDOWN="${QT_EDITOR_CHEATSHEET_MARKDOWN}")
+  target_link_libraries(cheatsheet_content_tests PRIVATE qt_editor_core Qt6::Test)
+  add_test(NAME cheatsheet_content_tests COMMAND cheatsheet_content_tests)
+
+  add_test(NAME katex_worker_tests
+    COMMAND "${NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/katex_worker_test.mjs"
+            "${QT_EDITOR_WEB_DIR}")
 endif()

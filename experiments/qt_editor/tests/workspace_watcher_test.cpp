@@ -21,6 +21,8 @@ class WorkspaceWatcherTest final : public QObject {
   void pairsMovedFilesAsRenames();
   void watchesNewNotesInNestedDirectories();
   void suppressesAcknowledgedAppWrites();
+  void reportsExternalWriteRacingAppAcknowledgement();
+  void retainsCanonicalHashAcrossLaterWatcherStates();
 };
 
 namespace {
@@ -111,8 +113,9 @@ void WorkspaceWatcherTest::suppressesAcknowledgedAppWrites() {
   QSignalSpy changesSpy(&watcher, &WorkspaceWatcher::changesDetected);
   watcher.start();
 
-  QVERIFY(writeFile(path, QByteArrayLiteral("# App-owned write\n")));
-  watcher.acknowledgeWrite(path);
+  const QByteArray appContent = QByteArrayLiteral("# App-owned write\n");
+  QVERIFY(writeFile(path, appContent));
+  watcher.acknowledgeWrite(path, appContent);
   QFile metadataOnly(path);
   QVERIFY(metadataOnly.open(QIODevice::ReadOnly));
   QVERIFY(metadataOnly.setFileTime(QDateTime::currentDateTime().addSecs(1), QFileDevice::FileModificationTime));
@@ -127,6 +130,65 @@ void WorkspaceWatcherTest::suppressesAcknowledgedAppWrites() {
   QCOMPARE(changes.size(), 1);
   QCOMPARE(changes.constFirst().kind, WorkspaceChangeKind::Modified);
   QCOMPARE(changes.constFirst().path, path);
+}
+
+void WorkspaceWatcherTest::reportsExternalWriteRacingAppAcknowledgement() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  QDir root(directory.path());
+  QVERIFY(root.mkpath(QStringLiteral("notes")));
+  const QString path = root.filePath(QStringLiteral("notes/note.md"));
+  QVERIFY(writeFile(path, QByteArrayLiteral("# Before\n")));
+
+  WorkspaceWatcher watcher;
+  watcher.setWorkspaceRoot(directory.path());
+  QSignalSpy changesSpy(&watcher, &WorkspaceWatcher::changesDetected);
+  watcher.start();
+
+  const QByteArray committedByApp = QByteArrayLiteral("# App write\n");
+  QVERIFY(writeFile(path, committedByApp));
+  // Model another process winning the narrow race after our commit but before
+  // the UI records its write receipt.
+  QVERIFY(writeFile(path, QByteArrayLiteral("# External winner\n")));
+  watcher.acknowledgeWrite(path, committedByApp);
+
+  QTRY_COMPARE_WITH_TIMEOUT(changesSpy.size(), 1, 3000);
+  const QVector<WorkspaceChange> changes =
+      qvariant_cast<QVector<WorkspaceChange>>(changesSpy.constFirst().constFirst());
+  QCOMPARE(changes.size(), 1);
+  QCOMPARE(changes.constFirst().kind, WorkspaceChangeKind::Modified);
+  QCOMPARE(changes.constFirst().path, path);
+}
+
+void WorkspaceWatcherTest::retainsCanonicalHashAcrossLaterWatcherStates() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  QDir root(directory.path());
+  QVERIFY(root.mkpath(QStringLiteral("notes")));
+  const QString path = root.filePath(QStringLiteral("notes/note.md"));
+  QVERIFY(writeFile(path, QByteArrayLiteral("# Before\n")));
+
+  WorkspaceWatcher watcher;
+  watcher.setWorkspaceRoot(directory.path());
+  QSignalSpy changesSpy(&watcher, &WorkspaceWatcher::changesDetected);
+  watcher.start();
+
+  const QByteArray canonical = QByteArrayLiteral("# Canonical app revision\n");
+  QVERIFY(writeFile(path, canonical));
+  watcher.acknowledgeWrite(path, canonical);
+  QTest::qWait(350);
+  QCOMPARE(changesSpy.size(), 0);
+
+  // A transient/different disk state is external and advances the filesystem
+  // snapshot, but it must not erase the app's canonical hash.
+  QVERIFY(writeFile(path, QByteArrayLiteral("# Different disk revision\n")));
+  QTRY_COMPARE_WITH_TIMEOUT(changesSpy.size(), 1, 3000);
+
+  // Returning to the exact canonical bytes is not another external revision,
+  // even though it differs from the immediately preceding watcher snapshot.
+  QVERIFY(writeFile(path, canonical));
+  QTest::qWait(500);
+  QCOMPARE(changesSpy.size(), 1);
 }
 
 QTEST_GUILESS_MAIN(WorkspaceWatcherTest)

@@ -128,8 +128,19 @@ std::optional<DocumentFile> DocumentFile::create(
 }
 
 bool DocumentFile::saveBody(const QString& body, QString* errorMessage, bool updateModified) {
-  QString metadata = metadataPrefix_;
-  QString gutter = bodyGutterPrefix_;
+  DocumentFile next = withBody(body, updateModified);
+  if (!next.writeToDisk(errorMessage)) return false;
+  *this = std::move(next);
+  return true;
+}
+
+DocumentFile DocumentFile::withBody(
+    const QString& body,
+    bool updateModified,
+    const QDateTime& modified) const {
+  DocumentFile next = *this;
+  QString metadata = next.metadataPrefix_;
+  QString gutter = next.bodyGutterPrefix_;
   if (updateModified) {
     if (metadata.isEmpty()) {
       metadata = newMetadata(QFileInfo(path_).completeBaseName());
@@ -138,7 +149,8 @@ bool DocumentFile::saveBody(const QString& body, QString* errorMessage, bool upd
       const QRegularExpression line = metadataLine(QStringLiteral("modified"));
       const QRegularExpressionMatch match = line.match(metadata);
       const QString value = QStringLiteral("modified: '%1'").arg(
-          QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+          (modified.isValid() ? modified.toUTC() : QDateTime::currentDateTimeUtc())
+              .toString(Qt::ISODateWithMs));
       if (match.hasMatch()) {
         metadata.replace(match.capturedStart(), match.capturedLength(), match.captured(1) + value);
       } else {
@@ -147,11 +159,34 @@ bool DocumentFile::saveBody(const QString& body, QString* errorMessage, bool upd
       }
     }
   }
-  if (!writeDocument(path_, metadata, gutter, body, errorMessage)) return false;
-  metadataPrefix_ = metadata;
-  bodyGutterPrefix_ = gutter;
-  body_ = body;
-  return true;
+  next.metadataPrefix_ = metadata;
+  next.bodyGutterPrefix_ = gutter;
+  next.body_ = body;
+  return next;
+}
+
+bool DocumentFile::writeToDisk(QString* errorMessage) const {
+  return writeDocument(path_, metadataPrefix_, bodyGutterPrefix_, body_, errorMessage);
+}
+
+QByteArray DocumentFile::serializedContent() const {
+  return (metadataPrefix_ + bodyGutterPrefix_ + body_).toUtf8();
+}
+
+bool DocumentFile::hasSameContent(const DocumentFile& other) const {
+  return serializedContent() == other.serializedContent();
+}
+
+std::optional<QDateTime> DocumentFile::modifiedAt() const {
+  const QRegularExpressionMatch match = metadataLine(QStringLiteral("modified")).match(metadataPrefix_);
+  if (!match.hasMatch()) return std::nullopt;
+  QString value = match.captured(2).trimmed();
+  if (value.size() >= 2 && ((value.startsWith(QLatin1Char('\'')) && value.endsWith(QLatin1Char('\''))) ||
+                            (value.startsWith(QLatin1Char('"')) && value.endsWith(QLatin1Char('"'))))) {
+    value = value.sliced(1, value.size() - 2);
+  }
+  const QDateTime parsed = QDateTime::fromString(value, Qt::ISODateWithMs);
+  return parsed.isValid() ? std::optional<QDateTime>(parsed) : std::nullopt;
 }
 
 bool DocumentFile::metadataFlag(NoteFlag flag) const {
@@ -247,10 +282,13 @@ bool DocumentFile::writeCopy(
     const QString& path,
     const QString& title,
     const QString& body,
-    QString* errorMessage) const {
+    QString* errorMessage,
+    QByteArray* writtenContent) const {
   const QString metadata = metadataWithTitle(metadataPrefix_, title);
   const QString gutter = metadata.isEmpty() ? QString() : QStringLiteral("\n");
-  return writeDocument(path, metadata, gutter, body, errorMessage);
+  if (!writeDocument(path, metadata, gutter, body, errorMessage)) return false;
+  if (writtenContent != nullptr) *writtenContent = (metadata + gutter + body).toUtf8();
+  return true;
 }
 
 }  // namespace qt_editor

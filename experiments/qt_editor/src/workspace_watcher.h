@@ -40,9 +40,16 @@ class WorkspaceWatcher final : public QObject {
   void setWorkspaceRoot(const QString& path);
   void start();
   void stop();
-  // Accepts the exact file content just written by the app without masking
-  // unrelated workspace changes.
+  // Records the exact bytes committed by the app. A later scan suppresses only
+  // this digest, so an external replacement racing the acknowledgement is not
+  // mistaken for an app-owned write.
+  void acknowledgeWrite(const QString& path, const QByteArray& content);
+  // Convenience for callers that cannot retain their write buffer. Prefer the
+  // exact-content overload for note mutations.
   void acknowledgeWrite(const QString& path);
+  // Advances the canonical hash after the UI deliberately accepts a disk
+  // revision. Unlike acknowledgeWrite(), this does not schedule another scan.
+  void acceptDiskState(const QString& path, const QByteArray& content);
 
   [[nodiscard]] bool isActive() const { return active_; }
   [[nodiscard]] const QString& workspaceRoot() const { return workspaceRoot_; }
@@ -64,6 +71,7 @@ class WorkspaceWatcher final : public QObject {
   QTimer scanTimer_;
   QString workspaceRoot_;
   WorkspaceSnapshot snapshot_;
+  WorkspaceSnapshot canonicalStates_;
   bool active_ = false;
 };
 

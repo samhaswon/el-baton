@@ -1,6 +1,6 @@
 'use strict';
 
-importScripts('vendor/katex/katex.min.js');
+importScripts('vendor/katex/katex.min.js', 'vendor/katex/mhchem.min.js');
 
 const cache = new Map();
 

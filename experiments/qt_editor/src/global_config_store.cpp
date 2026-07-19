@@ -41,20 +41,87 @@ QVariant fromYaml(const YAML::Node& node) {
 }
 
 YAML::Node toYaml(const QVariant& value) {
-  if (value.metaType().id() == QMetaType::QVariantMap) {
+  const int type = value.metaType().id();
+  if (!value.isValid() || value.isNull()) return YAML::Node(YAML::NodeType::Null);
+  if (type == QMetaType::QVariantMap) {
     YAML::Node node(YAML::NodeType::Map);
     const QVariantMap map = value.toMap();
     for (auto it = map.cbegin(); it != map.cend(); ++it) node[it.key().toStdString()] = toYaml(it.value());
     return node;
   }
-  if (value.metaType().id() == QMetaType::QVariantList || value.canConvert<QStringList>()) {
+  if (type == QMetaType::QVariantList) {
     YAML::Node node(YAML::NodeType::Sequence);
     for (const QVariant& item : value.toList()) node.push_back(toYaml(item));
     return node;
   }
-  if (value.metaType().id() == QMetaType::Bool) return YAML::Node(value.toBool());
-  if (value.canConvert<qlonglong>() && value.metaType().id() != QMetaType::QString) return YAML::Node(value.toLongLong());
+  if (type == QMetaType::QStringList) {
+    YAML::Node node(YAML::NodeType::Sequence);
+    for (const QString& item : value.toStringList()) {
+      node.push_back(YAML::Node(item.toStdString()));
+    }
+    return node;
+  }
+  if (type == QMetaType::Bool) return YAML::Node(value.toBool());
+  if (type == QMetaType::Float || type == QMetaType::Double) {
+    return YAML::Node(value.toDouble());
+  }
+  if (type == QMetaType::UInt || type == QMetaType::ULongLong) {
+    return YAML::Node(value.toULongLong());
+  }
+  if (type == QMetaType::Int || type == QMetaType::LongLong ||
+      type == QMetaType::Short || type == QMetaType::Long ||
+      type == QMetaType::SChar) {
+    return YAML::Node(value.toLongLong());
+  }
+  if (type == QMetaType::QByteArray) {
+    return YAML::Node(value.toByteArray().toStdString());
+  }
   return YAML::Node(value.toString().toStdString());
+}
+
+bool decodeLegacyByteString(const QVariant& value, QString* decoded) {
+  if (value.metaType().id() == QMetaType::QString) {
+    *decoded = value.toString();
+    return true;
+  }
+  const QVariantList bytes = value.toList();
+  if (value.metaType().id() != QMetaType::QVariantList || bytes.isEmpty()) return false;
+  QByteArray encoded;
+  encoded.reserve(bytes.size());
+  for (const QVariant& byte : bytes) {
+    bool ok = false;
+    const int number = byte.toInt(&ok);
+    if (!ok || number < 0 || number > 255) return false;
+    encoded.append(static_cast<char>(number));
+  }
+  *decoded = QString::fromUtf8(encoded);
+  return true;
+}
+
+QVariantMap normalizeLegacyStringContainers(QVariantMap values) {
+  QVariantMap plantUml = values.value(QStringLiteral("plantuml")).toMap();
+  QString serverUrl;
+  if (decodeLegacyByteString(plantUml.value(QStringLiteral("externalServerUrl")), &serverUrl)) {
+    plantUml.insert(QStringLiteral("externalServerUrl"), serverUrl);
+    values.insert(QStringLiteral("plantuml"), plantUml);
+  }
+
+  QVariantMap spellcheck = values.value(QStringLiteral("spellcheck")).toMap();
+  const QVariant configuredWords = spellcheck.value(QStringLiteral("addedWords"));
+  if (configuredWords.metaType().id() == QMetaType::QVariantList ||
+      configuredWords.metaType().id() == QMetaType::QStringList) {
+    QStringList words;
+    const QVariantList items = configuredWords.toList();
+    for (const QVariant& item : items) {
+      QString word;
+      if (decodeLegacyByteString(item, &word) && !word.trimmed().isEmpty()) {
+        words.append(word);
+      }
+    }
+    spellcheck.insert(QStringLiteral("addedWords"), words);
+    values.insert(QStringLiteral("spellcheck"), spellcheck);
+  }
+  return values;
 }
 
 QVariantMap mergeMaps(QVariantMap base, const QVariantMap& overrides) {
@@ -139,7 +206,7 @@ bool GlobalConfigStore::reload(QString* errorMessage) {
     } else {
       parsed = fromYaml(YAML::Load(content.constData())).toMap();
     }
-    values_ = mergeMaps(values_, parsed);
+    values_ = normalizeLegacyStringContainers(mergeMaps(values_, parsed));
     return true;
   } catch (const std::exception& error) {
     if (errorMessage != nullptr) *errorMessage = QString::fromUtf8(error.what());

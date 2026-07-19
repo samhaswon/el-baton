@@ -14,6 +14,8 @@ class DocumentFileTest final : public QObject {
   void treatsUnclosedFrontMatterAsMarkdown();
   void createsAndDuplicatesNotes();
   void persistsMetadataFlags();
+  void comparesCanonicalContentIndependentlyOfEditorState();
+  void preparesCanonicalRevisionBeforeWritingIt();
 };
 
 namespace {
@@ -132,6 +134,55 @@ void DocumentFileTest::persistsMetadataFlags() {
   QVERIFY2(reloaded->saveBody(QStringLiteral("# Flags updated\n"), &error, true), qPrintable(error));
   QVERIFY(reloaded->metadataPrefix().contains(QStringLiteral("modified:")));
   QCOMPARE(reloaded->body(), QStringLiteral("# Flags updated\n"));
+}
+
+void DocumentFileTest::comparesCanonicalContentIndependentlyOfEditorState() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString path = writeFile(directory, QByteArrayLiteral(
+      "---\ntitle: Race\nmodified: '2026-07-19T12:00:00.000Z'\n---\n\n# Saved revision\n"));
+  QVERIFY(!path.isEmpty());
+
+  const auto canonical = qt_editor::DocumentFile::load(path);
+  const auto delayedWatcherRead = qt_editor::DocumentFile::load(path);
+  QVERIFY(canonical.has_value());
+  QVERIFY(delayedWatcherRead.has_value());
+  QVERIFY(canonical->hasSameContent(*delayedWatcherRead));
+
+  // A newer unsaved editor buffer is intentionally not part of this
+  // comparison. A genuinely different disk revision must still be detected.
+  QFile external(path);
+  QVERIFY(external.open(QIODevice::WriteOnly | QIODevice::Truncate));
+  const QByteArray externalContent = QByteArrayLiteral(
+      "---\ntitle: Race\nmodified: '2026-07-19T12:00:01.000Z'\n---\n\n# External revision\n");
+  QCOMPARE(external.write(externalContent), externalContent.size());
+  external.close();
+  const auto externallyChanged = qt_editor::DocumentFile::load(path);
+  QVERIFY(externallyChanged.has_value());
+  QVERIFY(!canonical->hasSameContent(*externallyChanged));
+}
+
+void DocumentFileTest::preparesCanonicalRevisionBeforeWritingIt() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString path = writeFile(directory, QByteArrayLiteral(
+      "---\ntitle: Memory first\nmodified: '2026-07-19T12:00:00.000Z'\n---\n\n# Old\n"));
+  QVERIFY(!path.isEmpty());
+  const auto current = qt_editor::DocumentFile::load(path);
+  QVERIFY(current.has_value());
+
+  const QDateTime changedAt = QDateTime::fromString(
+      QStringLiteral("2026-07-19T12:34:56.789Z"), Qt::ISODateWithMs);
+  const qt_editor::DocumentFile next = current->withBody(
+      QStringLiteral("# New\n"), true, changedAt);
+  QCOMPARE(next.body(), QStringLiteral("# New\n"));
+  QVERIFY(next.modifiedAt().has_value());
+  QCOMPARE(next.modifiedAt()->toUTC(), changedAt);
+  QCOMPARE(readFile(path), current->serializedContent());
+
+  QString error;
+  QVERIFY2(next.writeToDisk(&error), qPrintable(error));
+  QCOMPARE(readFile(path), next.serializedContent());
 }
 
 QTEST_GUILESS_MAIN(DocumentFileTest)

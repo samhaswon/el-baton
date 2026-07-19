@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QByteArray>
+#include <QDateTime>
 #include <QString>
 #include <QStringList>
 
@@ -22,6 +24,14 @@ class DocumentFile final {
   [[nodiscard]] const QString& path() const { return path_; }
   [[nodiscard]] const QString& body() const { return body_; }
   [[nodiscard]] const QString& metadataPrefix() const { return metadataPrefix_; }
+  [[nodiscard]] QByteArray serializedContent() const;
+  [[nodiscard]] bool hasSameContent(const DocumentFile& other) const;
+  [[nodiscard]] std::optional<QDateTime> modifiedAt() const;
+  [[nodiscard]] DocumentFile withBody(
+      const QString& body,
+      bool updateModified = false,
+      const QDateTime& modified = {}) const;
+  [[nodiscard]] bool writeToDisk(QString* errorMessage = nullptr) const;
   [[nodiscard]] bool metadataFlag(NoteFlag flag) const;
   [[nodiscard]] QStringList tags() const;
   [[nodiscard]] bool saveBody(
@@ -34,7 +44,8 @@ class DocumentFile final {
       const QString& path,
       const QString& title,
       const QString& body,
-      QString* errorMessage = nullptr) const;
+      QString* errorMessage = nullptr,
+      QByteArray* writtenContent = nullptr) const;
 
  private:
   QString path_;

@@ -75,6 +75,39 @@ bool escapedAt(QStringView text, qsizetype position) {
   return (slashes % 2) != 0;
 }
 
+bool appendSuperscriptOrSubscript(QStringView line, qsizetype* cursor, QString* output) {
+  const qsizetype start = *cursor;
+  const QChar delimiter = line.at(start);
+  if ((delimiter != QLatin1Char('~') && delimiter != QLatin1Char('^')) ||
+      escapedAt(line, start) ||
+      (start > 0 && line.at(start - 1) == delimiter) ||
+      (start + 1 < line.size() && line.at(start + 1) == delimiter)) {
+    return false;
+  }
+
+  const qsizetype close = line.indexOf(delimiter, start + 1);
+  if (close <= start + 1 || escapedAt(line, close) ||
+      (close + 1 < line.size() && line.at(close + 1) == delimiter)) {
+    return false;
+  }
+  const QStringView contents = line.sliced(start + 1, close - start - 1);
+  if (contents.front().isSpace() || contents.back().isSpace() || contents.contains(delimiter)) {
+    return false;
+  }
+
+  const QStringView tag = delimiter == QLatin1Char('~')
+      ? QStringView(u"sub") : QStringView(u"sup");
+  *output += QLatin1Char('<');
+  *output += tag;
+  *output += QLatin1Char('>');
+  *output += contents;
+  *output += QStringLiteral("</");
+  *output += tag;
+  *output += QLatin1Char('>');
+  *cursor = close + 1;
+  return true;
+}
+
 QString preprocessMathLine(QStringView line) {
   QString output;
   qsizetype cursor = 0;
@@ -113,6 +146,7 @@ QString preprocessMathLine(QStringView line) {
       opener = QStringLiteral("$"); closer = opener;
     }
     if (opener.isEmpty()) {
+      if (appendSuperscriptOrSubscript(line, &cursor, &output)) continue;
       output += line.at(cursor++);
       continue;
     }

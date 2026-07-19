@@ -4,6 +4,7 @@
 #include "markdown_pipeline.h"
 #include "markdown_edits.h"
 #include "preview_bridge.h"
+#include "reference_icons.h"
 #include "plantuml_renderer.h"
 #include "sync_controller.h"
 #include "workspace_watcher.h"
@@ -17,31 +18,40 @@
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QContextMenuEvent>
 #include <QCompleter>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QFormLayout>
+#include <QtConcurrentRun>
 #include <QFrame>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QInputDialog>
+#include <QIcon>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QLocale>
 #include <QMenuBar>
+#include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPushButton>
+#include <QPainter>
 #include <QScrollArea>
+#include <QScopedValueRollback>
+#include <QScrollBar>
+#include <QShowEvent>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStringListModel>
@@ -69,12 +79,69 @@
 
 #include <chrono>
 #include <functional>
+#include <memory>
 #ifdef Q_OS_LINUX
 #include <unistd.h>
 #endif
 
 namespace qt_editor {
 namespace {
+
+QPixmap tintedReferencePixmap(const QString& name, int size, const QColor& color) {
+  initializeReferenceIcons();
+  QPixmap pixmap = QIcon(QStringLiteral(":/reference-icons/") + name +
+                         QStringLiteral(".svg")).pixmap(size, size);
+  if (pixmap.isNull()) return pixmap;
+  QPainter painter(&pixmap);
+  painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+  painter.fillRect(pixmap.rect(), color);
+  return pixmap;
+}
+
+QIcon referenceIcon(const QString& name) {
+  QIcon icon;
+  static constexpr int sizes[] = {16, 20, 24, 32, 48};
+  for (const int size : sizes) {
+    icon.addPixmap(tintedReferencePixmap(name, size, QColor(QStringLiteral("#eeeeee"))),
+                   QIcon::Normal, QIcon::Off);
+    icon.addPixmap(tintedReferencePixmap(name, size, QColor(QStringLiteral("#777777"))),
+                   QIcon::Disabled, QIcon::Off);
+  }
+  return icon;
+}
+
+QIcon referenceToggleIcon(const QString& offName, const QString& onName) {
+  QIcon icon;
+  static constexpr int sizes[] = {16, 20, 24, 32, 48};
+  for (const int size : sizes) {
+    icon.addPixmap(tintedReferencePixmap(offName, size, QColor(QStringLiteral("#eeeeee"))),
+                   QIcon::Normal, QIcon::Off);
+    icon.addPixmap(tintedReferencePixmap(onName, size, QColor(QStringLiteral("#ffffff"))),
+                   QIcon::Normal, QIcon::On);
+    icon.addPixmap(tintedReferencePixmap(offName, size, QColor(QStringLiteral("#777777"))),
+                   QIcon::Disabled, QIcon::Off);
+    icon.addPixmap(tintedReferencePixmap(onName, size, QColor(QStringLiteral("#777777"))),
+                   QIcon::Disabled, QIcon::On);
+  }
+  return icon;
+}
+
+QIcon referenceNoteStateIcon(bool pinned, bool favorited) {
+  if (!pinned && !favorited) return {};
+  if (!pinned) return referenceIcon(QStringLiteral("star"));
+  if (!favorited) return referenceIcon(QStringLiteral("pin"));
+  QPixmap combined(32, 16);
+  combined.fill(Qt::transparent);
+  QPainter painter(&combined);
+  painter.drawPixmap(0, 0, tintedReferencePixmap(QStringLiteral("pin"), 16,
+                                                  QColor(QStringLiteral("#eeeeee"))));
+  painter.drawPixmap(16, 0, tintedReferencePixmap(QStringLiteral("star"), 16,
+                                                   QColor(QStringLiteral("#eeeeee"))));
+  painter.end();
+  QIcon icon;
+  icon.addPixmap(combined);
+  return icon;
+}
 
 class WindowDragBar final : public QWidget {
  public:
@@ -100,6 +167,27 @@ class WindowDragBar final : public QWidget {
     }
     QWidget::mouseDoubleClickEvent(event);
   }
+};
+
+class LazyPanel final : public QWidget {
+ public:
+  explicit LazyPanel(QWidget* parent = nullptr) : QWidget(parent) {}
+
+  void setFirstShowCallback(std::function<void()> callback) {
+    callback_ = std::move(callback);
+  }
+
+ protected:
+  void showEvent(QShowEvent* event) override {
+    QWidget::showEvent(event);
+    if (!callback_) return;
+    std::function<void()> callback = std::move(callback_);
+    callback_ = {};
+    callback();
+  }
+
+ private:
+  std::function<void()> callback_;
 };
 
 class WorkspaceRequestInterceptor final : public QWebEngineUrlRequestInterceptor {
@@ -212,6 +300,8 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
       "QComboBox { background: #242424; border: 1px solid #3b3b3b; border-radius: 5px; padding: 4px 7px; }"
       "QLineEdit#navigationSearch { background: #242424; color: #f6f6f6; border: 1px solid #363636; border-radius: 6px; padding: 6px 8px; }"
       "QLineEdit#navigationSearch:focus { border-color: #6796e6; }"
+      "QWidget#findBar { background: #252525; border-bottom: 1px solid #3b3b3b; }"
+      "QWidget#findBar QLineEdit { background: #1b1b1b; color: #eee; border: 1px solid #474747; border-radius: 4px; padding: 4px 6px; }"
       "QListWidget#noteList, QTreeWidget#noteList { background: transparent; color: #e8e8e8; border: 0; outline: 0; }"
       "QListWidget#noteList::item, QTreeWidget#noteList::item { min-height: 28px; padding: 2px 5px; border-radius: 6px; }"
       "QListWidget#noteList::item:hover, QTreeWidget#noteList::item:hover { background: rgba(255,255,255,0.05); }"
@@ -236,9 +326,6 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
   renderTimer_.setSingleShot(true);
   renderTimer_.setInterval(120);
   connect(&renderTimer_, &QTimer::timeout, this, &MainWindow::renderDocument);
-  autosaveTimer_.setSingleShot(true);
-  autosaveTimer_.setInterval(500);
-  connect(&autosaveTimer_, &QTimer::timeout, this, &MainWindow::autosaveActiveDocument);
   if (options_.overlayEnabled) {
     usageTimer_.setInterval(1000);
     connect(&usageTimer_, &QTimer::timeout, this, &MainWindow::sampleProcessUsage);
@@ -246,8 +333,76 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
   }
   connect(editor_, &QsciScintilla::textChanged, this, &MainWindow::scheduleRender);
   connect(editor_, &QsciScintilla::textChanged, this, [this] {
-    if (!switchingDocuments_ && document_.has_value()) autosaveTimer_.start();
+    if (!switchingDocuments_ && document_.has_value()) {
+      editorModifiedAt_ = QDateTime::currentDateTimeUtc();
+    }
+    ++spellcheckGeneration_;
+    spellcheckTimer_.start();
   });
+  spellcheckTimer_.setSingleShot(true);
+  spellcheckTimer_.setInterval(200);
+  connect(editor_->verticalScrollBar(), &QScrollBar::valueChanged, this, [this] {
+    ++spellcheckGeneration_;
+    spellcheckTimer_.start();
+  });
+  connect(&spellcheckTimer_, &QTimer::timeout, this, [this] {
+    const bool batterySpellcheckDisabled =
+        globalConfig_.value(QStringLiteral("battery.enabled"), false).toBool() &&
+        globalConfig_.value(QStringLiteral("battery.disableSpellcheck"), false).toBool();
+    if (spellcheckWatcher_.isRunning() ||
+        globalConfig_.value(QStringLiteral("spellcheck.disable"), false).toBool() ||
+        batterySpellcheckDisabled ||
+        !SpellChecker::isAvailable()) return;
+
+    const int lineCount = editor_->lines();
+    if (lineCount <= 0) return;
+    constexpr int lineBuffer = 8;
+    const int firstVisibleLine = std::clamp(editor_->firstVisibleLine(), 0, lineCount - 1);
+    const int visibleLineCount = std::max(
+        1, static_cast<int>(editor_->SendScintilla(QsciScintilla::SCI_LINESONSCREEN)));
+    const int startLine = std::max(0, firstVisibleLine - lineBuffer);
+    const int endLine = std::min(lineCount - 1, firstVisibleLine + visibleLineCount + lineBuffer);
+    const int startByte = editor_->positionFromLineIndex(startLine, 0);
+    const int endByte = endLine + 1 < lineCount
+        ? editor_->positionFromLineIndex(endLine + 1, 0)
+        : editor_->length();
+    QByteArray visibleUtf8(endByte - startByte + 1, '\0');
+    editor_->SendScintilla(QsciScintilla::SCI_GETTEXTRANGE,
+                           static_cast<long>(startByte), static_cast<long>(endByte),
+                           visibleUtf8.data());
+    visibleUtf8.truncate(endByte - startByte);
+
+    spellcheckRequestGeneration_ = spellcheckGeneration_;
+    spellcheckRequestStartByte_ = startByte;
+    QStringList addedWords;
+    const QVariant words = globalConfig_.value(QStringLiteral("spellcheck.addedWords"));
+    for (const QVariant& word : words.toList()) addedWords.append(word.toString());
+    if (addedWords.isEmpty()) addedWords = words.toStringList();
+    spellcheckWatcher_.setFuture(QtConcurrent::run(
+        [source = QString::fromUtf8(visibleUtf8), addedWords] {
+          return SpellChecker::check(source, addedWords);
+        }));
+  });
+  connect(&spellcheckWatcher_, &QFutureWatcher<QVector<SpellingIssue>>::finished, this, [this] {
+    if (spellcheckRequestGeneration_ != spellcheckGeneration_) {
+      spellcheckTimer_.start();
+      return;
+    }
+    spellingIssues_ = spellcheckWatcher_.result();
+    for (SpellingIssue& issue : spellingIssues_) {
+      issue.startByte += spellcheckRequestStartByte_;
+    }
+    editor_->SendScintilla(QsciScintilla::SCI_SETINDICATORCURRENT, spellcheckIndicator_);
+    editor_->SendScintilla(QsciScintilla::SCI_INDICATORCLEARRANGE,
+                           0, editor_->length());
+    for (const SpellingIssue& issue : spellingIssues_) {
+      editor_->SendScintilla(QsciScintilla::SCI_INDICATORFILLRANGE,
+                             issue.startByte, issue.lengthBytes);
+    }
+    spellcheckAppliedGeneration_ = spellcheckRequestGeneration_;
+  });
+  editor_->installEventFilter(this);
+  editor_->viewport()->installEventFilter(this);
   connect(editor_, &QsciScintilla::modificationChanged, this, &MainWindow::updateWindowTitle);
   connect(bridge_, &PreviewBridge::browserMetricsChanged, this, &MainWindow::updateStatus);
   connect(bridge_, &PreviewBridge::plantUmlRenderRequested,
@@ -303,10 +458,12 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
   connect(bridge_, &PreviewBridge::taskToggleRequested, this,
           [this, applyPreviewEdit](qsizetype taskIndex, bool checked) {
     applyPreviewEdit(MarkdownEdits::setTaskChecked(editor_->text(), taskIndex, checked));
+    autosaveActiveDocument();
   });
   connect(bridge_, &PreviewBridge::detailsToggleRequested, this,
           [this, applyPreviewEdit](qsizetype detailsIndex, bool open) {
     applyPreviewEdit(MarkdownEdits::setDetailsOpen(editor_->text(), detailsIndex, open));
+    autosaveActiveDocument();
   });
   connect(bridge_, &PreviewBridge::clientReady, this, [this](const QString& role) {
     if (role != QStringLiteral("preview")) return;
@@ -374,6 +531,7 @@ QWidget* MainWindow::createApplicationChrome(QSplitter* documentSplitter) {
     persistOpenTabs();
   });
   documentLayout->addWidget(noteTabs_);
+  documentLayout->addWidget(createFindBar());
   documentLayout->addWidget(documentSplitter, 1);
   mainContentStack_ = new QStackedWidget(root);
   mainContentStack_->addWidget(documentView);
@@ -408,6 +566,69 @@ QWidget* MainWindow::createApplicationChrome(QSplitter* documentSplitter) {
   return root;
 }
 
+QWidget* MainWindow::createFindBar() {
+  findBar_ = new QWidget(this);
+  findBar_->setObjectName(QStringLiteral("findBar"));
+  auto* layout = new QHBoxLayout(findBar_);
+  layout->setContentsMargins(8, 5, 8, 5);
+  layout->setSpacing(5);
+  findInput_ = new QLineEdit(findBar_);
+  findInput_->setPlaceholderText(QStringLiteral("Find"));
+  findInput_->setClearButtonEnabled(true);
+  replaceInput_ = new QLineEdit(findBar_);
+  replaceInput_->setPlaceholderText(QStringLiteral("Replace"));
+  replaceInput_->setClearButtonEnabled(true);
+  findCaseSensitive_ = new QCheckBox(QStringLiteral("Aa"), findBar_);
+  findCaseSensitive_->setToolTip(QStringLiteral("Match case"));
+  findWholeWord_ = new QCheckBox(QStringLiteral("Word"), findBar_);
+  findWholeWord_->setToolTip(QStringLiteral("Match whole word"));
+  findRegex_ = new QCheckBox(QStringLiteral(".*"), findBar_);
+  findRegex_->setToolTip(QStringLiteral("Use regular expression"));
+  findStatus_ = new QLabel(findBar_);
+  findStatus_->setMinimumWidth(70);
+  const auto button = [this, layout](const QString& text, const QString& tooltip, auto callback) {
+    auto* result = new QToolButton(findBar_);
+    result->setText(text);
+    result->setToolTip(tooltip);
+    connect(result, &QToolButton::clicked, this, callback);
+    layout->addWidget(result);
+    return result;
+  };
+  replaceModeButton_ = new QToolButton(findBar_);
+  replaceModeButton_->setText(QStringLiteral("▸ Replace"));
+  replaceModeButton_->setToolTip(QStringLiteral("Show or hide replace controls (Ctrl+H)"));
+  replaceModeButton_->setCheckable(true);
+  connect(replaceModeButton_, &QToolButton::toggled, this, [this](bool visible) {
+    replaceModeButton_->setText(visible ? QStringLiteral("▾ Replace")
+                                        : QStringLiteral("▸ Replace"));
+    replaceInput_->setVisible(visible);
+    replaceCurrentButton_->setVisible(visible);
+    replaceAllButton_->setVisible(visible);
+    if (visible) replaceInput_->setFocus();
+  });
+  layout->addWidget(replaceModeButton_);
+  layout->addWidget(findInput_, 2);
+  layout->addWidget(replaceInput_, 2);
+  layout->addWidget(findCaseSensitive_);
+  layout->addWidget(findWholeWord_);
+  layout->addWidget(findRegex_);
+  layout->addWidget(findStatus_);
+  button(QStringLiteral("↑"), QStringLiteral("Previous match (Shift+F3)"), [this] { findInEditor(false); });
+  button(QStringLiteral("↓"), QStringLiteral("Next match (F3)"), [this] { findInEditor(true); });
+  replaceCurrentButton_ = button(QStringLiteral("Replace"), QStringLiteral("Replace current match"),
+                                 [this] { replaceCurrentMatch(); });
+  replaceAllButton_ = button(QStringLiteral("All"), QStringLiteral("Replace all matches"),
+                             [this] { replaceAllMatches(); });
+  button(QStringLiteral("×"), QStringLiteral("Close"), [this] { findBar_->hide(); editor_->setFocus(); });
+  connect(findInput_, &QLineEdit::returnPressed, this, [this] { findInEditor(true); });
+  connect(replaceInput_, &QLineEdit::returnPressed, this, &MainWindow::replaceCurrentMatch);
+  replaceInput_->hide();
+  replaceCurrentButton_->hide();
+  replaceAllButton_->hide();
+  findBar_->hide();
+  return findBar_;
+}
+
 QWidget* MainWindow::createActivityBar(QWidget* navigationPane) {
   auto* activityBar = new QWidget(this);
   activityBar->setObjectName(QStringLiteral("activityBar"));
@@ -416,9 +637,10 @@ QWidget* MainWindow::createActivityBar(QWidget* navigationPane) {
   layout->setContentsMargins(5, 8, 5, 8);
   layout->setSpacing(5);
 
-  const auto addButton = [activityBar, layout](const QString& text, const QString& tooltip) {
+  const auto addButton = [activityBar, layout](const QIcon& icon, const QString& tooltip) {
     auto* button = new QToolButton(activityBar);
-    button->setText(text);
+    button->setIcon(icon);
+    button->setIconSize(QSize(23, 23));
     button->setToolTip(tooltip);
     button->setFixedSize(46, 42);
     button->setCheckable(true);
@@ -428,11 +650,16 @@ QWidget* MainWindow::createActivityBar(QWidget* navigationPane) {
 
   auto* panelGroup = new QButtonGroup(activityBar);
   panelGroup->setExclusive(true);
-  QToolButton* file = addButton(QStringLiteral("☰"), QStringLiteral("File and note actions"));
-  QToolButton* explorer = addButton(QStringLiteral("▣"), QStringLiteral("Explorer"));
-  QToolButton* search = addButton(QStringLiteral("⌕"), QStringLiteral("Global search"));
-  QToolButton* graph = addButton(QStringLiteral("◇"), QStringLiteral("Graph"));
-  QToolButton* info = addButton(QStringLiteral("ⓘ"), QStringLiteral("Note information"));
+  QToolButton* file = addButton(referenceIcon(QStringLiteral("notebook-multiple")),
+                                QStringLiteral("File and note actions"));
+  QToolButton* explorer = addButton(referenceIcon(QStringLiteral("notebook")),
+                                    QStringLiteral("Explorer"));
+  QToolButton* search = addButton(referenceIcon(QStringLiteral("magnify")),
+                                  QStringLiteral("Global search"));
+  QToolButton* graph = addButton(referenceIcon(QStringLiteral("tag-multiple")),
+                                 QStringLiteral("Graph"));
+  QToolButton* info = addButton(referenceIcon(QStringLiteral("info")),
+                                QStringLiteral("Note information"));
   panelGroup->addButton(file, 0);
   panelGroup->addButton(explorer, 1);
   panelGroup->addButton(search, 2);
@@ -479,8 +706,12 @@ QWidget* MainWindow::createActivityBar(QWidget* navigationPane) {
     persistPanel(panelNames.at(index));
   });
   layout->addStretch();
-  QToolButton* help = addButton(QStringLiteral("?"), QStringLiteral("Cheatsheets"));
-  QToolButton* settings = addButton(QStringLiteral("⚙"), QStringLiteral("Settings"));
+  QToolButton* help = addButton(referenceIcon(QStringLiteral("note")),
+                                QStringLiteral("Cheatsheets"));
+  QToolButton* settings = addButton(
+      QIcon::fromTheme(QStringLiteral("preferences-system"),
+                       referenceIcon(QStringLiteral("pencil"))),
+      QStringLiteral("Settings"));
   panelGroup->addButton(help, 5);
   panelGroup->addButton(settings, 6);
   const QString initialPanel = settings_.value(QStringLiteral("window.panel"), QStringLiteral("explorer")).toString();
@@ -501,9 +732,10 @@ QWidget* MainWindow::createDocumentToolbar() {
   layout->setContentsMargins(7, 3, 0, 3);
   layout->setSpacing(3);
 
-  const auto addTool = [toolbar, layout](const QString& text, const QString& tooltip, bool enabled = false) {
+  const auto addTool = [toolbar, layout](const QIcon& icon, const QString& tooltip, bool enabled = false) {
     auto* button = new QToolButton(toolbar);
-    button->setText(text);
+    button->setIcon(icon);
+    button->setIconSize(QSize(19, 19));
     button->setToolTip(tooltip);
     button->setEnabled(enabled);
     button->setFixedHeight(31);
@@ -517,38 +749,41 @@ QWidget* MainWindow::createDocumentToolbar() {
       if (button->isCheckable()) button->setChecked(action->isChecked());
     });
   };
-  auto* edit = addTool(QStringLiteral("✎"), QStringLiteral("Toggle editing"), true);
+  auto* edit = addTool(referenceIcon(QStringLiteral("pencil")), QStringLiteral("Toggle editing"), true);
   edit->setCheckable(true);
   edit->setChecked(true);
   connect(edit, &QToolButton::toggled, editAction_, &QAction::setChecked);
   bindAction(edit, editAction_);
-  auto* tags = addTool(QStringLiteral("◆"), QStringLiteral("Edit tags"), true);
+  auto* tags = addTool(referenceIcon(QStringLiteral("tag-multiple")), QStringLiteral("Edit tags"), true);
   connect(tags, &QToolButton::clicked, tagsAction_, &QAction::trigger);
   bindAction(tags, tagsAction_);
-  auto* attachments = addTool(QStringLiteral("⌕"), QStringLiteral("Add attachment"), true);
+  auto* attachments = addTool(referenceIcon(QStringLiteral("paperclip")), QStringLiteral("Add attachment"), true);
   connect(attachments, &QToolButton::clicked, attachmentsAction_, &QAction::trigger);
   bindAction(attachments, attachmentsAction_);
-  auto* favorite = addTool(QStringLiteral("☆"), QStringLiteral("Favorite or unfavorite"), true);
+  auto* favorite = addTool(referenceToggleIcon(QStringLiteral("star-outline"), QStringLiteral("star")),
+                           QStringLiteral("Favorite or unfavorite"), true);
   favorite->setCheckable(true);
   connect(favorite, &QToolButton::clicked, favoriteAction_, &QAction::trigger);
   bindAction(favorite, favoriteAction_);
-  auto* pin = addTool(QStringLiteral("⚑"), QStringLiteral("Pin or unpin"), true);
+  auto* pin = addTool(referenceToggleIcon(QStringLiteral("pin-outline"), QStringLiteral("pin")),
+                      QStringLiteral("Pin or unpin"), true);
   pin->setCheckable(true);
   connect(pin, &QToolButton::clicked, pinAction_, &QAction::trigger);
   bindAction(pin, pinAction_);
-  auto* trash = addTool(QStringLiteral("⌫"), QStringLiteral("Move to trash or restore"), true);
+  auto* trash = addTool(referenceIcon(QStringLiteral("delete")),
+                        QStringLiteral("Move to trash or restore"), true);
   connect(trash, &QToolButton::clicked, trashAction_, &QAction::trigger);
   bindAction(trash, trashAction_);
 
   layout->addWidget(new WindowDragBar(toolbar), 1);
 
-  auto* minimize = addTool(QString(), QStringLiteral("Minimize"), true);
+  auto* minimize = addTool(QIcon(), QStringLiteral("Minimize"), true);
   minimize->setObjectName(QStringLiteral("windowButton"));
   minimize->setIcon(style()->standardIcon(QStyle::SP_TitleBarMinButton));
   minimize->setIconSize(QSize(13, 13));
   minimize->setFixedSize(34, 28);
   connect(minimize, &QToolButton::clicked, this, &QWidget::showMinimized);
-  auto* maximize = addTool(QString(), QStringLiteral("Maximize or restore"), true);
+  auto* maximize = addTool(QIcon(), QStringLiteral("Maximize or restore"), true);
   maximize->setObjectName(QStringLiteral("windowButton"));
   maximize->setIcon(style()->standardIcon(QStyle::SP_TitleBarMaxButton));
   maximize->setIconSize(QSize(13, 13));
@@ -556,7 +791,7 @@ QWidget* MainWindow::createDocumentToolbar() {
   connect(maximize, &QToolButton::clicked, this, [this] {
     isMaximized() ? showNormal() : showMaximized();
   });
-  auto* close = addTool(QString(), QStringLiteral("Close"), true);
+  auto* close = addTool(QIcon(), QStringLiteral("Close"), true);
   close->setObjectName(QStringLiteral("closeWindowButton"));
   close->setIcon(style()->standardIcon(QStyle::SP_TitleBarCloseButton));
   close->setIconSize(QSize(14, 14));
@@ -651,6 +886,7 @@ QWidget* MainWindow::createExplorerPanel() {
   noteTree_->setObjectName(QStringLiteral("noteList"));
   noteTree_->setHeaderHidden(true);
   noteTree_->setIndentation(14);
+  noteTree_->setIconSize(QSize(32, 16));
   noteTree_->setAnimated(false);
   layout->addWidget(noteTree_, 1);
 
@@ -896,26 +1132,45 @@ QWidget* MainWindow::createInfoPanel() {
 }
 
 QWidget* MainWindow::createHelpPanel() {
-  auto* panel = new QWidget(this);
+  auto* panel = new LazyPanel(this);
   auto* layout = new QVBoxLayout(panel);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(0);
   auto* header = new QLabel(QStringLiteral("Cheatsheet"), panel);
   header->setStyleSheet(QStringLiteral("background:#262626;color:#aaa;border-bottom:1px solid #000;padding:9px 12px;"));
   layout->addWidget(header);
-  auto* content = new QTextBrowser(panel);
-  content->setOpenExternalLinks(true);
-  content->setStyleSheet(QStringLiteral("QTextBrowser{background:#1f1f1f;color:#f6f6f6;border:0;padding:18px;}"));
-  content->setHtml(QStringLiteral(
-      "<style>body{font:16px sans-serif;line-height:1.55;max-width:900px;margin:auto}"
-      "h1,h2{border-bottom:1px solid #343434;padding-bottom:.35em}code,pre{background:#151515}"
-      "pre{padding:14px;border-radius:7px}code{color:#e8e8e8}a{color:#6796e6}</style>"
-      "<h1>El Baton Cheatsheet</h1>"
-      "<h2>Markdown</h2><pre><code># Heading\n**bold**  *italic*\n- [x] Task\n[Link](https://example.com)</code></pre>"
-      "<h2>KaTeX</h2><p>Inline math: <code>$a^2 + b^2 = c^2$</code></p>"
-      "<p>Display math uses a block delimited by <code>$$</code>.</p>"
-      "<h2>Mermaid</h2><pre><code>```mermaid\ngraph TD\n  A --&gt; B\n```</code></pre>"
-      "<h2>Keyboard shortcuts</h2><p><b>Ctrl+O</b> Open a note &nbsp; <b>Ctrl+S</b> Save</p>"));
+  auto* content = new QWebEngineView(panel);
+  auto* helpBridge = new PreviewBridge(content);
+  auto helpPipeline = std::make_shared<MarkdownPipeline>();
+  auto* channel = new QWebChannel(content->page());
+  channel->registerObject(QStringLiteral("previewBridge"), helpBridge);
+  content->page()->setWebChannel(channel);
+  connect(helpBridge, &PreviewBridge::plantUmlRenderRequested,
+          plantUmlRenderer_, &PlantUmlRenderer::requestRenderBatch);
+  connect(plantUmlRenderer_, &PlantUmlRenderer::resultsReady,
+          helpBridge, &PreviewBridge::publishPlantUmlResults);
+  connect(helpBridge, &PreviewBridge::clientReady, content,
+          [this, helpBridge, helpPipeline](const QString& role) {
+    if (role != QStringLiteral("preview")) return;
+    QFile file(QStringLiteral(QT_EDITOR_CHEATSHEET_MARKDOWN));
+    if (!file.open(QIODevice::ReadOnly)) {
+      qWarning() << "Unable to load generated cheatsheet:" << file.errorString();
+      return;
+    }
+    RenderResult result = helpPipeline->render(QString::fromUtf8(file.readAll()), 1);
+    QJsonObject update = result.toJson(PatchMode::FullDocument);
+    update.insert(QStringLiteral("katexEnabled"), true);
+    update.insert(QStringLiteral("mermaidEnabled"), true);
+    update.insert(QStringLiteral("mermaidTheme"), QStringLiteral("dark"));
+    update.insert(QStringLiteral("plantUmlServerUrl"), PlantUmlRenderer::normalizeServerUrl(
+        globalConfig_.value(QStringLiteral("plantuml.externalServerUrl")).toString()));
+    update.insert(QStringLiteral("overlayEnabled"), false);
+    update.insert(QStringLiteral("hiddenMermaidPage"), false);
+    helpBridge->publishRender(update);
+  });
+  panel->setFirstShowCallback([content] {
+    content->setUrl(QUrl::fromLocalFile(QStringLiteral(QT_EDITOR_WEB_DIR "/preview.html")));
+  });
   layout->addWidget(content, 1);
   return panel;
 }
@@ -1192,6 +1447,20 @@ void MainWindow::applyGlobalConfiguration() {
   renderTimer_.setInterval(delayedRendering
       ? std::max(120, globalConfig_.value(QStringLiteral("battery.renderDelayMs"), 400).toInt())
       : 120);
+  const bool spellcheckDisabled = globalConfig_.value(
+      QStringLiteral("spellcheck.disable"), false).toBool() ||
+      (batteryMode && globalConfig_.value(
+          QStringLiteral("battery.disableSpellcheck"), false).toBool());
+  if (spellcheckIndicator_ >= 0) {
+    editor_->SendScintilla(QsciScintilla::SCI_SETINDICATORCURRENT, spellcheckIndicator_);
+    if (spellcheckDisabled) {
+      editor_->SendScintilla(QsciScintilla::SCI_INDICATORCLEARRANGE, 0,
+                             editor_->SendScintilla(QsciScintilla::SCI_GETLENGTH));
+      spellingIssues_.clear();
+    } else {
+      spellcheckTimer_.start();
+    }
+  }
   if (plantUmlRenderer_ != nullptr) {
     plantUmlRenderer_->configure(
         globalConfig_.value(QStringLiteral("plantuml.requestTimeoutMs"), 12000).toInt(),
@@ -1234,10 +1503,9 @@ void MainWindow::refreshWorkspaceViews() {
     return item;
   };
   const auto addNote = [this](QTreeWidgetItem* parent, const NoteSummary& note) {
-    const QString markers = QStringLiteral("%1%2")
-        .arg(note.pinned ? QStringLiteral("⚑ ") : QString(), note.favorited ? QStringLiteral("★ ") : QString());
     auto* item = new QTreeWidgetItem(parent);
-    item->setText(0, markers + note.title);
+    item->setText(0, note.title);
+    item->setIcon(0, referenceNoteStateIcon(note.pinned, note.favorited));
     item->setToolTip(0, note.relativePath);
     item->setData(0, Qt::UserRole, note.filePath);
     if (QFileInfo(note.filePath) == QFileInfo(currentPath_)) noteTree_->setCurrentItem(item);
@@ -1294,6 +1562,7 @@ void MainWindow::refreshWorkspaceViews() {
 }
 
 void MainWindow::handleWorkspaceChanges(const QVector<WorkspaceChange>& changes) {
+  const QScopedValueRollback<bool> handlingChanges(handlingWorkspaceChanges_, true);
   const auto findOpenDocument = [this](const QString& path) {
     for (int index = 0; index < openDocuments_.size(); ++index) {
       if (openDocuments_.at(index).document.path() == path) return index;
@@ -1307,6 +1576,7 @@ void MainWindow::handleWorkspaceChanges(const QVector<WorkspaceChange>& changes)
     int restoreIndex = state.cursorIndex;
     if (index == activeDocumentIndex_) editor_->getCursorPosition(&restoreLine, &restoreIndex);
     state.document = reloaded;
+    workspaceWatcher_->acceptDiskState(reloaded.path(), reloaded.serializedContent());
     state.body = reloaded.body();
     state.modified = false;
     state.cursorLine = restoreLine;
@@ -1354,6 +1624,30 @@ void MainWindow::handleWorkspaceChanges(const QVector<WorkspaceChange>& changes)
     const std::optional<DocumentFile> reloaded = DocumentFile::load(change.path, &errorMessage);
     if (!reloaded.has_value()) {
       qWarning() << "Unable to reload externally changed note" << change.path << errorMessage;
+      continue;
+    }
+
+    const DocumentFile& canonical = openDocuments_.at(index).document;
+    const std::optional<QDateTime> canonicalModified = canonical.modifiedAt();
+    const std::optional<QDateTime> incomingModified = reloaded->modifiedAt();
+    if (canonicalModified.has_value() && incomingModified.has_value() &&
+        canonicalModified->toMSecsSinceEpoch() > incomingModified->toMSecsSinceEpoch()) {
+      continue;
+    }
+    if (reloaded->serializedContent().isEmpty() && !canonical.serializedContent().isEmpty() &&
+        canonicalModified.has_value()) {
+      const qint64 diskModifiedMs = QFileInfo(change.path).lastModified().toMSecsSinceEpoch();
+      if (std::abs(diskModifiedMs - canonicalModified->toMSecsSinceEpoch()) < 1500) {
+        continue;
+      }
+    }
+
+    // Match the reference implementation's Note.is check. Filesystem events
+    // from our last save can arrive after the editor already contains a newer,
+    // dirty revision. The dirty flag alone therefore cannot identify an
+    // external write: first compare disk with the canonical last-saved model.
+    if (change.kind == WorkspaceChangeKind::Modified &&
+        openDocuments_.at(index).document.hasSameContent(*reloaded)) {
       continue;
     }
 
@@ -1507,6 +1801,9 @@ void MainWindow::configureEditor() {
   editor_->setIndentationsUseTabs(false);
   editor_->setTabWidth(2);
   editor_->setEolMode(QsciScintilla::EolUnix);
+  spellcheckIndicator_ = editor_->indicatorDefine(QsciScintilla::SquiggleIndicator);
+  editor_->setIndicatorForegroundColor(QColor(QStringLiteral("#e06c75")), spellcheckIndicator_);
+  spellcheckTimer_.start();
 }
 
 void MainWindow::configurePreview() {
@@ -1552,6 +1849,27 @@ void MainWindow::createMenus() {
   connect(duplicateAction_, &QAction::triggered, this, &MainWindow::duplicateNote);
   addAction(duplicateAction_);
 
+  const auto addEditorAction = [this](const QString& text, const QKeySequence& shortcut, auto callback) {
+    auto* action = new QAction(text, this);
+    action->setShortcut(shortcut);
+    connect(action, &QAction::triggered, this, callback);
+    addAction(action);
+  };
+  addEditorAction(QStringLiteral("Find"), QKeySequence::Find,
+                  [this] { showFindBar(false); });
+  addEditorAction(QStringLiteral("Replace"), QKeySequence(Qt::CTRL | Qt::Key_H),
+                  [this] { showFindBar(true); });
+  addEditorAction(QStringLiteral("Find Next"), QKeySequence(Qt::Key_F3),
+                  [this] { findInEditor(true); });
+  addEditorAction(QStringLiteral("Find Previous"), QKeySequence(Qt::SHIFT | Qt::Key_F3),
+                  [this] { findInEditor(false); });
+  addEditorAction(QStringLiteral("Close Find"), QKeySequence(Qt::Key_Escape), [this] {
+    if (findBar_ != nullptr && findBar_->isVisible()) {
+      findBar_->hide();
+      editor_->setFocus();
+    }
+  });
+
   editAction_ = new QAction(QStringLiteral("Edit"), this);
   editAction_->setCheckable(true);
   editAction_->setChecked(true);
@@ -1571,6 +1889,67 @@ void MainWindow::createMenus() {
   trashAction_ = new QAction(QStringLiteral("Move to Trash"), this);
   connect(trashAction_, &QAction::triggered, this, &MainWindow::toggleDeleted);
   updateDocumentActions();
+}
+
+void MainWindow::showFindBar(bool replaceMode) {
+  if (findBar_ == nullptr) return;
+  replaceModeButton_->setChecked(replaceMode);
+  const QString selection = editor_->selectedText();
+  if (!selection.isEmpty() && !selection.contains(QLatin1Char('\n'))) findInput_->setText(selection);
+  findBar_->show();
+  QLineEdit* focusInput = replaceMode ? replaceInput_ : findInput_;
+  focusInput->setFocus();
+  focusInput->selectAll();
+}
+
+void MainWindow::findInEditor(bool forward) {
+  if (findBar_ == nullptr || !findBar_->isVisible()) showFindBar(false);
+  const QString expression = findInput_->text();
+  if (expression.isEmpty()) {
+    findStatus_->clear();
+    return;
+  }
+  int startLine = -1;
+  int startIndex = -1;
+  int fromLine = 0;
+  int fromIndex = 0;
+  int toLine = 0;
+  int toIndex = 0;
+  if (editor_->hasSelectedText()) {
+    editor_->getSelection(&fromLine, &fromIndex, &toLine, &toIndex);
+    startLine = forward ? toLine : fromLine;
+    startIndex = forward ? toIndex : fromIndex;
+  }
+  const bool found = editor_->findFirst(
+      expression, findRegex_->isChecked(), findCaseSensitive_->isChecked(),
+      findWholeWord_->isChecked(), true, forward, startLine, startIndex, true);
+  findStatus_->setText(found ? QStringLiteral("Match") : QStringLiteral("No matches"));
+}
+
+void MainWindow::replaceCurrentMatch() {
+  if (findBar_ == nullptr || !findBar_->isVisible()) showFindBar(true);
+  if (!editor_->hasSelectedText()) {
+    findInEditor(true);
+    return;
+  }
+  editor_->replace(replaceInput_->text());
+  findInEditor(true);
+}
+
+void MainWindow::replaceAllMatches() {
+  if (findInput_ == nullptr || findInput_->text().isEmpty()) return;
+  int replacements = 0;
+  editor_->beginUndoAction();
+  bool found = editor_->findFirst(
+      findInput_->text(), findRegex_->isChecked(), findCaseSensitive_->isChecked(),
+      findWholeWord_->isChecked(), false, true, 0, 0, true);
+  while (found) {
+    editor_->replace(replaceInput_->text());
+    ++replacements;
+    found = editor_->findNext();
+  }
+  editor_->endUndoAction();
+  findStatus_->setText(QStringLiteral("%1 replaced").arg(replacements));
 }
 
 void MainWindow::chooseFile() {
@@ -1604,11 +1983,12 @@ void MainWindow::createNote() {
     path = notesDirectory.filePath(QStringLiteral("%1 %2.md").arg(fileName).arg(suffix++));
   }
   QString errorMessage;
-  if (!DocumentFile::create(path, title, &errorMessage).has_value()) {
+  const std::optional<DocumentFile> created = DocumentFile::create(path, title, &errorMessage);
+  if (!created.has_value()) {
     QMessageBox::critical(this, QStringLiteral("New note failed"), errorMessage);
     return;
   }
-  workspaceWatcher_->acknowledgeWrite(path);
+  workspaceWatcher_->acknowledgeWrite(path, created->serializedContent());
   workspace_.refresh();
   refreshWorkspaceViews();
   openFile(path);
@@ -1629,11 +2009,12 @@ void MainWindow::duplicateNote() {
     path = directory.filePath(QStringLiteral("%1.%2").arg(title, extension));
   }
   QString errorMessage;
-  if (!document_->writeCopy(path, title, editor_->text(), &errorMessage)) {
+  QByteArray writtenContent;
+  if (!document_->writeCopy(path, title, editor_->text(), &errorMessage, &writtenContent)) {
     QMessageBox::critical(this, QStringLiteral("Duplicate failed"), errorMessage);
     return;
   }
-  workspaceWatcher_->acknowledgeWrite(path);
+  workspaceWatcher_->acknowledgeWrite(path, writtenContent);
   workspace_.refresh();
   refreshWorkspaceViews();
   openFile(path);
@@ -1641,6 +2022,7 @@ void MainWindow::duplicateNote() {
 
 void MainWindow::toggleEditing(bool editing) {
   if (editor_ == nullptr) return;
+  if (!editing) autosaveActiveDocument();
   editor_->setVisible(editing);
   if (editing) editor_->setFocus();
 }
@@ -1670,7 +2052,7 @@ void MainWindow::editTags() {
       QMessageBox::critical(&dialog, QStringLiteral("Tag update failed"), errorMessage);
       return;
     }
-    workspaceWatcher_->acknowledgeWrite(document_->path());
+    workspaceWatcher_->acknowledgeWrite(document_->path(), document_->serializedContent());
     if (activeDocumentIndex_ >= 0) openDocuments_[activeDocumentIndex_].document = *document_;
     workspace_.refresh();
     refreshWorkspaceViews();
@@ -1780,7 +2162,7 @@ void MainWindow::toggleFavorite() {
     QMessageBox::critical(this, QStringLiteral("Favorite failed"), errorMessage);
     return;
   }
-  workspaceWatcher_->acknowledgeWrite(document_->path());
+  workspaceWatcher_->acknowledgeWrite(document_->path(), document_->serializedContent());
   if (activeDocumentIndex_ >= 0) openDocuments_[activeDocumentIndex_].document = *document_;
   workspace_.refresh();
   refreshWorkspaceViews();
@@ -1795,7 +2177,7 @@ void MainWindow::togglePinned() {
     QMessageBox::critical(this, QStringLiteral("Pin failed"), errorMessage);
     return;
   }
-  workspaceWatcher_->acknowledgeWrite(document_->path());
+  workspaceWatcher_->acknowledgeWrite(document_->path(), document_->serializedContent());
   if (activeDocumentIndex_ >= 0) openDocuments_[activeDocumentIndex_].document = *document_;
   workspace_.refresh();
   refreshWorkspaceViews();
@@ -1813,7 +2195,7 @@ void MainWindow::toggleDeleted() {
     QMessageBox::critical(this, QStringLiteral("Trash operation failed"), errorMessage);
     return;
   }
-  workspaceWatcher_->acknowledgeWrite(document_->path());
+  workspaceWatcher_->acknowledgeWrite(document_->path(), document_->serializedContent());
   if (activeDocumentIndex_ >= 0) openDocuments_[activeDocumentIndex_].document = *document_;
   workspace_.refresh();
   refreshWorkspaceViews();
@@ -1892,6 +2274,7 @@ void MainWindow::activateDocument(int index) {
   workspace_.refresh();
   editor_->setText(state.body);
   editor_->setModified(state.modified);
+  editorModifiedAt_ = {};
   editor_->setCursorPosition(state.cursorLine, state.cursorIndex);
   const QString fileName = QFileInfo(currentPath_).fileName();
   refreshWorkspaceViews();
@@ -1920,7 +2303,8 @@ void MainWindow::closeDocument(int index) {
         QMessageBox::critical(this, QStringLiteral("Save failed"), errorMessage);
         return;
       }
-      workspaceWatcher_->acknowledgeWrite(state.document.path());
+      workspaceWatcher_->acknowledgeWrite(
+          state.document.path(), state.document.serializedContent());
     }
   }
 
@@ -1973,15 +2357,33 @@ void MainWindow::saveFile() {
 }
 
 void MainWindow::autosaveActiveDocument() {
-  if (switchingDocuments_ || !document_.has_value() || !editor_->isModified()) return;
+  if (switchingDocuments_ || handlingWorkspaceChanges_ ||
+      !document_.has_value() || !editor_->isModified()) return;
   (void)saveActiveDocument(false);
 }
 
 bool MainWindow::saveActiveDocument(bool reportSuccess) {
   if (!document_.has_value() || !editor_->isModified()) return true;
 
+  const QString bodySnapshot = editor_->text();
+  const DocumentFile previous = *document_;
+  const DocumentFile next = document_->withBody(bodySnapshot, true, editorModifiedAt_);
+  const int documentIndex = activeDocumentIndex_;
+  if (documentIndex >= 0 && documentIndex < openDocuments_.size()) {
+    OpenDocumentState& state = openDocuments_[documentIndex];
+    state.document = next;
+    state.body = bodySnapshot;
+  }
+  document_ = next;
+  workspaceWatcher_->acceptDiskState(next.path(), next.serializedContent());
+
   QString errorMessage;
-  if (!document_->saveBody(editor_->text(), &errorMessage, true)) {
+  if (!next.writeToDisk(&errorMessage)) {
+    document_ = previous;
+    workspaceWatcher_->acceptDiskState(previous.path(), previous.serializedContent());
+    if (documentIndex >= 0 && documentIndex < openDocuments_.size()) {
+      openDocuments_[documentIndex].document = previous;
+    }
     const QString message = QString("Unable to save %1: %2").arg(currentPath_, errorMessage);
     if (reportSuccess) QMessageBox::critical(this, QStringLiteral("Save failed"), message);
     else {
@@ -1990,13 +2392,14 @@ bool MainWindow::saveActiveDocument(bool reportSuccess) {
     }
     return false;
   }
-  workspaceWatcher_->acknowledgeWrite(document_->path());
+  workspaceWatcher_->acknowledgeWrite(document_->path(), document_->serializedContent());
 
   editor_->setModified(false);
+  editorModifiedAt_ = {};
   if (activeDocumentIndex_ >= 0 && activeDocumentIndex_ < openDocuments_.size()) {
     OpenDocumentState& state = openDocuments_[activeDocumentIndex_];
     state.document = *document_;
-    state.body = editor_->text();
+    state.body = bodySnapshot;
     state.modified = false;
   }
   updateInfoPanel();
@@ -2059,6 +2462,7 @@ void MainWindow::updateDocumentActions() {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
+  autosaveActiveDocument();
   storeActiveDocumentState();
   for (OpenDocumentState& state : openDocuments_) {
     if (!state.modified) continue;
@@ -2079,10 +2483,89 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         event->ignore();
         return;
       }
-      workspaceWatcher_->acknowledgeWrite(state.document.path());
+      workspaceWatcher_->acknowledgeWrite(
+          state.document.path(), state.document.serializedContent());
     }
   }
   event->accept();
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+  if (watched == editor_ && event->type() == QEvent::FocusOut) {
+    autosaveActiveDocument();
+  }
+  const bool editorContextMenu =
+      event->type() == QEvent::ContextMenu &&
+      (watched == editor_ || watched == editor_->viewport());
+  if (editorContextMenu) {
+    auto* context = static_cast<QContextMenuEvent*>(event);
+    const QPoint viewportPosition = watched == editor_->viewport()
+        ? context->pos()
+        : editor_->viewport()->mapFrom(editor_, context->pos());
+    const long position = editor_->SendScintilla(
+        QsciScintilla::SCI_POSITIONFROMPOINTCLOSE,
+        viewportPosition.x(), viewportPosition.y());
+    const bool spellingIsCurrent = spellcheckAppliedGeneration_ == spellcheckGeneration_;
+    const auto issue = std::find_if(spellingIssues_.cbegin(), spellingIssues_.cend(),
+                                    [position](const SpellingIssue& candidate) {
+      return position >= candidate.startByte &&
+          position <= candidate.startByte + candidate.lengthBytes;
+    });
+    QMenu menu(this);
+    if (spellingIsCurrent && issue != spellingIssues_.cend()) {
+      if (issue->suggestions.isEmpty()) {
+        QAction* unavailable = menu.addAction(QStringLiteral("No spelling suggestions"));
+        unavailable->setEnabled(false);
+      } else {
+        for (const QString& suggestion : issue->suggestions) {
+          connect(menu.addAction(QStringLiteral("Replace with “%1”").arg(suggestion)),
+                  &QAction::triggered, this,
+                  [this, start = issue->startByte, length = issue->lengthBytes,
+                   word = issue->word, suggestion] {
+            const QByteArray currentText = editor_->text().toUtf8();
+            const QByteArray expectedWord = word.toUtf8();
+            if (start < 0 || length < 0 || start + length > currentText.size() ||
+                currentText.mid(start, length) != expectedWord) {
+              spellcheckTimer_.start();
+              return;
+            }
+
+            int startLine = 0;
+            int startIndex = 0;
+            int endLine = 0;
+            int endIndex = 0;
+            editor_->lineIndexFromPosition(static_cast<int>(start), &startLine, &startIndex);
+            editor_->lineIndexFromPosition(static_cast<int>(start + length), &endLine, &endIndex);
+            editor_->beginUndoAction();
+            editor_->setSelection(startLine, startIndex, endLine, endIndex);
+            editor_->replaceSelectedText(suggestion);
+            editor_->endUndoAction();
+          });
+        }
+      }
+      connect(menu.addAction(QStringLiteral("Add “%1” to dictionary").arg(issue->word)),
+              &QAction::triggered, this, [this, word = issue->word] {
+        QStringList words;
+        const QVariant configured = globalConfig_.value(QStringLiteral("spellcheck.addedWords"));
+        for (const QVariant& value : configured.toList()) words.append(value.toString());
+        if (words.isEmpty()) words = configured.toStringList();
+        if (!words.contains(word, Qt::CaseInsensitive)) words.append(word.toLower());
+        words.sort(Qt::CaseInsensitive);
+        setGlobalConfigValue(QStringLiteral("spellcheck.addedWords"), words);
+        spellcheckTimer_.start();
+      });
+      menu.addSeparator();
+    }
+    connect(menu.addAction(QStringLiteral("Cut")), &QAction::triggered, editor_, &QsciScintilla::cut);
+    connect(menu.addAction(QStringLiteral("Copy")), &QAction::triggered, editor_, &QsciScintilla::copy);
+    connect(menu.addAction(QStringLiteral("Paste")), &QAction::triggered, editor_, &QsciScintilla::paste);
+    menu.addSeparator();
+    connect(menu.addAction(QStringLiteral("Select All")), &QAction::triggered, editor_, &QsciScintilla::selectAll);
+    menu.exec(context->globalPos());
+    context->accept();
+    return true;
+  }
+  return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::scheduleRender() {

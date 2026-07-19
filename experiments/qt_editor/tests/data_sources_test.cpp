@@ -17,6 +17,7 @@ class DataSourcesTest final : public QObject {
   void discoversAndSearchesWorkspaceNotes();
   void resolvesWorkspaceLinksSafely();
   void readsAndWritesWorkspaceConfiguration();
+  void repairsLegacyStringContainers();
 };
 
 void DataSourcesTest::preservesUnrelatedReferenceSettings() {
@@ -93,6 +94,10 @@ void DataSourcesTest::readsAndWritesWorkspaceConfiguration() {
   QCOMPARE(QFileInfo(config.filePath()).fileName(), QStringLiteral(".el-baton.yml"));
   config.setValue(QStringLiteral("monaco.editorOptions.tabSize"), 4);
   config.setValue(QStringLiteral("preview.disableSplitViewSync"), true);
+  config.setValue(QStringLiteral("plantuml.externalServerUrl"),
+                  QStringLiteral("https://plantuml.example.test"));
+  config.setValue(QStringLiteral("spellcheck.addedWords"),
+                  QStringList{QStringLiteral("ElBaton"), QStringLiteral("PlantUML")});
   QString error;
   QVERIFY2(config.save(&error), qPrintable(error));
 
@@ -101,6 +106,51 @@ void DataSourcesTest::readsAndWritesWorkspaceConfiguration() {
   QCOMPARE(reloaded.value(QStringLiteral("monaco.editorOptions.tabSize")).toInt(), 4);
   QVERIFY(reloaded.value(QStringLiteral("preview.disableSplitViewSync")).toBool());
   QVERIFY(reloaded.value(QStringLiteral("autoupdate")).toBool());
+  QCOMPARE(reloaded.value(QStringLiteral("plantuml.externalServerUrl")).toString(),
+           QStringLiteral("https://plantuml.example.test"));
+  const QVariantList addedWords = reloaded.value(QStringLiteral("spellcheck.addedWords")).toList();
+  QCOMPARE(addedWords.size(), 2);
+  QCOMPARE(addedWords.at(0).toString(), QStringLiteral("ElBaton"));
+  QCOMPARE(addedWords.at(1).toString(), QStringLiteral("PlantUML"));
+
+  QFile savedConfig(config.filePath());
+  QVERIFY(savedConfig.open(QIODevice::ReadOnly));
+  const QByteArray yaml = savedConfig.readAll();
+  QVERIFY(!yaml.contains("- 104"));
+  QVERIFY(!yaml.contains("- []"));
+}
+
+void DataSourcesTest::repairsLegacyStringContainers() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  QFile malformed(directory.filePath(QStringLiteral(".el-baton.yml")));
+  QVERIFY(malformed.open(QIODevice::WriteOnly));
+  malformed.write(
+      "plantuml:\n"
+      "  externalServerUrl:\n"
+      "    - 104\n"
+      "    - 116\n"
+      "    - 116\n"
+      "    - 112\n"
+      "spellcheck:\n"
+      "  addedWords:\n"
+      "    - []\n"
+      "    - []\n");
+  malformed.close();
+
+  qt_editor::GlobalConfigStore config;
+  config.setWorkspaceRoot(directory.path());
+  QCOMPARE(config.value(QStringLiteral("plantuml.externalServerUrl")).toString(),
+           QStringLiteral("http"));
+  QVERIFY(config.value(QStringLiteral("spellcheck.addedWords")).toList().isEmpty());
+  QString error;
+  QVERIFY2(config.save(&error), qPrintable(error));
+
+  QVERIFY(malformed.open(QIODevice::ReadOnly));
+  const QByteArray repaired = malformed.readAll();
+  QVERIFY(repaired.contains("externalServerUrl: http"));
+  QVERIFY(!repaired.contains("- 104"));
+  QVERIFY(!repaired.contains("- []"));
 }
 
 void DataSourcesTest::resolvesWorkspaceLinksSafely() {

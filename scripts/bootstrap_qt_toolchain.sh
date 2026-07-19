@@ -172,9 +172,13 @@ done
 require_command awk
 require_command curl
 require_command make
+require_command pkg-config
 require_command realpath
 require_command sha256sum
 require_command tar
+pkg-config --exists hunspell || die "Hunspell development files are required (for example: libhunspell-dev)"
+[[ -f /usr/share/hunspell/en_US.aff && -f /usr/share/hunspell/en_US.dic ]] \
+  || die "the en_US Hunspell dictionary is required (for example: hunspell-en-us)"
 
 readonly DOWNLOAD_DIR="${DEPS_ROOT}/downloads"
 readonly SOURCE_DIR="${DEPS_ROOT}/sources"

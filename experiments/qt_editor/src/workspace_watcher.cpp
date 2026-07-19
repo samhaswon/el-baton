@@ -64,6 +64,7 @@ void WorkspaceWatcher::start() {
   active_ = true;
   QStringList directories;
   snapshot_ = takeSnapshot(&directories);
+  canonicalStates_ = snapshot_;
   rebuildWatchPaths(directories);
 }
 
@@ -75,14 +76,36 @@ void WorkspaceWatcher::stop() {
   const QStringList watchedDirectories = fileSystemWatcher_.directories();
   if (!watchedDirectories.isEmpty()) fileSystemWatcher_.removePaths(watchedDirectories);
   snapshot_.clear();
+  canonicalStates_.clear();
+}
+
+void WorkspaceWatcher::acknowledgeWrite(const QString& path, const QByteArray& content) {
+  if (!active_) return;
+  const QString absolutePath = QFileInfo(path).absoluteFilePath();
+  if (!isSupportedNote(absolutePath)) return;
+  acceptDiskState(absolutePath, content);
+  if (!fileSystemWatcher_.files().contains(absolutePath)) fileSystemWatcher_.addPath(absolutePath);
+  scheduleScan();
 }
 
 void WorkspaceWatcher::acknowledgeWrite(const QString& path) {
   if (!active_) return;
   const QString absolutePath = QFileInfo(path).absoluteFilePath();
   if (!QFileInfo(absolutePath).isFile() || !isSupportedNote(absolutePath)) return;
-  snapshot_.insert(absolutePath, readFileState(absolutePath));
-  if (!fileSystemWatcher_.files().contains(absolutePath)) fileSystemWatcher_.addPath(absolutePath);
+  QFile file(absolutePath);
+  if (!file.open(QIODevice::ReadOnly)) return;
+  acknowledgeWrite(absolutePath, file.readAll());
+}
+
+void WorkspaceWatcher::acceptDiskState(const QString& path, const QByteArray& content) {
+  if (!active_) return;
+  const QString absolutePath = QFileInfo(path).absoluteFilePath();
+  if (!isSupportedNote(absolutePath)) return;
+  canonicalStates_.insert(absolutePath, {
+      content.size(),
+      0,
+      QCryptographicHash::hash(content, QCryptographicHash::Sha256),
+  });
 }
 
 QString WorkspaceWatcher::notesRoot() const {
@@ -167,7 +190,17 @@ void WorkspaceWatcher::scan() {
   if (!active_) return;
   QStringList directories;
   const WorkspaceSnapshot current = takeSnapshot(&directories);
-  const QVector<WorkspaceChange> changes = compareSnapshots(snapshot_, current);
+  const QVector<WorkspaceChange> detected = compareSnapshots(snapshot_, current);
+  QVector<WorkspaceChange> changes;
+  changes.reserve(detected.size());
+  for (const WorkspaceChange& change : detected) {
+    const auto canonical = canonicalStates_.constFind(change.path);
+    const auto file = current.constFind(change.path);
+    const bool canonicalDiskState = canonical != canonicalStates_.cend() &&
+        file != current.cend() && canonical.value() == file.value() &&
+        (change.kind == WorkspaceChangeKind::Added || change.kind == WorkspaceChangeKind::Modified);
+    if (!canonicalDiskState) changes.append(change);
+  }
   snapshot_ = current;
   rebuildWatchPaths(directories);
   if (!changes.isEmpty()) emit changesDetected(changes);

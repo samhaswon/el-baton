@@ -213,6 +213,24 @@ class MarkdownPipelineTest final : public QObject {
     QVERIFY(html.contains(QStringLiteral("<code>:cat:</code>")));
     QVERIFY(html.contains(QStringLiteral(":cat:")));
   }
+
+  void rendersReferenceSuperscriptAndSubscriptSyntax() {
+    MarkdownPipeline pipeline;
+    const RenderResult result = pipeline.render(QStringLiteral(
+        "N~2~ and x^2^ beside $N_2$.\n\n"
+        "Escaped N\\~2\\~ and ~~deleted~~.\n\n"
+        "`N~2~`\n\n"
+        "```text\nN~2~\n```\n"), 1);
+    QString html;
+    for (const RenderedBlock& block : result.allBlocks) html += block.html;
+    QVERIFY(html.contains(QStringLiteral("N<sub>2</sub>")));
+    QVERIFY(html.contains(QStringLiteral("x<sup>2</sup>")));
+    QVERIFY(html.contains(QStringLiteral("class=\"qt-katex\" data-tex=\"N_2\"")));
+    QVERIFY(html.contains(QStringLiteral("Escaped N~2~")));
+    QVERIFY(html.contains(QStringLiteral("<del>deleted</del>")));
+    QVERIFY(html.contains(QStringLiteral("<code>N~2~</code>")));
+    QVERIFY(html.contains(QStringLiteral("<code class=\"language-text\">N~2~")));
+  }
 };
 
 QTEST_APPLESS_MAIN(MarkdownPipelineTest)

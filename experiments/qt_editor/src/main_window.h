@@ -3,11 +3,14 @@
 #include "document_file.h"
 #include "global_config_store.h"
 #include "settings_store.h"
+#include "spell_checker.h"
 #include "types.h"
 #include "workspace_repository.h"
 
 #include <QMainWindow>
+#include <QDateTime>
 #include <QTimer>
+#include <QFutureWatcher>
 
 class QAction;
 class QLabel;
@@ -18,10 +21,12 @@ class QSplitter;
 class QStackedWidget;
 class QTabBar;
 class QToolButton;
+class QCheckBox;
 class QWebEngineView;
 class QWebEnginePage;
 class QsciScintilla;
 class QCloseEvent;
+class QEvent;
 
 namespace qt_editor {
 
@@ -41,6 +46,7 @@ class MainWindow final : public QMainWindow {
 
  protected:
   void closeEvent(QCloseEvent* event) override;
+  bool eventFilter(QObject* watched, QEvent* event) override;
 
  private slots:
   void chooseFile();
@@ -66,6 +72,7 @@ class MainWindow final : public QMainWindow {
   QWidget* createApplicationChrome(QSplitter* documentSplitter);
   QWidget* createActivityBar(QWidget* navigationPane);
   QWidget* createDocumentToolbar();
+  QWidget* createFindBar();
   QWidget* createNavigationPane();
   QWidget* createFilePanel();
   QWidget* createExplorerPanel();
@@ -90,6 +97,10 @@ class MainWindow final : public QMainWindow {
   [[nodiscard]] bool saveActiveDocument(bool reportSuccess);
   [[nodiscard]] bool maybeSave();
   void updateWindowTitle();
+  void showFindBar(bool replaceMode);
+  void findInEditor(bool forward);
+  void replaceCurrentMatch();
+  void replaceAllMatches();
 
   BenchmarkOptions options_;
   QsciScintilla* editor_ = nullptr;
@@ -102,6 +113,16 @@ class MainWindow final : public QMainWindow {
   QListWidget* searchResults_ = nullptr;
   QListWidget* outlineList_ = nullptr;
   QLineEdit* navigationSearch_ = nullptr;
+  QWidget* findBar_ = nullptr;
+  QLineEdit* findInput_ = nullptr;
+  QLineEdit* replaceInput_ = nullptr;
+  QToolButton* replaceModeButton_ = nullptr;
+  QToolButton* replaceCurrentButton_ = nullptr;
+  QToolButton* replaceAllButton_ = nullptr;
+  QLabel* findStatus_ = nullptr;
+  QCheckBox* findCaseSensitive_ = nullptr;
+  QCheckBox* findWholeWord_ = nullptr;
+  QCheckBox* findRegex_ = nullptr;
   QStackedWidget* navigationStack_ = nullptr;
   QStackedWidget* mainContentStack_ = nullptr;
   QLabel* infoPath_ = nullptr;
@@ -125,14 +146,22 @@ class MainWindow final : public QMainWindow {
   SyncController* sync_ = nullptr;
   QTimer renderTimer_;
   QTimer usageTimer_;
-  QTimer autosaveTimer_;
   QTimer searchTimer_;
+  QTimer spellcheckTimer_;
+  QFutureWatcher<QVector<SpellingIssue>> spellcheckWatcher_;
+  QVector<SpellingIssue> spellingIssues_;
+  quint64 spellcheckGeneration_ = 0;
+  quint64 spellcheckRequestGeneration_ = 0;
+  quint64 spellcheckAppliedGeneration_ = 0;
+  qsizetype spellcheckRequestStartByte_ = 0;
+  int spellcheckIndicator_ = -1;
   QString pendingSearchQuery_;
   SearchMode pendingSearchMode_ = SearchMode::Smart;
   QVector<NoteSearchResult> pendingSearchResults_;
   qsizetype nextSearchResult_ = 0;
   quint64 searchGeneration_ = 0;
   QString currentPath_;
+  QDateTime editorModifiedAt_;
   std::optional<DocumentFile> document_;
   struct OpenDocumentState final {
     DocumentFile document;
@@ -144,6 +173,7 @@ class MainWindow final : public QMainWindow {
   QVector<OpenDocumentState> openDocuments_;
   int activeDocumentIndex_ = -1;
   bool switchingDocuments_ = false;
+  bool handlingWorkspaceChanges_ = false;
   bool refreshingExplorer_ = false;
   SettingsStore settings_;
   GlobalConfigStore globalConfig_;
