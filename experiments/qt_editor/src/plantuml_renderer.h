@@ -8,6 +8,7 @@
 #include <QVector>
 
 #include <optional>
+#include <memory>
 
 class QProcess;
 class QTimer;
@@ -15,6 +16,7 @@ class QNetworkAccessManager;
 class QNetworkReply;
 
 namespace qt_editor {
+class PersistentDiagramCache;
 
 // Asynchronous local PlantUML service. Document text is passed only to the
 // pinned local JAR over stdin and is never interpreted as a shell command.
@@ -23,8 +25,10 @@ class PlantUmlRenderer final : public QObject {
 
  public:
   explicit PlantUmlRenderer(QString jarPath, QObject* parent = nullptr);
+  ~PlantUmlRenderer() override;
 
-  void configure(int timeoutMs, int cacheMaxEntries, const QString& externalServerUrl = {});
+  void configure(int timeoutMs, int cacheMaxEntries, qint64 cacheMaxBytes,
+                 const QString& externalServerUrl = {});
   [[nodiscard]] static QString normalizeSource(const QString& source);
   [[nodiscard]] static QString normalizeLocalError(const QString& message);
   [[nodiscard]] static QString normalizeServerUrl(const QString& url);
@@ -71,6 +75,7 @@ class PlantUmlRenderer final : public QObject {
   int cacheMaxEntries_ = 400;
   QHash<QString, QJsonObject> cache_;
   QVector<QString> cacheOrder_;
+  std::unique_ptr<PersistentDiagramCache> persistentCache_;
   std::optional<Batch> currentBatch_;
   QJsonObject pendingBatch_;
   std::optional<Request> activeRequest_;

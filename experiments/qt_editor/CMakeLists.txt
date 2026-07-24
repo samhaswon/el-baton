@@ -10,7 +10,21 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Concurrent Core Gui Network Widgets WebChannel WebEngineWidgets Test)
+if(PROJECT_IS_TOP_LEVEL)
+  option(EL_BATON_ENABLE_IPO "Enable interprocedural optimization in Release builds" ON)
+  if(EL_BATON_ENABLE_IPO)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT EL_BATON_IPO_SUPPORTED OUTPUT EL_BATON_IPO_ERROR LANGUAGES C CXX)
+    if(EL_BATON_IPO_SUPPORTED)
+      set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+      message(STATUS "Qt editor Release interprocedural optimization enabled")
+    else()
+      message(WARNING "Release interprocedural optimization is unavailable: ${EL_BATON_IPO_ERROR}")
+    endif()
+  endif()
+endif()
+
+find_package(Qt6 6.4 REQUIRED COMPONENTS Concurrent Core Gui Network Sql Widgets WebChannel WebEngineWidgets Test)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(HUNSPELL REQUIRED IMPORTED_TARGET hunspell)
 find_package(yaml-cpp REQUIRED)
@@ -82,6 +96,9 @@ set_target_properties(qt_editor_cmark PROPERTIES C_STANDARD 99 C_STANDARD_REQUIR
 
 add_library(qt_editor_build_options INTERFACE)
 target_compile_options(qt_editor_build_options INTERFACE
+  $<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:CXX,MSVC>>:
+    /Qpar
+  >
   $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:
     -Wall
     -Wextra
@@ -126,15 +143,19 @@ set(QT_EDITOR_SOURCES
   src/document_file.cpp
   src/global_config_store.cpp
   src/main_window.cpp
+  src/markdown_completion.cpp
   src/markdown_edits.cpp
   src/markdown_pipeline.cpp
+  src/note_transfer_service.cpp
   src/plantuml_renderer.cpp
+  src/persistent_diagram_cache.cpp
   src/preview_bridge.cpp
   src/reference_icons.cpp
   src/settings_store.cpp
   src/spell_checker.cpp
   src/sync_controller.cpp
   src/workspace_repository.cpp
+  src/workspace_graph_view.cpp
   src/workspace_watcher.cpp
 )
 
@@ -175,6 +196,7 @@ target_link_libraries(qt_editor_core PUBLIC
   Qt6::Concurrent
   Qt6::Gui
   Qt6::Network
+  Qt6::Sql
   Qt6::Widgets
   Qt6::WebChannel
   Qt6::WebEngineWidgets
@@ -241,6 +263,10 @@ if(BUILD_TESTING)
   target_link_libraries(data_sources_tests PRIVATE qt_editor_core Qt6::Test)
   add_test(NAME data_sources_tests COMMAND data_sources_tests)
 
+  add_executable(note_transfer_service_tests tests/note_transfer_service_test.cpp)
+  target_link_libraries(note_transfer_service_tests PRIVATE qt_editor_core Qt6::Test)
+  add_test(NAME note_transfer_service_tests COMMAND note_transfer_service_tests)
+
   add_executable(workspace_watcher_tests tests/workspace_watcher_test.cpp)
   target_link_libraries(workspace_watcher_tests PRIVATE qt_editor_core Qt6::Test)
   add_test(NAME workspace_watcher_tests COMMAND workspace_watcher_tests)
@@ -249,9 +275,17 @@ if(BUILD_TESTING)
   target_link_libraries(markdown_edits_tests PRIVATE qt_editor_core Qt6::Test)
   add_test(NAME markdown_edits_tests COMMAND markdown_edits_tests)
 
+  add_executable(markdown_completion_tests tests/markdown_completion_test.cpp)
+  target_link_libraries(markdown_completion_tests PRIVATE qt_editor_core Qt6::Test)
+  add_test(NAME markdown_completion_tests COMMAND markdown_completion_tests)
+
   add_executable(plantuml_renderer_tests tests/plantuml_renderer_test.cpp)
   target_link_libraries(plantuml_renderer_tests PRIVATE qt_editor_core Qt6::Test)
   add_test(NAME plantuml_renderer_tests COMMAND plantuml_renderer_tests)
+
+  add_executable(persistent_diagram_cache_tests tests/persistent_diagram_cache_test.cpp)
+  target_link_libraries(persistent_diagram_cache_tests PRIVATE qt_editor_core Qt6::Test)
+  add_test(NAME persistent_diagram_cache_tests COMMAND persistent_diagram_cache_tests)
 
   add_executable(spell_checker_tests tests/spell_checker_test.cpp)
   target_link_libraries(spell_checker_tests PRIVATE qt_editor_core Qt6::Test)

@@ -78,7 +78,8 @@ class PlantUmlRendererTest final : public QObject {
     });
 
     PlantUmlRenderer renderer(QStringLiteral(QT_EDITOR_PLANTUML_JAR));
-    renderer.configure(5000, 100, QStringLiteral("http://127.0.0.1:%1/plantuml").arg(server.serverPort()));
+    renderer.configure(5000, 100, 8 * 1024 * 1024,
+                       QStringLiteral("http://127.0.0.1:%1/plantuml").arg(server.serverPort()));
     QSignalSpy spy(&renderer, &PlantUmlRenderer::resultsReady);
     renderer.requestRenderBatch({
         {QStringLiteral("generation"), 9},
@@ -117,7 +118,8 @@ class PlantUmlRendererTest final : public QObject {
     });
 
     PlantUmlRenderer renderer(QStringLiteral(QT_EDITOR_PLANTUML_JAR));
-    renderer.configure(5000, 100, QStringLiteral("http://127.0.0.1:%1/plantuml").arg(server.serverPort()));
+    renderer.configure(5000, 100, 8 * 1024 * 1024,
+                       QStringLiteral("http://127.0.0.1:%1/plantuml").arg(server.serverPort()));
     QSignalSpy spy(&renderer, &PlantUmlRenderer::resultsReady);
     renderer.requestRenderBatch({
         {QStringLiteral("generation"), 10},

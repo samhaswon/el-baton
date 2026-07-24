@@ -1,11 +1,33 @@
 #include "preview_bridge.h"
+#include "persistent_diagram_cache.h"
 
 #include <QDesktopServices>
+#include <QDir>
+#include <QJsonArray>
+#include <QStandardPaths>
 #include <QUrl>
 
 namespace qt_editor {
 
-PreviewBridge::PreviewBridge(QObject* parent) : QObject(parent) {}
+namespace {
+constexpr auto kMermaidCacheVersion = "mermaid-v11.15.0:";
+
+QString requestCacheId(qint64 generation, const QString& id) {
+  return QString::number(generation) + QLatin1Char(':') + id;
+}
+}  // namespace
+
+PreviewBridge::PreviewBridge(QObject* parent)
+    : QObject(parent),
+      persistentCache_(std::make_unique<PersistentDiagramCache>(QDir(
+          QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation))
+          .filePath(QStringLiteral("el-baton/diagrams.sqlite3")))) {}
+
+PreviewBridge::~PreviewBridge() = default;
+
+void PreviewBridge::configureDiagramCache(int maxEntries, qint64 maxBytes) {
+  persistentCache_->configure(maxEntries, maxBytes);
+}
 
 void PreviewBridge::publishRender(const QJsonObject& update) { emit renderPublished(update); }
 void PreviewBridge::publishSourceScroll(const QJsonObject& target) { emit sourceScrollPublished(target); }
@@ -13,10 +35,54 @@ void PreviewBridge::publishPlantUmlResults(const QJsonObject& batch) { emit plan
 void PreviewBridge::reportPreviewScroll(const QJsonObject& position) { emit previewScrolled(position); }
 void PreviewBridge::reportMetrics(const QJsonObject& metrics) { emit browserMetricsChanged(metrics); }
 void PreviewBridge::requestMermaidRender(const QJsonObject& batch) {
-  if (!mermaidReady_) { pendingMermaidBatch_ = batch; return; }
-  emit mermaidRenderRequested(batch);
+  const qint64 generation = batch.value(QStringLiteral("generation")).toVariant().toLongLong();
+  QJsonArray cachedResults;
+  QJsonArray uncachedRequests;
+  const QJsonArray requests = batch.value(QStringLiteral("requests")).toArray();
+  for (const QJsonValue& value : requests) {
+    const QJsonObject request = value.toObject();
+    const QString id = request.value(QStringLiteral("id")).toString();
+    const QString clientKey = request.value(QStringLiteral("cacheKey")).toString();
+    if (id.isEmpty() || clientKey.isEmpty()) continue;
+    const QString persistentKey = QString::fromLatin1(kMermaidCacheVersion) + clientKey;
+    if (const auto stored = persistentCache_->get(persistentKey); stored.has_value()) {
+      QJsonObject result = *stored;
+      result.insert(QStringLiteral("id"), id);
+      cachedResults.append(result);
+      continue;
+    }
+    pendingMermaidCacheKeys_.insert(requestCacheId(generation, id), persistentKey);
+    uncachedRequests.append(request);
+  }
+  if (!cachedResults.isEmpty()) {
+    emit mermaidResultsPublished({{QStringLiteral("generation"), generation},
+                                  {QStringLiteral("results"), cachedResults},
+                                  {QStringLiteral("mermaidMs"), 0.0}});
+  }
+  if (uncachedRequests.isEmpty()) return;
+  QJsonObject uncachedBatch = batch;
+  uncachedBatch.insert(QStringLiteral("requests"), uncachedRequests);
+  if (!mermaidReady_) {
+    pendingMermaidBatch_ = uncachedBatch;
+    return;
+  }
+  emit mermaidRenderRequested(uncachedBatch);
 }
-void PreviewBridge::reportMermaidResults(const QJsonObject& batch) { emit mermaidResultsPublished(batch); }
+void PreviewBridge::reportMermaidResults(const QJsonObject& batch) {
+  const qint64 generation = batch.value(QStringLiteral("generation")).toVariant().toLongLong();
+  for (const QJsonValue& value : batch.value(QStringLiteral("results")).toArray()) {
+    const QJsonObject result = value.toObject();
+    const QString id = result.value(QStringLiteral("id")).toString();
+    const QString pendingId = requestCacheId(generation, id);
+    const QString persistentKey = pendingMermaidCacheKeys_.take(pendingId);
+    if (!persistentKey.isEmpty() && result.value(QStringLiteral("ok")).toBool()) {
+      QJsonObject stored = result;
+      stored.remove(QStringLiteral("id"));
+      (void)persistentCache_->put(persistentKey, stored);
+    }
+  }
+  emit mermaidResultsPublished(batch);
+}
 void PreviewBridge::requestPlantUmlRender(const QJsonObject& batch) { emit plantUmlRenderRequested(batch); }
 void PreviewBridge::reportReady(const QString& role) {
   if (role == QStringLiteral("mermaid")) {

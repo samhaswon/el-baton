@@ -10,6 +10,7 @@
     <file alias="pencil.svg">../../../resources/font_icons/pencil.svg</file>
     <file alias="pin.svg">../../../resources/font_icons/pin.svg</file>
     <file alias="pin-outline.svg">../../../resources/font_icons/pin-outline.svg</file>
+    <file alias="split-view.svg">../../../resources/font_icons/split-view.svg</file>
     <file alias="star.svg">../../../resources/font_icons/star.svg</file>
     <file alias="star-outline.svg">../../../resources/font_icons/star-outline.svg</file>
     <file alias="tag-multiple.svg">../../../resources/font_icons/tag-multiple.svg</file>

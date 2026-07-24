@@ -201,6 +201,28 @@ class MarkdownPipelineTest final : public QObject {
     QVERIFY(html.contains(QStringLiteral("class=\"copy-wrapper\"")));
   }
 
+  void rendersNestedTableOfContentsLikeReference() {
+    MarkdownPipeline pipeline;
+    const RenderResult result = pipeline.render(QStringLiteral(
+        "# One\n\n### Deep\n\n## Middle\n\n#### Deeper\n\n# Two\n\n[[@toc]]\n"), 1);
+    QString html;
+    for (const RenderedBlock& block : result.allBlocks) html += block.html;
+
+    QVERIFY(html.contains(QStringLiteral(
+        "<div class=\"macro-toc\"><p class=\"macro-toc-title\">Table of Contents</p>")));
+    QVERIFY(html.contains(QStringLiteral(
+        "<li><a class=\"toc-item\" href=\"#one\">One</a>"
+        "<ul class=\"macro-toc-list\"><li><a class=\"toc-item\" href=\"#deep\">Deep</a>")));
+    QVERIFY(html.contains(QStringLiteral(
+        "</li><li><a class=\"toc-item\" href=\"#middle\">Middle</a>"
+        "<ul class=\"macro-toc-list\"><li><a class=\"toc-item\" href=\"#deeper\">Deeper</a>")));
+    QVERIFY(html.contains(QStringLiteral(
+        "<li><a class=\"toc-item\" href=\"#middle\">Middle</a>"
+        "<ul class=\"macro-toc-list\"><li><a class=\"toc-item\" href=\"#deeper\">Deeper</a>"
+        "</li></ul></li><li><a class=\"toc-item\" href=\"#two\">Two</a>")));
+    QVERIFY(!html.contains(QStringLiteral("toc-level-")));
+  }
+
   void replacesEmojiShortcodesOutsideCode() {
     MarkdownPipeline pipeline;
     const RenderResult result = pipeline.render(QStringLiteral(

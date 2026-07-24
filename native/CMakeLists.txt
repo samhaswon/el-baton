@@ -1,4 +1,4 @@
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Network Test WebChannel WebEngineWidgets Widgets)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Network Sql Test WebChannel WebEngineWidgets Widgets)
 
 qt_standard_project_setup()
 

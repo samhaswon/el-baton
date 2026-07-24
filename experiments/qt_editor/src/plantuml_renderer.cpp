@@ -1,5 +1,7 @@
 #include "plantuml_renderer.h"
+#include "persistent_diagram_cache.h"
 
+#include <QDir>
 #include <QFileInfo>
 #include <QJsonValue>
 #include <QNetworkAccessManager>
@@ -7,6 +9,7 @@
 #include <QNetworkRequest>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QStandardPaths>
 #include <QTimer>
 #include <QUrl>
 
@@ -17,13 +20,29 @@
 
 namespace qt_editor {
 
-PlantUmlRenderer::PlantUmlRenderer(QString jarPath, QObject* parent)
-    : QObject(parent), jarPath_(std::move(jarPath)), network_(new QNetworkAccessManager(this)) {}
+namespace {
+constexpr auto kPlantUmlCacheVersion = "plantuml-v1.2026.3:";
 
-void PlantUmlRenderer::configure(int timeoutMs, int cacheMaxEntries, const QString& externalServerUrl) {
+QString persistentPlantUmlKey(const QString& key) {
+  return QString::fromLatin1(kPlantUmlCacheVersion) + key;
+}
+}  // namespace
+
+PlantUmlRenderer::PlantUmlRenderer(QString jarPath, QObject* parent)
+    : QObject(parent), jarPath_(std::move(jarPath)),
+      persistentCache_(std::make_unique<PersistentDiagramCache>(QDir(
+          QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation))
+          .filePath(QStringLiteral("el-baton/diagrams.sqlite3")))),
+      network_(new QNetworkAccessManager(this)) {}
+
+PlantUmlRenderer::~PlantUmlRenderer() = default;
+
+void PlantUmlRenderer::configure(int timeoutMs, int cacheMaxEntries, qint64 cacheMaxBytes,
+                                 const QString& externalServerUrl) {
   timeoutMs_ = std::clamp(timeoutMs, 1000, 120000);
   cacheMaxEntries_ = std::clamp(cacheMaxEntries, 20, 5000);
   externalServerUrl_ = normalizeServerUrl(externalServerUrl);
+  persistentCache_->configure(cacheMaxEntries_, cacheMaxBytes);
   while (cacheOrder_.size() > cacheMaxEntries_) {
     cache_.remove(cacheOrder_.takeFirst());
   }
@@ -197,6 +216,12 @@ void PlantUmlRenderer::advanceBatch() {
     continueWithRemote(request, cached.value());
     return;
   }
+  if (const auto stored = persistentCache_->get(persistentPlantUmlKey(localKey)); stored.has_value()) {
+    cache_.insert(localKey, *stored);
+    cacheOrder_.append(localKey);
+    continueWithRemote(request, *stored);
+    return;
+  }
   startProcess(request);
 }
 
@@ -282,6 +307,12 @@ void PlantUmlRenderer::continueWithRemote(const Request& request, const QJsonObj
   const auto cached = cache_.constFind(remoteKey);
   if (cached != cache_.cend()) {
     finishRequest(request, localResult, cached.value());
+    return;
+  }
+  if (const auto stored = persistentCache_->get(persistentPlantUmlKey(remoteKey)); stored.has_value()) {
+    cache_.insert(remoteKey, *stored);
+    cacheOrder_.append(remoteKey);
+    finishRequest(request, localResult, *stored);
     return;
   }
   activeRequest_ = request;
@@ -393,6 +424,9 @@ void PlantUmlRenderer::remember(const QString& source, const QJsonObject& result
   if (!cache_.contains(source)) cacheOrder_.append(source);
   cache_.insert(source, result);
   while (cacheOrder_.size() > cacheMaxEntries_) cache_.remove(cacheOrder_.takeFirst());
+  if (result.value(QStringLiteral("ok")).toBool()) {
+    (void)persistentCache_->put(persistentPlantUmlKey(source), result);
+  }
 }
 
 }  // namespace qt_editor

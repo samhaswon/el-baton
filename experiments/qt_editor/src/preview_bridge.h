@@ -1,9 +1,14 @@
 #pragma once
 
 #include <QJsonObject>
+#include <QHash>
 #include <QObject>
 
+#include <memory>
+
 namespace qt_editor {
+
+class PersistentDiagramCache;
 
 // Minimal semantic C++/JavaScript API. No method evaluates script supplied by a document.
 class PreviewBridge final : public QObject {
@@ -11,6 +16,9 @@ class PreviewBridge final : public QObject {
 
  public:
   explicit PreviewBridge(QObject* parent = nullptr);
+  ~PreviewBridge() override;
+
+  void configureDiagramCache(int maxEntries, qint64 maxBytes);
 
   // Sends one batched document update to the preview.
   void publishRender(const QJsonObject& update);
@@ -58,6 +66,8 @@ class PreviewBridge final : public QObject {
  private:
   bool mermaidReady_ = false;
   QJsonObject pendingMermaidBatch_;
+  QHash<QString, QString> pendingMermaidCacheKeys_;
+  std::unique_ptr<PersistentDiagramCache> persistentCache_;
 };
 
 }  // namespace qt_editor

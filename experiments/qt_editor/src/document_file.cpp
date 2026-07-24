@@ -50,6 +50,53 @@ QRegularExpression metadataLine(const QString& name) {
       QRegularExpression::CaseInsensitiveOption);
 }
 
+QString unquoteYamlValue(QString value) {
+  value = value.trimmed();
+  if (value.size() >= 2 && value.startsWith(QLatin1Char('\'')) &&
+      value.endsWith(QLatin1Char('\''))) {
+    value = value.sliced(1, value.size() - 2);
+    value.replace(QStringLiteral("''"), QStringLiteral("'"));
+  } else if (value.size() >= 2 && value.startsWith(QLatin1Char('"')) &&
+             value.endsWith(QLatin1Char('"'))) {
+    value = value.sliced(1, value.size() - 2);
+  }
+  return value;
+}
+
+QStringList metadataStringList(const QString& metadata, const QString& name) {
+  const QRegularExpressionMatch match = metadataLine(name).match(metadata);
+  if (!match.hasMatch()) return {};
+  const QString value = match.captured(2).trimmed();
+  QStringList result;
+  if (value.startsWith(QLatin1Char('[')) && value.endsWith(QLatin1Char(']'))) {
+    const QString contents = value.sliced(1, value.size() - 2);
+    static const QRegularExpression item(
+        QStringLiteral("(?:^|,)\\s*(?:'((?:''|[^'])*)'|\"([^\"]*)\"|([^,]+))"));
+    auto iterator = item.globalMatch(contents);
+    while (iterator.hasNext()) {
+      const QRegularExpressionMatch token = iterator.next();
+      QString entry = !token.captured(1).isNull() ? token.captured(1)
+          : (!token.captured(2).isNull() ? token.captured(2) : token.captured(3).trimmed());
+      entry.replace(QStringLiteral("''"), QStringLiteral("'"));
+      if (!entry.isEmpty()) result.append(entry);
+    }
+    return result;
+  }
+  if (!value.isEmpty()) return {};
+
+  const QString suffix = metadata.sliced(match.capturedEnd());
+  const QStringList lines = suffix.split(QRegularExpression(QStringLiteral("\\r?\\n")));
+  for (const QString& line : lines) {
+    if (line.trimmed().isEmpty()) continue;
+    static const QRegularExpression blockItem(QStringLiteral("^[ \\t]*-[ \\t]+(.+)$"));
+    const QRegularExpressionMatch item = blockItem.match(line);
+    if (!item.hasMatch()) break;
+    const QString entry = unquoteYamlValue(item.captured(1));
+    if (!entry.isEmpty()) result.append(entry);
+  }
+  return result;
+}
+
 QString newMetadata(const QString& title) {
   const QString timestamp = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
   return QStringLiteral("---\ntitle: %1\ncreated: '%2'\nmodified: '%2'\n---\n")
@@ -197,23 +244,11 @@ bool DocumentFile::metadataFlag(NoteFlag flag) const {
 }
 
 QStringList DocumentFile::tags() const {
-  const QRegularExpressionMatch match = metadataLine(QStringLiteral("tags")).match(metadataPrefix_);
-  if (!match.hasMatch()) return {};
-  QString value = match.captured(2).trimmed();
-  if (!value.startsWith(QLatin1Char('[')) || !value.endsWith(QLatin1Char(']'))) return {};
-  value = value.sliced(1, value.size() - 2);
-  QStringList result;
-  static const QRegularExpression item(
-      QStringLiteral("(?:^|,)\\s*(?:'((?:''|[^'])*)'|\"([^\"]*)\"|([^,]+))"));
-  auto iterator = item.globalMatch(value);
-  while (iterator.hasNext()) {
-    const QRegularExpressionMatch token = iterator.next();
-    QString tag = !token.captured(1).isNull() ? token.captured(1)
-        : (!token.captured(2).isNull() ? token.captured(2) : token.captured(3).trimmed());
-    tag.replace(QStringLiteral("''"), QStringLiteral("'"));
-    if (!tag.isEmpty()) result.append(tag);
-  }
-  return result;
+  return metadataStringList(metadataPrefix_, QStringLiteral("tags"));
+}
+
+QStringList DocumentFile::attachments() const {
+  return metadataStringList(metadataPrefix_, QStringLiteral("attachments"));
 }
 
 bool DocumentFile::setMetadataFlag(NoteFlag flag, bool enabled, QString* errorMessage) {
@@ -269,6 +304,42 @@ bool DocumentFile::setTags(const QStringList& tags, QString* errorMessage) {
       metadata.replace(match.capturedStart(), match.capturedLength(), match.captured(1) + value);
     } else {
       const qsizetype closing = metadata.lastIndexOf(QRegularExpression(QStringLiteral("(?:^|\\n)(?:---|\\.\\.)[ \\t]*\\r?\\n?$")));
+      metadata.insert(closing < 0 ? metadata.size() : closing + 1, value + QLatin1Char('\n'));
+    }
+  }
+  if (!writeDocument(path_, metadata, gutter, body_, errorMessage)) return false;
+  metadataPrefix_ = metadata;
+  bodyGutterPrefix_ = gutter;
+  return true;
+}
+
+bool DocumentFile::setAttachments(const QStringList& attachments, QString* errorMessage) {
+  QString metadata = metadataPrefix_;
+  QString gutter = bodyGutterPrefix_;
+  if (metadata.isEmpty()) {
+    metadata = newMetadata(QFileInfo(path_).completeBaseName());
+    gutter = QStringLiteral("\n");
+  }
+  const QRegularExpression line = metadataLine(QStringLiteral("attachments"));
+  const QRegularExpressionMatch match = line.match(metadata);
+  QStringList normalized;
+  for (const QString& attachment : attachments) {
+    const QString fileName = QFileInfo(attachment.trimmed()).fileName();
+    if (!fileName.isEmpty() && !normalized.contains(fileName, Qt::CaseInsensitive)) {
+      normalized.append(fileName);
+    }
+  }
+  if (normalized.isEmpty()) {
+    if (match.hasMatch()) metadata.remove(match.capturedStart(), match.capturedLength());
+  } else {
+    QStringList encoded;
+    for (const QString& attachment : normalized) encoded.append(quotedYamlString(attachment));
+    const QString value = QStringLiteral("attachments: [%1]").arg(encoded.join(QStringLiteral(", ")));
+    if (match.hasMatch()) {
+      metadata.replace(match.capturedStart(), match.capturedLength(), match.captured(1) + value);
+    } else {
+      const qsizetype closing = metadata.lastIndexOf(QRegularExpression(
+          QStringLiteral("(?:^|\\n)(?:---|\\.\\.)[ \\t]*\\r?\\n?$")));
       metadata.insert(closing < 0 ? metadata.size() : closing + 1, value + QLatin1Char('\n'));
     }
   }

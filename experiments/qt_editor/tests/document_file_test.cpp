@@ -14,6 +14,7 @@ class DocumentFileTest final : public QObject {
   void treatsUnclosedFrontMatterAsMarkdown();
   void createsAndDuplicatesNotes();
   void persistsMetadataFlags();
+  void readsInlineAndBlockMetadataLists();
   void comparesCanonicalContentIndependentlyOfEditorState();
   void preparesCanonicalRevisionBeforeWritingIt();
 };
@@ -134,6 +135,26 @@ void DocumentFileTest::persistsMetadataFlags() {
   QVERIFY2(reloaded->saveBody(QStringLiteral("# Flags updated\n"), &error, true), qPrintable(error));
   QVERIFY(reloaded->metadataPrefix().contains(QStringLiteral("modified:")));
   QCOMPARE(reloaded->body(), QStringLiteral("# Flags updated\n"));
+}
+
+void DocumentFileTest::readsInlineAndBlockMetadataLists() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString path = writeFile(directory, QByteArrayLiteral(
+      "---\n"
+      "title: Lists\n"
+      "tags: ['Projects/Test', plain]\n"
+      "attachments:\n"
+      "  - 'diagram one.svg'\n"
+      "  - report.pdf\n"
+      "---\n\n# Lists\n"));
+  QVERIFY(!path.isEmpty());
+  const auto document = qt_editor::DocumentFile::load(path);
+  QVERIFY(document.has_value());
+  QCOMPARE(document->tags(),
+           QStringList({QStringLiteral("Projects/Test"), QStringLiteral("plain")}));
+  QCOMPARE(document->attachments(),
+           QStringList({QStringLiteral("diagram one.svg"), QStringLiteral("report.pdf")}));
 }
 
 void DocumentFileTest::comparesCanonicalContentIndependentlyOfEditorState() {

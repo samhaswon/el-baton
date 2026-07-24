@@ -65,6 +65,13 @@ The native targets compile with the project's strict warning set, including
 -Wimplicit-fallthrough -Wnon-virtual-dtor -Wuseless-cast -Wundef -Wshadow` and
 `-fno-omit-frame-pointer`. Debug builds also enable AddressSanitizer.
 
+CMake's Release configuration supplies `-O3` for GCC/Clang or `/O2` for MSVC;
+the project also requests `/Qpar` for MSVC. Interprocedural optimization is
+enabled after a compiler capability check, which supplies LTO (`-flto` for
+GCC/Clang, or `/GL` and the corresponding link step for MSVC). Configure with
+`-DEL_BATON_ENABLE_IPO=OFF` to disable LTO for a toolchain that passes the probe
+but has a downstream linker or packaging issue.
+
 Qt 6.10.3's bundled Chromium currently triggers AddressSanitizer's
 `new_delete_type_mismatch` check during QtWebEngine startup in Mojo code. Debug
 GUI executables narrowly disable that one check by default; unit-test
@@ -114,13 +121,40 @@ core is being promoted:
 
 Use `--help` as the authoritative command-line reference.
 
+## Editor shortcuts
+
+The high-value Markdown commands follow the retained reference application:
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+E` | Toggle between source editing and preview. |
+| `Ctrl+Alt+S` | Enter or leave split view, restoring the previous single-pane mode. |
+| `Escape` | Close Find, leave split view, or leave source editing, in that order. |
+| `Ctrl+B` / `Ctrl+I` | Wrap the selection with bold or italic Markdown. |
+| `Ctrl+Shift+X` | Wrap the selection with strikethrough Markdown. |
+| `Alt+Enter` | Toggle selected lines between plain text and incomplete tasks. |
+| `Alt+D` | Toggle selected lines between incomplete and completed tasks. |
+| `Ctrl+Space` | Request contextual Markdown completions. |
+
+Typing Markdown delimiters automatically pairs parentheses, brackets, braces,
+emphasis markers, tildes, and backticks; typing a closing delimiter over an
+existing pair advances the caret. Contextual completion covers emoji
+shortcodes, opening code-fence languages, and note/attachment/relative paths.
+Filesystem suggestions use the same workspace boundary checks as link opening.
+
+Valid Markdown tables are normalized after the configured idle delay while
+preserving column alignment, escaped pipes, indentation, selection/caret
+position, and the visible source region. Programmatic file/preview updates do
+not trigger table formatting.
+
 ## Current architecture
 
 The native application is a Qt Widgets shell with a frameless document toolbar,
 activity rail, resizable flyout, tabbed QScintilla editor, and QWebEngine
-preview. File, Explorer, Search, Graph, and Info occupy the flyout; Cheatsheet
-and Settings replace the main document page, matching the reference
-application's routing distinction.
+preview. File, Explorer, Search, and Info occupy the flyout; Graph, Cheatsheet,
+and Settings replace the main document page. The native graph consumes a
+cached workspace snapshot of note links, tags, and attachment references and
+settles its force simulation to zero idle work after layout.
 
 The primary edit/render path is:
 

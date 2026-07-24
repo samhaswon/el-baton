@@ -22,7 +22,7 @@ bool referenceIconsAvailable() {
   static constexpr const char* names[] = {
       "delete", "info", "magnify", "note", "notebook", "notebook-multiple",
       "paperclip", "pencil", "pin", "pin-outline", "star", "star-outline",
-      "tag-multiple"};
+      "split-view", "tag-multiple"};
   for (const char* name : names) {
     if (!QFile::exists(QStringLiteral(":/reference-icons/") +
                        QString::fromLatin1(name) + QStringLiteral(".svg"))) {

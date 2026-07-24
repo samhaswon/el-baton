@@ -89,6 +89,21 @@ page also caches dynamic markup and coalesces pending generations so only the
 newest queued update is applied. Empty or malformed Mermaid output is excluded
 from visible layout, matching the reference preview's error behavior.
 
+Successful Mermaid and PlantUML renders are also stored in a compressed SQLite
+LRU cache under the platform cache directory. Cache keys include the renderer
+version and rendering inputs, and the configured entry/byte limits are enforced
+after writes. In-memory caches remain the first-level fast path.
+
+The native File surface imports Markdown and Evernote ENEX files. ENEX notes,
+tags, timestamps, and resources are converted directly into the workspace note
+and attachment model rather than invoking the TypeScript dumper at runtime.
+The active note can be exported as its canonical Markdown representation, a
+self-contained HTML document with local assets embedded, or a PDF produced by
+a dedicated light-theme print document. The PDF path expands details, waits for
+embedded fonts and layout, retains rendered diagram SVG, honors page-break
+macros, wraps code, and paginates the full note rather than printing the live
+scrollable preview viewport.
+
 ## QWebChannel API
 
 The registered object is `previewBridge`. Its deliberately small API is:

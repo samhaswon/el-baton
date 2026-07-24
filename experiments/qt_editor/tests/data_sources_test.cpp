@@ -9,6 +9,8 @@
 #include <QUrl>
 #include <QtTest>
 
+#include <algorithm>
+
 class DataSourcesTest final : public QObject {
   Q_OBJECT
 
@@ -16,6 +18,7 @@ class DataSourcesTest final : public QObject {
   void preservesUnrelatedReferenceSettings();
   void discoversAndSearchesWorkspaceNotes();
   void resolvesWorkspaceLinksSafely();
+  void buildsWorkspaceGraphAndAttachmentMetadata();
   void readsAndWritesWorkspaceConfiguration();
   void repairsLegacyStringContainers();
 };
@@ -197,6 +200,49 @@ void DataSourcesTest::resolvesWorkspaceLinksSafely() {
     QVERIFY(repository.resolveLocalFileTarget(
                 QUrl::fromLocalFile(escapingLink).toString(), note.fileName()).isEmpty());
   }
+}
+
+void DataSourcesTest::buildsWorkspaceGraphAndAttachmentMetadata() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  QDir root(directory.path());
+  QVERIFY(root.mkpath(QStringLiteral("notes/media")));
+  QVERIFY(root.mkpath(QStringLiteral("attachments/diagrams")));
+  const auto write = [&root](const QString& relativePath, const QByteArray& content) {
+    QFile file(root.filePath(relativePath));
+    return file.open(QIODevice::WriteOnly) && file.write(content) == content.size();
+  };
+  QVERIFY(write(QStringLiteral("notes/alpha.md"), QByteArrayLiteral(
+      "---\ntitle: Alpha\ntags: ['Projects/Test']\nattachments: [unreferenced.pdf]\n---\n\n"
+      "[Beta](./beta note.md) ![Diagram](@attachment/diagrams/graph.svg)\n"
+      "![Vanilla](media/inline%20image.png)\n"
+      "```md\n[Ignored](@attachment/ignored.txt)\n```\n")));
+  QVERIFY(write(QStringLiteral("notes/beta note.md"), QByteArrayLiteral("# Beta\n")));
+  QVERIFY(write(QStringLiteral("notes/media/inline image.png"), QByteArrayLiteral("png")));
+  QVERIFY(write(QStringLiteral("attachments/diagrams/graph.svg"), QByteArrayLiteral("<svg/>")));
+  QVERIFY(write(QStringLiteral("attachments/unreferenced.pdf"), QByteArrayLiteral("pdf")));
+  const QString escapingAttachment = root.filePath(QStringLiteral("attachments/escaping-link"));
+  (void)QFile::link(QStringLiteral("/etc/passwd"), escapingAttachment);
+
+  qt_editor::WorkspaceRepository repository;
+  repository.setWorkspaceRoot(directory.path());
+  repository.refresh();
+
+  const QVector<qt_editor::AttachmentSummary> attachments = repository.attachments();
+  QCOMPARE(attachments.size(), 2);
+  QCOMPARE(attachments.constFirst().relativePath, QStringLiteral("diagrams/graph.svg"));
+  QCOMPARE(repository.attachmentsForNote(root.filePath(QStringLiteral("notes/alpha.md"))).size(), 3);
+  QCOMPARE(repository.attachmentsForNote(root.filePath(QStringLiteral("notes/beta note.md"))).size(), 0);
+
+  const qt_editor::WorkspaceGraph graph = repository.graph();
+  QCOMPARE(graph.nodes.size(), 6);  // Two notes, three attachments, and one tag.
+  QCOMPARE(graph.edges.size(), 5);  // Note link, three attachment references, and tag membership.
+  QCOMPARE(std::count_if(graph.nodes.cbegin(), graph.nodes.cend(), [](const auto& node) {
+    return node.kind == qt_editor::WorkspaceGraphNodeKind::Attachment;
+  }), 3);
+  QCOMPARE(std::count_if(graph.edges.cbegin(), graph.edges.cend(), [](const auto& edge) {
+    return edge.kind == qt_editor::WorkspaceGraphEdgeKind::AttachmentReference;
+  }), 3);
 }
 
 QTEST_GUILESS_MAIN(DataSourcesTest)

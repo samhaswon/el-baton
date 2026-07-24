@@ -9,6 +9,9 @@
 
 #include <QMainWindow>
 #include <QDateTime>
+#include <QHash>
+#include <QList>
+#include <QSet>
 #include <QTimer>
 #include <QFutureWatcher>
 
@@ -27,6 +30,7 @@ class QWebEnginePage;
 class QsciScintilla;
 class QCloseEvent;
 class QEvent;
+class QKeyEvent;
 
 namespace qt_editor {
 
@@ -35,6 +39,7 @@ class PreviewBridge;
 class PlantUmlRenderer;
 class SyncController;
 class WorkspaceWatcher;
+class WorkspaceGraphView;
 struct WorkspaceChange;
 
 class MainWindow final : public QMainWindow {
@@ -52,6 +57,10 @@ class MainWindow final : public QMainWindow {
   void chooseFile();
   void createNote();
   void duplicateNote();
+  void importNotes();
+  void exportMarkdown();
+  void exportHtml();
+  void exportPdf();
   void toggleEditing(bool editing);
   void editTags();
   void addAttachment();
@@ -66,6 +75,8 @@ class MainWindow final : public QMainWindow {
   void sampleProcessUsage();
 
  private:
+  enum class EditorViewMode { Edit, Split, Preview };
+
   void configureEditor();
   void configurePreview();
   void createMenus();
@@ -77,7 +88,7 @@ class MainWindow final : public QMainWindow {
   QWidget* createFilePanel();
   QWidget* createExplorerPanel();
   QWidget* createSearchPanel();
-  QWidget* createGraphPanel();
+  QWidget* createGraphPage();
   QWidget* createInfoPanel();
   QWidget* createHelpPanel();
   QWidget* createSettingsPanel();
@@ -86,6 +97,7 @@ class MainWindow final : public QMainWindow {
   void updateSearchResults();
   void appendSearchResultBatch(quint64 generation);
   void updateInfoPanel();
+  void refreshGraphPage();
   void updateDocumentActions();
   void setGlobalConfigValue(const QString& key, const QVariant& value);
   void applyGlobalConfiguration();
@@ -101,10 +113,19 @@ class MainWindow final : public QMainWindow {
   void findInEditor(bool forward);
   void replaceCurrentMatch();
   void replaceAllMatches();
+  void setEditorViewMode(EditorViewMode mode);
+  void toggleSplitView();
+  void wrapEditorSelection(const QString& open, const QString& close);
+  void toggleTaskLines(bool toggleDone);
+  void updateMarkdownCompletions(bool explicitRequest = false);
+  void formatTouchedTables();
+  [[nodiscard]] bool handleMarkdownAutoPair(QKeyEvent* event);
+  void replaceEditorRange(int startByte, int endByte, const QString& replacement, int caretByte);
 
   BenchmarkOptions options_;
   QsciScintilla* editor_ = nullptr;
   QWebEngineView* preview_ = nullptr;
+  QSplitter* documentSplitter_ = nullptr;
   QWebEnginePage* hiddenMermaidPage_ = nullptr;
   QWebEngineView* hiddenMermaidView_ = nullptr;
   QLabel* status_ = nullptr;
@@ -112,6 +133,7 @@ class MainWindow final : public QMainWindow {
   QTreeWidget* noteTree_ = nullptr;
   QListWidget* searchResults_ = nullptr;
   QListWidget* outlineList_ = nullptr;
+  QListWidget* infoAttachments_ = nullptr;
   QLineEdit* navigationSearch_ = nullptr;
   QWidget* findBar_ = nullptr;
   QLineEdit* findInput_ = nullptr;
@@ -129,11 +151,24 @@ class MainWindow final : public QMainWindow {
   QLabel* infoCreated_ = nullptr;
   QLabel* infoModified_ = nullptr;
   QLabel* infoTags_ = nullptr;
+  QLabel* infoSize_ = nullptr;
+  QLabel* infoWords_ = nullptr;
+  QLabel* infoLinks_ = nullptr;
+  QLabel* infoAttachmentCount_ = nullptr;
+  WorkspaceGraphView* graphView_ = nullptr;
+  QLabel* graphStats_ = nullptr;
+  QLabel* graphSelectionTitle_ = nullptr;
+  QLabel* graphSelectionDetail_ = nullptr;
   QAction* openAction_ = nullptr;
   QAction* saveAction_ = nullptr;
   QAction* newAction_ = nullptr;
   QAction* duplicateAction_ = nullptr;
+  QAction* importAction_ = nullptr;
+  QAction* exportMarkdownAction_ = nullptr;
+  QAction* exportHtmlAction_ = nullptr;
+  QAction* exportPdfAction_ = nullptr;
   QAction* editAction_ = nullptr;
+  QAction* splitAction_ = nullptr;
   QAction* tagsAction_ = nullptr;
   QAction* attachmentsAction_ = nullptr;
   QAction* favoriteAction_ = nullptr;
@@ -148,6 +183,7 @@ class MainWindow final : public QMainWindow {
   QTimer usageTimer_;
   QTimer searchTimer_;
   QTimer spellcheckTimer_;
+  QTimer tableFormatTimer_;
   QFutureWatcher<QVector<SpellingIssue>> spellcheckWatcher_;
   QVector<SpellingIssue> spellingIssues_;
   quint64 spellcheckGeneration_ = 0;
@@ -155,6 +191,11 @@ class MainWindow final : public QMainWindow {
   quint64 spellcheckAppliedGeneration_ = 0;
   qsizetype spellcheckRequestStartByte_ = 0;
   int spellcheckIndicator_ = -1;
+  QSet<int> tableTouchedLines_;
+  QHash<QString, QString> completionInsertions_;
+  QHash<QString, QString> emojiCompletions_;
+  int completionReplaceStartByte_ = -1;
+  int completionReplaceEndByte_ = -1;
   QString pendingSearchQuery_;
   SearchMode pendingSearchMode_ = SearchMode::Smart;
   QVector<NoteSearchResult> pendingSearchResults_;
@@ -188,6 +229,11 @@ class MainWindow final : public QMainWindow {
   double processMemoryMiB_ = 0;
   bool previewReady_ = false;
   bool forceFullPreviewRender_ = false;
+  bool applyingEditorTransform_ = false;
+  bool updatingViewModeActions_ = false;
+  EditorViewMode viewMode_ = EditorViewMode::Split;
+  EditorViewMode previousSingleViewMode_ = EditorViewMode::Edit;
+  QList<int> splitViewSizes_ = {720, 720};
 };
 
 }  // namespace qt_editor

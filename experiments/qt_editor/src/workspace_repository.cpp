@@ -6,12 +6,31 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
+#include <QLocale>
+#include <QMimeDatabase>
 #include <QRegularExpression>
+#include <QSet>
 #include <QUrl>
 
 #include <algorithm>
 
 namespace qt_editor {
+namespace {
+
+QString graphNodeId(const WorkspaceGraphNodeKind kind, const QString& value) {
+  const QString prefix = kind == WorkspaceGraphNodeKind::Note ? QStringLiteral("note:")
+      : kind == WorkspaceGraphNodeKind::Tag ? QStringLiteral("tag:")
+      : QStringLiteral("attachment:");
+  return prefix + value;
+}
+
+QString targetWithoutFragment(const QString& target) {
+  const qsizetype fragment = target.indexOf(QLatin1Char('#'));
+  return (fragment < 0 ? target : target.first(fragment)).trimmed();
+}
+
+}  // namespace
 
 void WorkspaceRepository::setWorkspaceRoot(const QString& path) {
   workspaceRoot_ = QFileInfo(path).absoluteFilePath();
@@ -50,6 +69,8 @@ QString WorkspaceRepository::readTitle(const QString& path, const QString& conte
 
 void WorkspaceRepository::refresh() {
   notes_.clear();
+  attachments_.clear();
+  graph_ = {};
   if (workspaceRoot_.isEmpty()) return;
   const QDir root(workspaceRoot_);
   const QString notesPath = root.exists(QStringLiteral("notes"))
@@ -65,6 +86,7 @@ void WorkspaceRepository::refresh() {
     const QString userContent = document.has_value() ? document->body() : source;
     notes_.append({path, readTitle(path, source), notesDirectory.relativeFilePath(path), userContent,
                    document.has_value() ? document->tags() : QStringList(),
+                   document.has_value() ? document->attachments() : QStringList(),
                    document.has_value() && document->metadataFlag(NoteFlag::Favorited),
                    document.has_value() && document->metadataFlag(NoteFlag::Pinned),
                    document.has_value() && document->metadataFlag(NoteFlag::Deleted)});
@@ -73,6 +95,8 @@ void WorkspaceRepository::refresh() {
     if (left.pinned != right.pinned) return left.pinned;
     return QString::localeAwareCompare(left.title, right.title) < 0;
   });
+  attachments_ = scanAttachments();
+  graph_ = buildGraph();
 }
 
 QVector<NoteSummary> WorkspaceRepository::search(const QString& query) const {
@@ -182,6 +206,10 @@ QString WorkspaceRepository::resolveAttachmentTarget(const QString& target) cons
   const QString rootCanonical = QFileInfo(attachments.absolutePath()).canonicalFilePath();
   const QString candidateCanonical = candidate.canonicalFilePath();
   if (rootCanonical.isEmpty() || candidateCanonical.isEmpty()) return {};
+  const QString workspaceCanonical = QFileInfo(workspaceRoot_).canonicalFilePath();
+  const QString workspacePrefix = workspaceCanonical.endsWith(QLatin1Char('/'))
+      ? workspaceCanonical : workspaceCanonical + QLatin1Char('/');
+  if (workspaceCanonical.isEmpty() || !rootCanonical.startsWith(workspacePrefix)) return {};
   const QString prefix = rootCanonical.endsWith(QLatin1Char('/'))
       ? rootCanonical : rootCanonical + QLatin1Char('/');
   return candidateCanonical.startsWith(prefix) ? candidateCanonical : QString();
@@ -214,6 +242,233 @@ QString WorkspaceRepository::resolveLocalFileTarget(
       ? rootCanonical : rootCanonical + QLatin1Char('/');
   return candidateCanonical == rootCanonical || candidateCanonical.startsWith(prefix)
       ? candidateCanonical : QString();
+}
+
+QStringList WorkspaceRepository::linkTargets(const QString& content) const {
+  static const QRegularExpression markdownLink(
+      QStringLiteral("!?\\[[^\\]]*\\]\\(\\s*(?:<([^>]+)>|([^\\r\\n]*?))\\s*\\)"));
+  static const QRegularExpression htmlLink(
+      QStringLiteral("(?:href|src)\\s*=\\s*['\"]([^'\"]+)['\"]"),
+      QRegularExpression::CaseInsensitiveOption);
+  static const QRegularExpression wikiLink(
+      QStringLiteral("\\[\\[([^\\]|]+)(?:\\|[^\\]]*)?\\]\\]"));
+  static const QRegularExpression fence(QStringLiteral("^\\s*(```|~~~)"));
+
+  QStringList targets;
+  bool inFence = false;
+  const QStringList lines = content.split(QLatin1Char('\n'));
+  for (const QString& line : lines) {
+    if (fence.match(line).hasMatch()) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    auto markdownMatches = markdownLink.globalMatch(line);
+    while (markdownMatches.hasNext()) {
+      const QRegularExpressionMatch match = markdownMatches.next();
+      QString destination = match.captured(1).isEmpty() ? match.captured(2) : match.captured(1);
+      static const QRegularExpression optionalTitle(
+          QStringLiteral("\\s+(?:\"[^\"]*\"|'[^']*')\\s*$"));
+      destination.remove(optionalTitle);
+      const QString target = targetWithoutFragment(destination);
+      if (!target.isEmpty() && !targets.contains(target)) targets.append(target);
+    }
+    for (const QRegularExpression* pattern : {&htmlLink, &wikiLink}) {
+      auto otherMatches = pattern->globalMatch(line);
+      while (otherMatches.hasNext()) {
+        const QString target = targetWithoutFragment(otherMatches.next().captured(1));
+        if (!target.isEmpty() && !targets.contains(target)) targets.append(target);
+      }
+    }
+  }
+  return targets;
+}
+
+QVector<AttachmentSummary> WorkspaceRepository::scanAttachments() const {
+  QVector<AttachmentSummary> result;
+  if (workspaceRoot_.isEmpty()) return result;
+  const QDir directory(QDir(workspaceRoot_).filePath(QStringLiteral("attachments")));
+  if (!directory.exists()) return result;
+  const QString rootCanonical = QFileInfo(directory.absolutePath()).canonicalFilePath();
+  if (rootCanonical.isEmpty()) return result;
+  const QString workspaceCanonical = QFileInfo(workspaceRoot_).canonicalFilePath();
+  const QString workspacePrefix = workspaceCanonical.endsWith(QLatin1Char('/'))
+      ? workspaceCanonical : workspaceCanonical + QLatin1Char('/');
+  if (workspaceCanonical.isEmpty() || !rootCanonical.startsWith(workspacePrefix)) return result;
+  const QString rootPrefix = rootCanonical.endsWith(QLatin1Char('/'))
+      ? rootCanonical : rootCanonical + QLatin1Char('/');
+  QMimeDatabase mimeDatabase;
+  QDirIterator iterator(directory.absolutePath(), QDir::Files | QDir::Readable,
+                        QDirIterator::Subdirectories);
+  while (iterator.hasNext()) {
+    const QFileInfo info(iterator.next());
+    const QString canonical = info.canonicalFilePath();
+    if (canonical.isEmpty() || !canonical.startsWith(rootPrefix)) continue;
+    result.append({canonical, directory.relativeFilePath(info.absoluteFilePath()),
+                   info.fileName(), mimeDatabase.mimeTypeForFile(info).name(), info.size(),
+                   info.birthTime(), info.lastModified()});
+  }
+  std::sort(result.begin(), result.end(), [](const AttachmentSummary& left,
+                                             const AttachmentSummary& right) {
+    return QString::localeAwareCompare(left.relativePath, right.relativePath) < 0;
+  });
+  return result;
+}
+
+QVector<AttachmentSummary> WorkspaceRepository::attachmentsForNote(const QString& notePath) const {
+  const auto note = std::find_if(notes_.cbegin(), notes_.cend(), [&notePath](const NoteSummary& value) {
+    return QFileInfo(value.filePath) == QFileInfo(notePath);
+  });
+  if (note == notes_.cend()) return {};
+
+  QSet<QString> referenced;
+  QHash<QString, AttachmentSummary> summaries;
+  QMimeDatabase mimeDatabase;
+  for (const AttachmentSummary& attachment : attachments_) {
+    summaries.insert(attachment.filePath, attachment);
+  }
+  const auto addLocalAttachment = [this, &referenced, &summaries, &mimeDatabase](const QString& path) {
+    const QFileInfo info(path);
+    const QString canonical = info.canonicalFilePath();
+    if (!info.isFile() || canonical.isEmpty() || isSupportedNote(canonical)) return;
+    referenced.insert(canonical);
+    if (summaries.contains(canonical)) return;
+    summaries.insert(canonical, {
+        canonical,
+        QDir(workspaceRoot_).relativeFilePath(canonical),
+        info.fileName(),
+        mimeDatabase.mimeTypeForFile(info).name(),
+        info.size(),
+        info.birthTime(),
+        info.lastModified(),
+    });
+  };
+  for (const QString& attachment : note->attachments) {
+    const QString resolved = resolveAttachmentTarget(attachment);
+    if (!resolved.isEmpty()) addLocalAttachment(resolved);
+  }
+  for (const QString& rawTarget : linkTargets(note->content)) {
+    QString target = rawTarget;
+    if (target.startsWith(QStringLiteral("@attachment/"), Qt::CaseInsensitive)) {
+      target = target.sliced(12);
+    }
+    QString resolved = resolveAttachmentTarget(target);
+    if (resolved.isEmpty()) {
+      const QString local = resolveLocalFileTarget(rawTarget, note->filePath);
+      if (!local.isEmpty()) resolved = local;
+    }
+    if (!resolved.isEmpty()) addLocalAttachment(resolved);
+  }
+
+  QVector<AttachmentSummary> result;
+  for (const QString& path : referenced) {
+    result.append(summaries.value(path));
+  }
+  std::sort(result.begin(), result.end(), [](const AttachmentSummary& left,
+                                             const AttachmentSummary& right) {
+    return QString::localeAwareCompare(left.relativePath, right.relativePath) < 0;
+  });
+  return result;
+}
+
+WorkspaceGraph WorkspaceRepository::buildGraph() const {
+  WorkspaceGraph result;
+  QHash<QString, QString> noteIds;
+  QHash<QString, QString> attachmentIds;
+  QSet<QString> edgeKeys;
+  const auto addEdge = [&result, &edgeKeys](const QString& source, const QString& target,
+                                            const WorkspaceGraphEdgeKind kind) {
+    if (source.isEmpty() || target.isEmpty() || source == target) return;
+    const QString key = source + QLatin1Char('\n') + target + QLatin1Char('\n') +
+                        QString::number(static_cast<int>(kind));
+    if (edgeKeys.contains(key)) return;
+    edgeKeys.insert(key);
+    result.edges.append({source, target, kind});
+  };
+
+  for (const NoteSummary& note : notes_) {
+    const QString canonical = QFileInfo(note.filePath).canonicalFilePath();
+    const QString id = graphNodeId(WorkspaceGraphNodeKind::Note, canonical);
+    noteIds.insert(canonical, id);
+    result.nodes.append({id, note.title, canonical, note.relativePath,
+                         WorkspaceGraphNodeKind::Note});
+  }
+  for (const AttachmentSummary& attachment : attachments_) {
+    const QString id = graphNodeId(WorkspaceGraphNodeKind::Attachment, attachment.filePath);
+    attachmentIds.insert(attachment.filePath, id);
+    result.nodes.append({id, attachment.displayName, attachment.filePath,
+                         attachment.mimeType + QStringLiteral(" · ") +
+                             QLocale().formattedDataSize(attachment.sizeBytes),
+                         WorkspaceGraphNodeKind::Attachment});
+  }
+  QMimeDatabase mimeDatabase;
+  const auto ensureAttachmentNode = [this, &result, &attachmentIds, &mimeDatabase](const QString& path) {
+    const QFileInfo info(path);
+    const QString canonical = info.canonicalFilePath();
+    if (!info.isFile() || canonical.isEmpty() || isSupportedNote(canonical)) return QString();
+    if (attachmentIds.contains(canonical)) return attachmentIds.value(canonical);
+    const QString id = graphNodeId(WorkspaceGraphNodeKind::Attachment, canonical);
+    attachmentIds.insert(canonical, id);
+    result.nodes.append({
+        id,
+        info.fileName(),
+        canonical,
+        mimeDatabase.mimeTypeForFile(info).name() + QStringLiteral(" · ") +
+            QLocale().formattedDataSize(info.size()) + QStringLiteral(" · ") +
+            QDir(workspaceRoot_).relativeFilePath(canonical),
+        WorkspaceGraphNodeKind::Attachment,
+    });
+    return id;
+  };
+
+  QSet<QString> addedTags;
+  for (const NoteSummary& note : notes_) {
+    const QString sourceId = noteIds.value(QFileInfo(note.filePath).canonicalFilePath());
+    for (const QString& tag : note.tags) {
+      const QString normalized = tag.trimmed();
+      if (normalized.isEmpty()) continue;
+      const QString tagId = graphNodeId(WorkspaceGraphNodeKind::Tag, normalized.toCaseFolded());
+      if (!addedTags.contains(tagId)) {
+        addedTags.insert(tagId);
+        result.nodes.append({tagId, normalized, QString(), QStringLiteral("Tag"),
+                             WorkspaceGraphNodeKind::Tag});
+      }
+      addEdge(sourceId, tagId, WorkspaceGraphEdgeKind::TagMembership);
+    }
+
+    for (const QString& attachment : note.attachments) {
+      const QString attachmentTarget = resolveAttachmentTarget(attachment);
+      if (!attachmentTarget.isEmpty()) {
+        addEdge(sourceId, attachmentIds.value(QFileInfo(attachmentTarget).canonicalFilePath()),
+                WorkspaceGraphEdgeKind::AttachmentReference);
+      }
+    }
+
+    for (const QString& rawTarget : linkTargets(note.content)) {
+      QString target = rawTarget;
+      if (target.startsWith(QStringLiteral("@note/"), Qt::CaseInsensitive)) {
+        target = target.sliced(6);
+      }
+      QString noteTarget = resolveNoteTarget(target);
+      const QString localTarget = resolveLocalFileTarget(rawTarget, note.filePath);
+      if (noteTarget.isEmpty() && isSupportedNote(localTarget)) noteTarget = localTarget;
+      if (!noteTarget.isEmpty()) {
+        addEdge(sourceId, noteIds.value(QFileInfo(noteTarget).canonicalFilePath()),
+                WorkspaceGraphEdgeKind::NoteLink);
+        continue;
+      }
+      if (target.startsWith(QStringLiteral("@attachment/"), Qt::CaseInsensitive)) {
+        target = target.sliced(12);
+      }
+      QString attachmentTarget = resolveAttachmentTarget(target);
+      if (attachmentTarget.isEmpty() && !localTarget.isEmpty()) attachmentTarget = localTarget;
+      if (!attachmentTarget.isEmpty()) {
+        addEdge(sourceId, ensureAttachmentNode(attachmentTarget),
+                WorkspaceGraphEdgeKind::AttachmentReference);
+      }
+    }
+  }
+  return result;
 }
 
 }  // namespace qt_editor

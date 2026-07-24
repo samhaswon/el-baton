@@ -461,12 +461,40 @@ void postprocessReferenceHtml(QVector<QString>& blocks) {
     }
   }
 
-  QString toc = QStringLiteral("<div class=\"macro-toc\"><div class=\"macro-toc-title\">Table of Contents</div><ul class=\"macro-toc-list\">");
-  for (const Heading& item : headings) {
-    toc += QStringLiteral("<li class=\"toc-level-%1\"><a class=\"toc-item\" href=\"#%2\">%3</a></li>")
-        .arg(item.level).arg(escapeAttribute(item.id), escapeAttribute(item.text));
+  QString toc;
+  if (!headings.isEmpty()) {
+    toc = QStringLiteral(
+        "<div class=\"macro-toc\"><p class=\"macro-toc-title\">Table of Contents</p>");
+    QVector<int> openLevels;
+    for (const Heading& item : headings) {
+      if (openLevels.isEmpty()) {
+        toc += QStringLiteral("<ul class=\"macro-toc-list\">");
+        openLevels.append(item.level);
+      } else if (item.level > openLevels.constLast()) {
+        toc += QStringLiteral("<ul class=\"macro-toc-list\">");
+        openLevels.append(item.level);
+      } else {
+        while (!openLevels.isEmpty() && item.level < openLevels.constLast()) {
+          toc += QStringLiteral("</li></ul>");
+          openLevels.removeLast();
+        }
+        if (!openLevels.isEmpty()) {
+          toc += QStringLiteral("</li>");
+        } else {
+          toc += QStringLiteral("<ul class=\"macro-toc-list\">");
+          openLevels.append(item.level);
+        }
+      }
+      toc += QStringLiteral("<li><a class=\"toc-item\" href=\"#%1\">%2</a>")
+          .arg(escapeAttribute(item.id), escapeAttribute(item.text));
+    }
+    if (!openLevels.isEmpty()) toc += QStringLiteral("</li>");
+    while (!openLevels.isEmpty()) {
+      toc += QStringLiteral("</ul>");
+      openLevels.removeLast();
+    }
+    toc += QStringLiteral("</div>");
   }
-  toc += QStringLiteral("</ul></div>");
 
   qsizetype checkbox = 0;
   qsizetype detailsIndex = 0;

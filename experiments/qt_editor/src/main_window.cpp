@@ -1,13 +1,16 @@
 #include "main_window.h"
 
 #include "benchmark_options.h"
-#include "markdown_pipeline.h"
+#include "markdown_completion.h"
 #include "markdown_edits.h"
+#include "markdown_pipeline.h"
+#include "note_transfer_service.h"
 #include "preview_bridge.h"
 #include "reference_icons.h"
 #include "plantuml_renderer.h"
 #include "sync_controller.h"
 #include "workspace_watcher.h"
+#include "workspace_graph_view.h"
 
 #include <Qsci/qscilexermarkdown.h>
 #include <Qsci/qsciscintilla.h>
@@ -35,6 +38,7 @@
 #include <QLabel>
 #include <QInputDialog>
 #include <QIcon>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
@@ -42,20 +46,25 @@
 #include <QMenuBar>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMimeDatabase>
 #include <QMouseEvent>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPushButton>
 #include <QPainter>
+#include <QPointer>
 #include <QScrollArea>
+#include <QSaveFile>
 #include <QScopedValueRollback>
 #include <QScrollBar>
+#include <QSlider>
 #include <QShowEvent>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStringListModel>
 #include <QTabBar>
+#include <QTemporaryFile>
 #include <QToolButton>
 #include <QSplitter>
 #include <QStatusBar>
@@ -72,6 +81,7 @@
 #include <QWebChannel>
 #include <QWebEnginePage>
 #include <QWebEngineProfile>
+#include <QWebEngineSettings>
 #include <QWebEngineUrlRequestInfo>
 #include <QWebEngineUrlRequestInterceptor>
 #include <QWebEngineView>
@@ -190,6 +200,24 @@ class LazyPanel final : public QWidget {
   std::function<void()> callback_;
 };
 
+class ElidingTabBar final : public QTabBar {
+ public:
+  explicit ElidingTabBar(QWidget* parent = nullptr) : QTabBar(parent) {
+    setElideMode(Qt::ElideRight);
+    setUsesScrollButtons(true);
+  }
+
+ protected:
+  QSize tabSizeHint(int index) const override {
+    QSize size = QTabBar::tabSizeHint(index);
+    const int tabCount = count();
+    if (tabCount <= 0) return size;
+    const int availablePerTab = std::max(90, (width() - 12) / tabCount);
+    size.setWidth(std::min(size.width(), std::min(220, availablePerTab)));
+    return size;
+  }
+};
+
 class WorkspaceRequestInterceptor final : public QWebEngineUrlRequestInterceptor {
  public:
   explicit WorkspaceRequestInterceptor(std::function<QString()> workspaceRoot, QObject* parent = nullptr)
@@ -244,6 +272,141 @@ QString highlightedSnippetHtml(const SearchSnippet& snippet) {
       snippet.text.sliced(snippet.matchStart + snippet.matchLength).toHtmlEscaped();
 }
 
+bool writeExportFile(const QString& path, const QByteArray& content, QString* errorMessage) {
+  QSaveFile file(path);
+  if (!file.open(QIODevice::WriteOnly) || file.write(content) != content.size() || !file.commit()) {
+    if (errorMessage != nullptr) *errorMessage = file.errorString();
+    return false;
+  }
+  return true;
+}
+
+QString inlineCssResources(QString css, const QString& cssPath) {
+  static const QRegularExpression resource(
+      QStringLiteral("url\\(\\s*['\"]?([^)'\"]+)['\"]?\\s*\\)"),
+      QRegularExpression::CaseInsensitiveOption);
+  QMimeDatabase mimeDatabase;
+  auto matches = resource.globalMatch(css);
+  QVector<QPair<QString, QString>> replacements;
+  while (matches.hasNext()) {
+    const QRegularExpressionMatch match = matches.next();
+    const QString reference = match.captured(1);
+    if (reference.startsWith(QStringLiteral("data:")) || reference.contains(QStringLiteral("://"))) continue;
+    QFile file(QDir(QFileInfo(cssPath).absolutePath()).filePath(reference));
+    if (!file.open(QIODevice::ReadOnly)) continue;
+    const QString mime = mimeDatabase.mimeTypeForFile(file.fileName()).name();
+    replacements.append({match.captured(0), QStringLiteral("url(data:%1;base64,%2)")
+        .arg(mime, QString::fromLatin1(file.readAll().toBase64()))});
+  }
+  for (const auto& replacement : replacements) css.replace(replacement.first, replacement.second);
+  return css;
+}
+
+QString selfContainedPreviewHtml(QString fragment, const QString& title,
+                                 const QString& currentPath,
+                                 const WorkspaceRepository& workspace,
+                                 bool printLayout = false) {
+  static const QRegularExpression fileSource(
+      QStringLiteral("(src|href)=['\"](file:[^'\"]+)['\"]"),
+      QRegularExpression::CaseInsensitiveOption);
+  QMimeDatabase mimeDatabase;
+  auto links = fileSource.globalMatch(fragment);
+  QVector<QPair<QString, QString>> replacements;
+  while (links.hasNext()) {
+    const QRegularExpressionMatch match = links.next();
+    const QString safePath = workspace.resolveLocalFileTarget(match.captured(2), currentPath);
+    QFile file(safePath);
+    if (safePath.isEmpty() || !file.open(QIODevice::ReadOnly)) continue;
+    const QString data = QStringLiteral("%1=\"data:%2;base64,%3\"")
+        .arg(match.captured(1), mimeDatabase.mimeTypeForFile(safePath).name(),
+             QString::fromLatin1(file.readAll().toBase64()));
+    replacements.append({match.captured(0), data});
+  }
+  for (const auto& replacement : replacements) fragment.replace(replacement.first, replacement.second);
+
+  QString css;
+  for (const QString& path : {
+           QStringLiteral(QT_EDITOR_WEB_DIR "/vendor/notable.css"),
+           QStringLiteral(QT_EDITOR_WEB_DIR "/vendor/katex/katex.min.css"),
+           QStringLiteral(QT_EDITOR_WEB_DIR "/preview.css"),
+       }) {
+    QFile file(path);
+    if (file.open(QIODevice::ReadOnly)) {
+      css += inlineCssResources(QString::fromUtf8(file.readAll()), path) + QLatin1Char('\n');
+    }
+  }
+  if (printLayout) {
+    css += QStringLiteral(R"CSS(
+@page { margin: 14mm 16mm; }
+@media print {
+  :root { color-scheme: light !important; }
+  html, body {
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #111 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body { margin: 0 !important; }
+  main.preview {
+    box-sizing: border-box;
+    width: auto !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  .render-block {
+    display: block !important;
+    overflow: visible !important;
+  }
+  .render-block[data-kind="heading"], h1, h2, h3, h4, h5, h6 {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+  pre {
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  table {
+    display: table !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+  thead { display: table-header-group; }
+  tr, img, pre, blockquote, details, .qt-katex-display, .qt-mermaid, .qt-plantuml {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+  img, svg, .qt-mermaid > svg, .qt-plantuml > svg {
+    max-width: 100% !important;
+    max-height: 240mm;
+    height: auto !important;
+  }
+  .copy-wrapper button, .mermaid-open-external, #debug-overlay {
+    display: none !important;
+  }
+  hr.pagebreak {
+    height: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    break-after: page;
+    page-break-after: always;
+  }
+}
+)CSS");
+  }
+  return QStringLiteral("<!doctype html><html><head><meta charset=\"utf-8\">"
+                        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                        "<title>%1</title><style>%2</style></head>"
+                        "<body class=\"theme-light\"><main class=\"preview\">%3</main></body></html>")
+      .arg(title.toHtmlEscaped(), css, fragment);
+}
+
 }  // namespace
 
 MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
@@ -256,14 +419,19 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
   workspace_.refresh();
   globalConfig_.setWorkspaceRoot(workspace_.workspaceRoot());
   createMenus();
-  auto* splitter = new QSplitter(Qt::Horizontal, this);
-  editor_ = new QsciScintilla(splitter);
-  preview_ = new QWebEngineView(splitter);
-  splitter->addWidget(editor_);
-  splitter->addWidget(preview_);
-  splitter->setSizes({720, 720});
-  splitter->setHandleWidth(2);
-  setCentralWidget(createApplicationChrome(splitter));
+  documentSplitter_ = new QSplitter(Qt::Horizontal, this);
+  editor_ = new QsciScintilla(documentSplitter_);
+  preview_ = new QWebEngineView(documentSplitter_);
+  documentSplitter_->addWidget(editor_);
+  documentSplitter_->addWidget(preview_);
+  documentSplitter_->setSizes(splitViewSizes_);
+  documentSplitter_->setHandleWidth(2);
+  setCentralWidget(createApplicationChrome(documentSplitter_));
+  if (!settings_.value(QStringLiteral("editor.split"), true).toBool()) {
+    setEditorViewMode(settings_.value(QStringLiteral("editor.editing"), true).toBool()
+                          ? EditorViewMode::Edit
+                          : EditorViewMode::Preview);
+  }
   refreshWorkspaceViews();
 
   if (options_.overlayEnabled) {
@@ -292,6 +460,10 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
       "QSplitter::handle { background: #000; }"
       "QWidget#activityBar { background: #0f0f0f; border-right: 1px solid #000; }"
       "QWidget#navigationPane { background: #161616; border-right: 1px solid #000; }"
+      "QWidget#graphPage, QWidget#workspaceGraph { background: #202020; }"
+      "QWidget#graphControls { background: #1b1b1b; border-right: 1px solid #000; }"
+      "QWidget#graphToolbar, QWidget#graphZoomControls { background: #171717; border-bottom: 1px solid #333; }"
+      "QWidget#graphZoomControls { border-top: 1px solid #333; border-bottom: 0; }"
       "QLabel#paneHeading { color: #b9b9b9; font-size: 11px; font-weight: 600; letter-spacing: 1px; }"
       "QLabel#panelDescription { color: #999; line-height: 1.4; }"
       "QGroupBox { color: #ddd; border: 1px solid #353535; border-radius: 7px; margin-top: 10px; padding: 10px 7px 7px; font-weight: 600; }"
@@ -338,6 +510,34 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
     }
     ++spellcheckGeneration_;
     spellcheckTimer_.start();
+    if (!switchingDocuments_ && !handlingWorkspaceChanges_ && !applyingEditorTransform_ &&
+        !globalConfig_.value(QStringLiteral("monaco.disableAutomaticTableFormatting"), false).toBool()) {
+      int line = 0;
+      int index = 0;
+      editor_->getCursorPosition(&line, &index);
+      tableTouchedLines_.insert(std::max(0, line - 1));
+      tableTouchedLines_.insert(line);
+      tableTouchedLines_.insert(std::min(editor_->lines() - 1, line + 1));
+      tableFormatTimer_.start();
+    }
+  });
+  tableFormatTimer_.setSingleShot(true);
+  connect(&tableFormatTimer_, &QTimer::timeout, this, &MainWindow::formatTouchedTables);
+  emojiCompletions_ = MarkdownCompletion::loadEmojiMap(QStringLiteral(QT_EDITOR_EMOJI_JSON));
+  connect(editor_, &QsciScintilla::SCN_CHARADDED, this, [this](int) {
+    updateMarkdownCompletions();
+  });
+  connect(editor_, &QsciScintilla::userListActivated, this,
+          [this](int id, const QString& label) {
+    if (id != 71 || completionReplaceStartByte_ < 0 ||
+        !completionInsertions_.contains(label)) return;
+    const QByteArray replacement = completionInsertions_.value(label).toUtf8();
+    replaceEditorRange(completionReplaceStartByte_, completionReplaceEndByte_,
+                       QString::fromUtf8(replacement),
+                       completionReplaceStartByte_ + replacement.size());
+    completionInsertions_.clear();
+    completionReplaceStartByte_ = -1;
+    completionReplaceEndByte_ = -1;
   });
   spellcheckTimer_.setSingleShot(true);
   spellcheckTimer_.setInterval(200);
@@ -446,6 +646,7 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
   });
   const auto applyPreviewEdit = [this](const QString& nextSource) {
     if (nextSource == editor_->text()) return;
+    QScopedValueRollback applying(applyingEditorTransform_, true);
     int line = 0;
     int index = 0;
     editor_->getCursorPosition(&line, &index);
@@ -516,7 +717,7 @@ QWidget* MainWindow::createApplicationChrome(QSplitter* documentSplitter) {
   documentLayout->setContentsMargins(0, 0, 0, 0);
   documentLayout->setSpacing(0);
 
-  noteTabs_ = new QTabBar(documentView);
+  noteTabs_ = new ElidingTabBar(documentView);
   noteTabs_->setObjectName(QStringLiteral("noteTabs"));
   noteTabs_->setTabsClosable(true);
   noteTabs_->setMovable(true);
@@ -535,15 +736,19 @@ QWidget* MainWindow::createApplicationChrome(QSplitter* documentSplitter) {
   documentLayout->addWidget(documentSplitter, 1);
   mainContentStack_ = new QStackedWidget(root);
   mainContentStack_->addWidget(documentView);
+  mainContentStack_->addWidget(createGraphPage());
   mainContentStack_->addWidget(createHelpPanel());
   mainContentStack_->addWidget(createSettingsPanel());
   const QString initialPanel = settings_.value(QStringLiteral("window.panel"), QStringLiteral("explorer")).toString();
-  if (initialPanel == QStringLiteral("help")) {
+  if (initialPanel == QStringLiteral("graph")) {
     navigationPane->hide();
     mainContentStack_->setCurrentIndex(1);
-  } else if (initialPanel == QStringLiteral("settings")) {
+  } else if (initialPanel == QStringLiteral("help")) {
     navigationPane->hide();
     mainContentStack_->setCurrentIndex(2);
+  } else if (initialPanel == QStringLiteral("settings")) {
+    navigationPane->hide();
+    mainContentStack_->setCurrentIndex(3);
   }
 
   auto* mainArea = new QWidget(root);
@@ -675,8 +880,8 @@ QWidget* MainWindow::createActivityBar(QWidget* navigationPane) {
       QString errorMessage;
       if (!settings_.save(&errorMessage)) qWarning() << "Unable to save panel setting:" << errorMessage;
     };
-    if (index >= 5) {
-      const int pageIndex = index - 4;
+    const int pageIndex = index == 3 ? 1 : index == 5 ? 2 : index == 6 ? 3 : -1;
+    if (pageIndex >= 0) {
       if (mainContentStack_->currentIndex() == pageIndex) {
         mainContentStack_->setCurrentIndex(0);
         panelGroup->setExclusive(false);
@@ -692,7 +897,8 @@ QWidget* MainWindow::createActivityBar(QWidget* navigationPane) {
       return;
     }
     mainContentStack_->setCurrentIndex(0);
-    if (navigationPane->isVisible() && navigationStack_->currentIndex() == index) {
+    const int navigationIndex = index == 4 ? 3 : index;
+    if (navigationPane->isVisible() && navigationStack_->currentIndex() == navigationIndex) {
       navigationPane->hide();
       panelGroup->setExclusive(false);
       selected->setChecked(false);
@@ -700,7 +906,7 @@ QWidget* MainWindow::createActivityBar(QWidget* navigationPane) {
       persistPanel(QVariant());
       return;
     }
-    navigationStack_->setCurrentIndex(index);
+    navigationStack_->setCurrentIndex(navigationIndex);
     navigationPane->show();
     selected->setChecked(true);
     persistPanel(panelNames.at(index));
@@ -720,7 +926,11 @@ QWidget* MainWindow::createActivityBar(QWidget* navigationPane) {
       QStringLiteral("graph"), QStringLiteral("info"), QStringLiteral("help"), QStringLiteral("settings")};
   const int initialIndex = static_cast<int>(std::max<qsizetype>(0, names.indexOf(initialPanel)));
   if (QAbstractButton* initialButton = panelGroup->button(initialIndex)) initialButton->setChecked(true);
-  if (initialIndex < 5) navigationStack_->setCurrentIndex(initialIndex);
+  if (initialIndex == 0 || initialIndex == 1 || initialIndex == 2) {
+    navigationStack_->setCurrentIndex(initialIndex);
+  } else if (initialIndex == 4) {
+    navigationStack_->setCurrentIndex(3);
+  }
   return activityBar;
 }
 
@@ -754,6 +964,12 @@ QWidget* MainWindow::createDocumentToolbar() {
   edit->setChecked(true);
   connect(edit, &QToolButton::toggled, editAction_, &QAction::setChecked);
   bindAction(edit, editAction_);
+  auto* split = addTool(referenceIcon(QStringLiteral("split-view")),
+                        QStringLiteral("Toggle split view (Ctrl+Alt+S)"), true);
+  split->setCheckable(true);
+  split->setChecked(true);
+  connect(split, &QToolButton::clicked, splitAction_, &QAction::trigger);
+  bindAction(split, splitAction_);
   auto* tags = addTool(referenceIcon(QStringLiteral("tag-multiple")), QStringLiteral("Edit tags"), true);
   connect(tags, &QToolButton::clicked, tagsAction_, &QAction::trigger);
   bindAction(tags, tagsAction_);
@@ -813,7 +1029,6 @@ QWidget* MainWindow::createNavigationPane() {
   navigationStack_->addWidget(createFilePanel());
   navigationStack_->addWidget(createExplorerPanel());
   navigationStack_->addWidget(createSearchPanel());
-  navigationStack_->addWidget(createGraphPanel());
   navigationStack_->addWidget(createInfoPanel());
   navigationStack_->setCurrentIndex(1);
   layout->addWidget(navigationStack_);
@@ -853,17 +1068,19 @@ QWidget* MainWindow::createFilePanel() {
   addButton(QStringLiteral("Save                            Ctrl+S"), saveAction_);
   addButton(QStringLiteral("New                              Ctrl+N"), newAction_);
   addButton(QStringLiteral("Duplicate          Ctrl+Shift+D"), duplicateAction_);
+  addButton(QStringLiteral("Import Notes…"), importAction_);
   addSection(QStringLiteral("NOTE"));
-  addButton(QStringLiteral("Edit"), editAction_);
+  addButton(QStringLiteral("Edit / Preview                 Ctrl+E"), editAction_);
+  addButton(QStringLiteral("Split View              Ctrl+Alt+S"), splitAction_);
   addButton(QStringLiteral("Edit Tags"), tagsAction_);
   addButton(QStringLiteral("Add Attachment"), attachmentsAction_);
   addButton(QStringLiteral("Favorite"), favoriteAction_);
   addButton(QStringLiteral("Pin"), pinAction_);
   addButton(QStringLiteral("Move to Trash"), trashAction_);
   addSection(QStringLiteral("EXPORT"));
-  addButton(QStringLiteral("Export HTML"), nullptr)->setEnabled(false);
-  addButton(QStringLiteral("Export Markdown"), nullptr)->setEnabled(false);
-  addButton(QStringLiteral("Export PDF"), nullptr)->setEnabled(false);
+  addButton(QStringLiteral("Export HTML…"), exportHtmlAction_);
+  addButton(QStringLiteral("Export Markdown…"), exportMarkdownAction_);
+  addButton(QStringLiteral("Export PDF…"), exportPdfAction_);
   layout->addStretch();
   return panel;
 }
@@ -1059,35 +1276,174 @@ void MainWindow::appendSearchResultBatch(quint64 generation) {
   }
 }
 
-QWidget* MainWindow::createGraphPanel() {
+QWidget* MainWindow::createGraphPage() {
   auto* panel = new QWidget(this);
-  auto* layout = new QVBoxLayout(panel);
-  layout->setContentsMargins(10, 11, 10, 10);
-  layout->setSpacing(8);
-  layout->addWidget(panelHeading(QStringLiteral("GRAPH"), panel));
-  layout->addWidget(panelDescription(
-      QStringLiteral("Explore links between notes, tags, and attachments."), panel));
+  panel->setObjectName(QStringLiteral("graphPage"));
+  auto* layout = new QHBoxLayout(panel);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
 
-  auto* display = new QGroupBox(QStringLiteral("DISPLAY"), panel);
-  auto* form = new QFormLayout(display);
-  auto* depth = new QComboBox(display);
-  depth->addItems({QStringLiteral("1 hop"), QStringLiteral("2 hops"), QStringLiteral("Entire workspace")});
-  auto* grouping = new QComboBox(display);
-  grouping->addItems({QStringLiteral("Links"), QStringLiteral("Tags"), QStringLiteral("Folders")});
-  form->addRow(QStringLiteral("Depth"), depth);
-  form->addRow(QStringLiteral("Group by"), grouping);
-  layout->addWidget(display);
+  auto* controls = new QWidget(panel);
+  controls->setObjectName(QStringLiteral("graphControls"));
+  controls->setMinimumWidth(260);
+  controls->setMaximumWidth(420);
+  auto* controlsLayout = new QVBoxLayout(controls);
+  controlsLayout->setContentsMargins(12, 12, 12, 12);
+  controlsLayout->setSpacing(9);
+  controlsLayout->addWidget(panelHeading(QStringLiteral("WORKSPACE GRAPH"), controls));
+  auto* search = new QLineEdit(controls);
+  search->setObjectName(QStringLiteral("navigationSearch"));
+  search->setPlaceholderText(QStringLiteral("Search nodes…"));
+  search->setClearButtonEnabled(true);
+  controlsLayout->addWidget(search);
 
-  auto* canvas = new QFrame(panel);
-  canvas->setMinimumHeight(180);
-  canvas->setStyleSheet(QStringLiteral(
-      "background: #111; border: 1px solid #333; border-radius: 8px;"));
-  auto* canvasLayout = new QVBoxLayout(canvas);
-  auto* placeholder = panelDescription(QStringLiteral("Graph visualization"), canvas);
-  placeholder->setAlignment(Qt::AlignCenter);
-  canvasLayout->addWidget(placeholder);
-  layout->addWidget(canvas);
-  layout->addStretch();
+  auto* types = new QGroupBox(QStringLiteral("NODE TYPES"), controls);
+  auto* typesLayout = new QVBoxLayout(types);
+  auto* notes = new QCheckBox(QStringLiteral("Notes"), types);
+  auto* tags = new QCheckBox(QStringLiteral("Tags"), types);
+  auto* attachments = new QCheckBox(QStringLiteral("Attachments"), types);
+  notes->setChecked(true);
+  tags->setChecked(true);
+  attachments->setChecked(true);
+  typesLayout->addWidget(notes);
+  typesLayout->addWidget(tags);
+  typesLayout->addWidget(attachments);
+  controlsLayout->addWidget(types);
+
+  auto* linkState = new QGroupBox(QStringLiteral("CONNECTIONS"), controls);
+  auto* linkStateLayout = new QVBoxLayout(linkState);
+  auto* linked = new QCheckBox(QStringLiteral("Linked nodes"), linkState);
+  auto* unlinked = new QCheckBox(QStringLiteral("Unlinked nodes"), linkState);
+  linked->setChecked(true);
+  unlinked->setChecked(true);
+  linkStateLayout->addWidget(linked);
+  linkStateLayout->addWidget(unlinked);
+  controlsLayout->addWidget(linkState);
+
+  auto* forces = new QGroupBox(QStringLiteral("LAYOUT"), controls);
+  auto* forcesLayout = new QFormLayout(forces);
+  const auto addSlider = [forces, forcesLayout](const QString& label, int minimum, int maximum,
+                                                int value) {
+    auto* slider = new QSlider(Qt::Horizontal, forces);
+    slider->setRange(minimum, maximum);
+    slider->setValue(value);
+    forcesLayout->addRow(label, slider);
+    return slider;
+  };
+  QSlider* collision = addSlider(QStringLiteral("Collision radius"), 4, 64, 16);
+  QSlider* linkStrength = addSlider(QStringLiteral("Link strength"), 0, 100, 45);
+  QSlider* repulsion = addSlider(QStringLiteral("Repulsion"), 0, 100, 55);
+  controlsLayout->addWidget(forces);
+
+  auto* selected = new QGroupBox(QStringLiteral("SELECTION"), controls);
+  auto* selectedLayout = new QVBoxLayout(selected);
+  graphSelectionTitle_ = new QLabel(QStringLiteral("No node selected"), selected);
+  graphSelectionTitle_->setWordWrap(true);
+  graphSelectionTitle_->setStyleSheet(QStringLiteral("font-weight:600;color:#f4f4f4;"));
+  graphSelectionDetail_ = panelDescription(
+      QStringLiteral("Select a node for metadata; double-click to open it."), selected);
+  selectedLayout->addWidget(graphSelectionTitle_);
+  selectedLayout->addWidget(graphSelectionDetail_);
+  controlsLayout->addWidget(selected);
+  controlsLayout->addStretch();
+  layout->addWidget(controls);
+
+  auto* graphArea = new QWidget(panel);
+  auto* graphLayout = new QVBoxLayout(graphArea);
+  graphLayout->setContentsMargins(0, 0, 0, 0);
+  graphLayout->setSpacing(0);
+  auto* graphToolbar = new QWidget(graphArea);
+  graphToolbar->setObjectName(QStringLiteral("graphToolbar"));
+  auto* toolbarLayout = new QHBoxLayout(graphToolbar);
+  toolbarLayout->setContentsMargins(8, 5, 8, 5);
+  toolbarLayout->setSpacing(4);
+  graphStats_ = new QLabel(QStringLiteral("0 nodes · 0 links"), graphToolbar);
+  graphStats_->setStyleSheet(QStringLiteral("color:#999;"));
+  toolbarLayout->addWidget(graphStats_);
+  toolbarLayout->addStretch();
+  const auto graphButton = [graphToolbar, toolbarLayout](const QString& text,
+                                                         const QString& tooltip) {
+    auto* button = new QToolButton(graphToolbar);
+    button->setText(text);
+    button->setToolTip(tooltip);
+    toolbarLayout->addWidget(button);
+    return button;
+  };
+  QToolButton* reset = graphButton(QStringLiteral("Reheat"), QStringLiteral("Restart force layout"));
+  QToolButton* fit = graphButton(QStringLiteral("Fit"), QStringLiteral("Fit all visible nodes"));
+  QToolButton* exportImage = graphButton(QStringLiteral("Export"), QStringLiteral("Export graph as PNG"));
+  graphLayout->addWidget(graphToolbar);
+  graphView_ = new WorkspaceGraphView(graphArea);
+  graphLayout->addWidget(graphView_, 1);
+  auto* zoomControls = new QWidget(graphArea);
+  zoomControls->setObjectName(QStringLiteral("graphZoomControls"));
+  auto* zoomLayout = new QHBoxLayout(zoomControls);
+  zoomLayout->setContentsMargins(6, 4, 6, 4);
+  zoomLayout->addStretch();
+  auto* zoomOut = new QToolButton(zoomControls);
+  zoomOut->setText(QStringLiteral("−"));
+  zoomOut->setToolTip(QStringLiteral("Zoom out"));
+  auto* zoomIn = new QToolButton(zoomControls);
+  zoomIn->setText(QStringLiteral("+"));
+  zoomIn->setToolTip(QStringLiteral("Zoom in"));
+  zoomLayout->addWidget(zoomOut);
+  zoomLayout->addWidget(zoomIn);
+  graphLayout->addWidget(zoomControls);
+  layout->addWidget(graphArea, 1);
+
+  const auto updateTypes = [this, notes, tags, attachments] {
+    graphView_->setNodeKindsVisible(notes->isChecked(), tags->isChecked(), attachments->isChecked());
+  };
+  const auto updateLinks = [this, linked, unlinked] {
+    graphView_->setLinkStatesVisible(linked->isChecked(), unlinked->isChecked());
+  };
+  connect(search, &QLineEdit::textChanged, graphView_, &WorkspaceGraphView::setSearchQuery);
+  connect(notes, &QCheckBox::toggled, this, updateTypes);
+  connect(tags, &QCheckBox::toggled, this, updateTypes);
+  connect(attachments, &QCheckBox::toggled, this, updateTypes);
+  connect(linked, &QCheckBox::toggled, this, updateLinks);
+  connect(unlinked, &QCheckBox::toggled, this, updateLinks);
+  connect(collision, &QSlider::valueChanged, this,
+          [this](int value) { graphView_->setCollisionRadius(value); });
+  connect(linkStrength, &QSlider::valueChanged, this,
+          [this](int value) { graphView_->setLinkStrength(value / 1000.0); });
+  connect(repulsion, &QSlider::valueChanged, this,
+          [this](int value) { graphView_->setRepulsionStrength(value * 18.0); });
+  connect(reset, &QToolButton::clicked, graphView_, &WorkspaceGraphView::reheat);
+  connect(fit, &QToolButton::clicked, graphView_, &WorkspaceGraphView::fitToView);
+  connect(zoomOut, &QToolButton::clicked, this, [this] { graphView_->zoomBy(0.8); });
+  connect(zoomIn, &QToolButton::clicked, this, [this] { graphView_->zoomBy(1.25); });
+  connect(exportImage, &QToolButton::clicked, this, [this] {
+    const QString initial = QDir(workspace_.workspaceRoot()).filePath(QStringLiteral("workspace-graph.png"));
+    const QString path = QFileDialog::getSaveFileName(
+        this, QStringLiteral("Export workspace graph"), initial, QStringLiteral("PNG image (*.png)"));
+    if (!path.isEmpty() && !graphView_->saveImage(path)) {
+      QMessageBox::warning(this, QStringLiteral("Graph export failed"),
+                           QStringLiteral("The graph image could not be written."));
+    }
+  });
+  connect(graphView_, &WorkspaceGraphView::visibleCountsChanged, this,
+          [this](int nodeCount, int edgeCount) {
+    graphStats_->setText(QStringLiteral("%1 nodes · %2 links").arg(nodeCount).arg(edgeCount));
+  });
+  connect(graphView_, &WorkspaceGraphView::nodeSelected, this,
+          [this](const WorkspaceGraphNode& node, int connections) {
+    const QString kind = node.kind == WorkspaceGraphNodeKind::Note ? QStringLiteral("Note")
+        : node.kind == WorkspaceGraphNodeKind::Tag ? QStringLiteral("Tag")
+        : QStringLiteral("Attachment");
+    graphSelectionTitle_->setText(node.label);
+    graphSelectionDetail_->setText(
+        QStringLiteral("%1 · %2 connections\n%3").arg(kind).arg(connections).arg(node.detail));
+  });
+  connect(graphView_, &WorkspaceGraphView::nodeActivated, this,
+          [this](const WorkspaceGraphNode& node) {
+    if (node.kind == WorkspaceGraphNodeKind::Note && !node.filePath.isEmpty()) {
+      openFile(node.filePath);
+    } else if (node.kind == WorkspaceGraphNodeKind::Attachment && !node.filePath.isEmpty()) {
+      QDesktopServices::openUrl(QUrl::fromLocalFile(node.filePath));
+    }
+  });
+  refreshGraphPage();
   return panel;
 }
 
@@ -1121,12 +1477,31 @@ QWidget* MainWindow::createInfoPanel() {
   infoModified_ = new QLabel(QStringLiteral("—"), properties);
   infoTags_ = new QLabel(QStringLiteral("None"), properties);
   infoTags_->setWordWrap(true);
+  infoSize_ = new QLabel(QStringLiteral("—"), properties);
+  infoWords_ = new QLabel(QStringLiteral("—"), properties);
+  infoLinks_ = new QLabel(QStringLiteral("—"), properties);
+  infoAttachmentCount_ = new QLabel(QStringLiteral("0"), properties);
   form->addRow(QStringLiteral("Path"), infoPath_);
   form->addRow(QStringLiteral("Created"), infoCreated_);
   form->addRow(QStringLiteral("Modified"), infoModified_);
+  form->addRow(QStringLiteral("Size"), infoSize_);
+  form->addRow(QStringLiteral("Text"), infoWords_);
+  form->addRow(QStringLiteral("Links"), infoLinks_);
   form->addRow(QStringLiteral("Tags"), infoTags_);
-  form->addRow(QStringLiteral("Attachments"), new QLabel(QStringLiteral("0"), properties));
+  form->addRow(QStringLiteral("Attachments"), infoAttachmentCount_);
   layout->addWidget(properties);
+
+  auto* attachments = new QGroupBox(QStringLiteral("ATTACHMENTS"), panel);
+  auto* attachmentsLayout = new QVBoxLayout(attachments);
+  infoAttachments_ = new QListWidget(attachments);
+  infoAttachments_->setObjectName(QStringLiteral("noteList"));
+  infoAttachments_->setMinimumHeight(100);
+  connect(infoAttachments_, &QListWidget::itemActivated, this, [](QListWidgetItem* item) {
+    const QString path = item->data(Qt::UserRole).toString();
+    if (!path.isEmpty()) QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+  });
+  attachmentsLayout->addWidget(infoAttachments_);
+  layout->addWidget(attachments);
   layout->addStretch();
   return panel;
 }
@@ -1440,8 +1815,14 @@ void MainWindow::applyGlobalConfiguration() {
   const bool suggestionsDisabled = globalConfig_.value(
       QStringLiteral("monaco.editorOptions.disableSuggestions"), false).toBool() ||
       (batteryMode && globalConfig_.value(QStringLiteral("battery.disableAutocomplete"), false).toBool());
-  editor_->setAutoCompletionSource(suggestionsDisabled ? QsciScintilla::AcsNone : QsciScintilla::AcsAll);
-  editor_->setAutoCompletionThreshold(suggestionsDisabled ? -1 : 1);
+  editor_->setAutoCompletionSource(suggestionsDisabled ? QsciScintilla::AcsNone : QsciScintilla::AcsDocument);
+  editor_->setAutoCompletionThreshold(suggestionsDisabled ? -1 : 2);
+  tableFormatTimer_.setInterval(std::clamp(
+      globalConfig_.value(QStringLiteral("monaco.tableFormattingDelay"), 2000).toInt(), 0, 5000));
+  if (globalConfig_.value(QStringLiteral("monaco.disableAutomaticTableFormatting"), false).toBool()) {
+    tableFormatTimer_.stop();
+    tableTouchedLines_.clear();
+  }
   const bool delayedRendering = batteryMode && globalConfig_.value(
       QStringLiteral("battery.optimizeRendering"), true).toBool();
   renderTimer_.setInterval(delayedRendering
@@ -1462,20 +1843,25 @@ void MainWindow::applyGlobalConfiguration() {
     }
   }
   if (plantUmlRenderer_ != nullptr) {
+    const int cacheMaxEntries =
+        globalConfig_.value(QStringLiteral("plantuml.cacheMaxEntries"), 400).toInt();
+    const qint64 cacheMaxBytes = globalConfig_
+        .value(QStringLiteral("plantuml.cacheMaxBytes"), 64 * 1024 * 1024).toLongLong();
     plantUmlRenderer_->configure(
         globalConfig_.value(QStringLiteral("plantuml.requestTimeoutMs"), 12000).toInt(),
-        globalConfig_.value(QStringLiteral("plantuml.cacheMaxEntries"), 400).toInt(),
+        cacheMaxEntries, cacheMaxBytes,
         globalConfig_.value(QStringLiteral("plantuml.externalServerUrl")).toString());
+    bridge_->configureDiagramCache(cacheMaxEntries, cacheMaxBytes);
   }
 }
 
 void MainWindow::rebuildSettingsPage() {
-  if (mainContentStack_ == nullptr || mainContentStack_->count() < 3) return;
-  QWidget* previous = mainContentStack_->widget(2);
+  if (mainContentStack_ == nullptr || mainContentStack_->count() < 4) return;
+  QWidget* previous = mainContentStack_->widget(3);
   const bool wasCurrent = mainContentStack_->currentWidget() == previous;
   mainContentStack_->removeWidget(previous);
-  mainContentStack_->insertWidget(2, createSettingsPanel());
-  if (wasCurrent) mainContentStack_->setCurrentIndex(2);
+  mainContentStack_->insertWidget(3, createSettingsPanel());
+  if (wasCurrent) mainContentStack_->setCurrentIndex(3);
   previous->deleteLater();
 }
 
@@ -1559,6 +1945,15 @@ void MainWindow::refreshWorkspaceViews() {
   }
   noteTree_->resizeColumnToContents(0);
   refreshingExplorer_ = false;
+  refreshGraphPage();
+}
+
+void MainWindow::refreshGraphPage() {
+  if (graphView_ == nullptr) return;
+  graphView_->setGraph(workspace_.graph());
+  QTimer::singleShot(0, graphView_, [this] {
+    if (graphView_ != nullptr) graphView_->fitToView();
+  });
 }
 
 void MainWindow::handleWorkspaceChanges(const QVector<WorkspaceChange>& changes) {
@@ -1710,18 +2105,61 @@ void MainWindow::updateInfoPanel() {
       ? QDir::toNativeSeparators(currentPath_)
       : QDir(workspace_.workspaceRoot()).relativeFilePath(currentPath_));
   infoModified_->setText(QLocale().toString(info.lastModified(), QLocale::ShortFormat));
+  if (infoSize_ != nullptr) infoSize_->setText(QLocale().formattedDataSize(info.size()));
+  if (infoWords_ != nullptr) {
+    const QString body = editor_ == nullptr ? QString() : editor_->text();
+    const qsizetype wordCount = body.split(
+        QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts).size();
+    infoWords_->setText(QStringLiteral("%1 words · %2 characters")
+                            .arg(wordCount).arg(body.size()));
+  }
   if (document_.has_value()) {
     const QString metadata = document_->metadataPrefix();
     static const QRegularExpression createdPattern(
         QStringLiteral("(?:^|\\n)created:[ \\t]*['\"]?([^'\"\\r\\n]+)"),
         QRegularExpression::CaseInsensitiveOption);
-    static const QRegularExpression tagsPattern(
-        QStringLiteral("(?:^|\\n)tags:[ \\t]*\\[([^\\]]*)\\]"),
-        QRegularExpression::CaseInsensitiveOption);
     const auto created = createdPattern.match(metadata);
-    const auto tags = tagsPattern.match(metadata);
-    infoCreated_->setText(created.hasMatch() ? created.captured(1).trimmed() : QStringLiteral("—"));
-    infoTags_->setText(tags.hasMatch() ? tags.captured(1).trimmed() : QStringLiteral("None"));
+    const QString fallbackCreated = info.birthTime().isValid()
+        ? QLocale().toString(info.birthTime(), QLocale::ShortFormat) : QStringLiteral("—");
+    infoCreated_->setText(created.hasMatch() ? created.captured(1).trimmed() : fallbackCreated);
+    infoTags_->setText(document_->tags().isEmpty()
+        ? QStringLiteral("None") : document_->tags().join(QStringLiteral(", ")));
+  }
+  const QVector<AttachmentSummary> attachments = workspace_.attachmentsForNote(currentPath_);
+  if (infoAttachmentCount_ != nullptr) infoAttachmentCount_->setText(QString::number(attachments.size()));
+  if (infoAttachments_ != nullptr) {
+    infoAttachments_->clear();
+    for (const AttachmentSummary& attachment : attachments) {
+      auto* item = new QListWidgetItem(attachment.displayName, infoAttachments_);
+      item->setData(Qt::UserRole, attachment.filePath);
+      item->setToolTip(QStringLiteral("%1\n%2 · %3\nModified %4")
+                           .arg(attachment.relativePath, attachment.mimeType,
+                                QLocale().formattedDataSize(attachment.sizeBytes),
+                                QLocale().toString(attachment.modified, QLocale::ShortFormat)));
+    }
+    if (attachments.isEmpty()) {
+      auto* empty = new QListWidgetItem(QStringLiteral("No referenced attachments"), infoAttachments_);
+      empty->setFlags(Qt::NoItemFlags);
+    }
+  }
+  if (infoLinks_ != nullptr) {
+    const WorkspaceGraph& graph = workspace_.graph();
+    QString noteId;
+    for (const WorkspaceGraphNode& node : graph.nodes) {
+      if (node.kind == WorkspaceGraphNodeKind::Note &&
+          QFileInfo(node.filePath) == QFileInfo(currentPath_)) {
+        noteId = node.id;
+        break;
+      }
+    }
+    int outgoing = 0;
+    int backlinks = 0;
+    for (const WorkspaceGraphEdge& edge : graph.edges) {
+      if (edge.kind != WorkspaceGraphEdgeKind::NoteLink) continue;
+      if (edge.sourceId == noteId) ++outgoing;
+      if (edge.targetId == noteId) ++backlinks;
+    }
+    infoLinks_->setText(QStringLiteral("%1 outgoing · %2 backlinks").arg(outgoing).arg(backlinks));
   }
   if (outlineList_ != nullptr) {
     outlineList_->clear();
@@ -1849,11 +2287,25 @@ void MainWindow::createMenus() {
   connect(duplicateAction_, &QAction::triggered, this, &MainWindow::duplicateNote);
   addAction(duplicateAction_);
 
+  importAction_ = new QAction(QStringLiteral("Import Notes…"), this);
+  connect(importAction_, &QAction::triggered, this, &MainWindow::importNotes);
+  addAction(importAction_);
+  exportMarkdownAction_ = new QAction(QStringLiteral("Export Markdown…"), this);
+  connect(exportMarkdownAction_, &QAction::triggered, this, &MainWindow::exportMarkdown);
+  addAction(exportMarkdownAction_);
+  exportHtmlAction_ = new QAction(QStringLiteral("Export HTML…"), this);
+  connect(exportHtmlAction_, &QAction::triggered, this, &MainWindow::exportHtml);
+  addAction(exportHtmlAction_);
+  exportPdfAction_ = new QAction(QStringLiteral("Export PDF…"), this);
+  connect(exportPdfAction_, &QAction::triggered, this, &MainWindow::exportPdf);
+  addAction(exportPdfAction_);
+
   const auto addEditorAction = [this](const QString& text, const QKeySequence& shortcut, auto callback) {
     auto* action = new QAction(text, this);
     action->setShortcut(shortcut);
     connect(action, &QAction::triggered, this, callback);
     addAction(action);
+    return action;
   };
   addEditorAction(QStringLiteral("Find"), QKeySequence::Find,
                   [this] { showFindBar(false); });
@@ -1863,17 +2315,44 @@ void MainWindow::createMenus() {
                   [this] { findInEditor(true); });
   addEditorAction(QStringLiteral("Find Previous"), QKeySequence(Qt::SHIFT | Qt::Key_F3),
                   [this] { findInEditor(false); });
-  addEditorAction(QStringLiteral("Close Find"), QKeySequence(Qt::Key_Escape), [this] {
+  addEditorAction(QStringLiteral("Close Find or Preview"), QKeySequence(Qt::Key_Escape), [this] {
     if (findBar_ != nullptr && findBar_->isVisible()) {
       findBar_->hide();
       editor_->setFocus();
+    } else if (editor_->isListActive()) {
+      editor_->cancelList();
+    } else if (viewMode_ == EditorViewMode::Split) {
+      toggleSplitView();
+    } else if (viewMode_ == EditorViewMode::Edit) {
+      setEditorViewMode(EditorViewMode::Preview);
     }
   });
+  addEditorAction(QStringLiteral("Bold"), QKeySequence::Bold,
+                  [this] { wrapEditorSelection(QStringLiteral("**"), QStringLiteral("**")); });
+  addEditorAction(QStringLiteral("Italic"), QKeySequence::Italic,
+                  [this] { wrapEditorSelection(QStringLiteral("*"), QStringLiteral("*")); });
+  addEditorAction(QStringLiteral("Strikethrough"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_X),
+                  [this] { wrapEditorSelection(QStringLiteral("~~"), QStringLiteral("~~")); });
+  addEditorAction(QStringLiteral("Toggle Task"), QKeySequence(Qt::ALT | Qt::Key_Return),
+                  [this] { toggleTaskLines(false); });
+  addEditorAction(QStringLiteral("Toggle Task Done"), QKeySequence(Qt::ALT | Qt::Key_D),
+                  [this] { toggleTaskLines(true); });
+  addEditorAction(QStringLiteral("Show Markdown Completions"), QKeySequence(QStringLiteral("Ctrl+Space")),
+                  [this] { updateMarkdownCompletions(true); });
 
   editAction_ = new QAction(QStringLiteral("Edit"), this);
   editAction_->setCheckable(true);
   editAction_->setChecked(true);
+  editAction_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_E));
   connect(editAction_, &QAction::toggled, this, &MainWindow::toggleEditing);
+  addAction(editAction_);
+
+  splitAction_ = new QAction(QStringLiteral("Split View"), this);
+  splitAction_->setCheckable(true);
+  splitAction_->setChecked(true);
+  splitAction_->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_S));
+  connect(splitAction_, &QAction::triggered, this, &MainWindow::toggleSplitView);
+  addAction(splitAction_);
 
   tagsAction_ = new QAction(QStringLiteral("Edit Tags"), this);
   connect(tagsAction_, &QAction::triggered, this, &MainWindow::editTags);
@@ -2020,11 +2499,375 @@ void MainWindow::duplicateNote() {
   openFile(path);
 }
 
+void MainWindow::importNotes() {
+  if (workspace_.workspaceRoot().isEmpty()) return;
+  const QStringList paths = QFileDialog::getOpenFileNames(
+      this, QStringLiteral("Import notes"), QString(),
+      QStringLiteral("Supported notes (*.enex *.md *.mkd *.mdwn *.mdown *.markdown *.markdn *.mdtxt *.mdtext *.txt);;"
+                     "Evernote export (*.enex);;Markdown (*.md *.mkd *.mdwn *.mdown *.markdown *.markdn *.mdtxt *.mdtext *.txt)"));
+  if (paths.isEmpty()) return;
+  const ImportResult result = NoteTransferService::importFiles(paths, workspace_.workspaceRoot());
+  workspace_.refresh();
+  refreshWorkspaceViews();
+  QString summary = QStringLiteral("Imported %1 notes and %2 attachments.")
+                        .arg(result.notesImported).arg(result.attachmentsImported);
+  if (!result.errors.isEmpty()) {
+    summary += QStringLiteral("\n\n%1").arg(result.errors.join(QLatin1Char('\n')));
+    QMessageBox::warning(this, QStringLiteral("Import completed with errors"), summary);
+  } else {
+    QMessageBox::information(this, QStringLiteral("Import complete"), summary);
+  }
+}
+
+void MainWindow::exportMarkdown() {
+  if (!document_.has_value() || !maybeSave()) return;
+  const QString path = QFileDialog::getSaveFileName(
+      this, QStringLiteral("Export Markdown"), QFileInfo(currentPath_).fileName(),
+      QStringLiteral("Markdown (*.md)"));
+  if (path.isEmpty()) return;
+  QString error;
+  if (!writeExportFile(path, document_->serializedContent(), &error)) {
+    QMessageBox::critical(this, QStringLiteral("Export failed"), error);
+  } else {
+    statusBar()->showMessage(QStringLiteral("Exported %1").arg(path), 3000);
+  }
+}
+
+void MainWindow::exportHtml() {
+  if (!document_.has_value() || !maybeSave()) return;
+  const QString suggested = QFileInfo(currentPath_).completeBaseName() + QStringLiteral(".html");
+  const QString destination = QFileDialog::getSaveFileName(
+      this, QStringLiteral("Export HTML"), suggested, QStringLiteral("HTML document (*.html)"));
+  if (destination.isEmpty()) return;
+  const QString sourcePath = currentPath_;
+  const QString title = QFileInfo(currentPath_).completeBaseName();
+  const QPointer<MainWindow> guard(this);
+  preview_->page()->runJavaScript(
+      QStringLiteral("document.getElementById('preview')?.innerHTML || ''"),
+      [guard, destination, sourcePath, title](const QVariant& value) {
+    if (guard.isNull()) return;
+    const QString html = selfContainedPreviewHtml(value.toString(), title, sourcePath, guard->workspace_);
+    QString error;
+    if (!writeExportFile(destination, html.toUtf8(), &error)) {
+      QMessageBox::critical(guard, QStringLiteral("Export failed"), error);
+    } else {
+      guard->statusBar()->showMessage(QStringLiteral("Exported %1").arg(destination), 3000);
+    }
+  });
+}
+
+void MainWindow::exportPdf() {
+  if (!document_.has_value() || !maybeSave()) return;
+  const QString suggested = QFileInfo(currentPath_).completeBaseName() + QStringLiteral(".pdf");
+  const QString destination = QFileDialog::getSaveFileName(
+      this, QStringLiteral("Export PDF"), suggested, QStringLiteral("PDF document (*.pdf)"));
+  if (destination.isEmpty()) return;
+  const QString sourcePath = currentPath_;
+  const QString title = QFileInfo(currentPath_).completeBaseName();
+  const QPointer<MainWindow> guard(this);
+  preview_->page()->runJavaScript(
+      QStringLiteral("document.getElementById('preview')?.innerHTML || ''"),
+      [guard, destination, sourcePath, title](const QVariant& value) {
+    if (guard.isNull()) return;
+    const QString html = selfContainedPreviewHtml(
+        value.toString(), title, sourcePath, guard->workspace_, true);
+
+    QTemporaryFile temporary(
+        QDir(QDir::tempPath()).filePath(QStringLiteral("el-baton-print-XXXXXX.html")));
+    temporary.setAutoRemove(false);
+    const QByteArray encodedHtml = html.toUtf8();
+    if (!temporary.open() ||
+        temporary.write(encodedHtml) != encodedHtml.size()) {
+      QMessageBox::critical(guard, QStringLiteral("Export failed"),
+                            QStringLiteral("Unable to create the temporary print document."));
+      return;
+    }
+    const QString temporaryPath = temporary.fileName();
+    temporary.close();
+
+    auto* profile = new QWebEngineProfile(guard);
+    auto* page = new QWebEnginePage(profile, guard);
+    page->settings()->setAttribute(
+        QWebEngineSettings::PrintElementBackgrounds, true);
+    page->settings()->setAttribute(
+        QWebEngineSettings::PreferCSSMarginsForPrinting, true);
+    QObject::connect(guard, &QObject::destroyed, page,
+                     [temporaryPath] { QFile::remove(temporaryPath); });
+    QObject::connect(page, &QWebEnginePage::loadFinished, guard,
+                     [guard, page, profile, temporaryPath, destination](bool loaded) {
+      const auto cleanup = [page, profile, temporaryPath] {
+        QFile::remove(temporaryPath);
+        page->deleteLater();
+        profile->deleteLater();
+      };
+      if (guard.isNull()) {
+        cleanup();
+        return;
+      }
+      if (!loaded) {
+        cleanup();
+        QMessageBox::critical(guard, QStringLiteral("Export failed"),
+                              QStringLiteral("Unable to load the temporary print document."));
+        return;
+      }
+      page->runJavaScript(QStringLiteral(R"JS(
+        (async () => {
+          document.querySelectorAll('details').forEach(node => { node.open = true; });
+          if (document.fonts?.ready) await document.fonts.ready;
+          await new Promise(resolve => requestAnimationFrame(
+            () => requestAnimationFrame(resolve)));
+          return document.documentElement.scrollHeight;
+        })()
+      )JS"), [guard, page, profile, temporaryPath, destination](const QVariant&) {
+        if (guard.isNull()) {
+          QFile::remove(temporaryPath);
+          page->deleteLater();
+          profile->deleteLater();
+          return;
+        }
+        page->printToPdf(
+            [guard, page, profile, temporaryPath, destination](const QByteArray& pdf) {
+          QFile::remove(temporaryPath);
+          page->deleteLater();
+          profile->deleteLater();
+          if (guard.isNull()) return;
+          QString error;
+          if (pdf.isEmpty() || !writeExportFile(destination, pdf, &error)) {
+            QMessageBox::critical(
+                guard, QStringLiteral("Export failed"),
+                error.isEmpty()
+                    ? QStringLiteral("Qt WebEngine did not produce a PDF.")
+                    : error);
+          } else {
+            guard->statusBar()->showMessage(
+                QStringLiteral("Exported %1").arg(destination), 3000);
+          }
+        });
+      });
+    });
+    page->load(QUrl::fromLocalFile(temporaryPath));
+  });
+}
+
 void MainWindow::toggleEditing(bool editing) {
-  if (editor_ == nullptr) return;
-  if (!editing) autosaveActiveDocument();
-  editor_->setVisible(editing);
-  if (editing) editor_->setFocus();
+  if (updatingViewModeActions_) return;
+  if (viewMode_ == EditorViewMode::Split) {
+    QScopedValueRollback updating(updatingViewModeActions_, true);
+    editAction_->setChecked(true);
+    return;
+  }
+  setEditorViewMode(editing ? EditorViewMode::Edit : EditorViewMode::Preview);
+}
+
+void MainWindow::setEditorViewMode(EditorViewMode mode) {
+  if (editor_ == nullptr || preview_ == nullptr || documentSplitter_ == nullptr) return;
+  if (viewMode_ == mode) return;
+  if (viewMode_ == EditorViewMode::Split) splitViewSizes_ = documentSplitter_->sizes();
+  if ((viewMode_ == EditorViewMode::Edit && mode != EditorViewMode::Edit) ||
+      (viewMode_ == EditorViewMode::Split && mode != EditorViewMode::Split)) {
+    autosaveActiveDocument();
+  }
+  viewMode_ = mode;
+  editor_->setVisible(mode != EditorViewMode::Preview);
+  preview_->setVisible(mode != EditorViewMode::Edit);
+  if (mode == EditorViewMode::Split) documentSplitter_->setSizes(splitViewSizes_);
+  {
+    QScopedValueRollback updating(updatingViewModeActions_, true);
+    editAction_->setChecked(mode != EditorViewMode::Preview);
+    splitAction_->setChecked(mode == EditorViewMode::Split);
+  }
+  settings_.setValue(QStringLiteral("editor.editing"), mode != EditorViewMode::Preview);
+  settings_.setValue(QStringLiteral("editor.split"), mode == EditorViewMode::Split);
+  QString errorMessage;
+  if (!settings_.save(&errorMessage)) qWarning() << "Unable to save editor view mode:" << errorMessage;
+  if (mode != EditorViewMode::Preview) editor_->setFocus();
+}
+
+void MainWindow::toggleSplitView() {
+  if (viewMode_ == EditorViewMode::Split) {
+    setEditorViewMode(previousSingleViewMode_);
+    return;
+  }
+  previousSingleViewMode_ = viewMode_;
+  setEditorViewMode(EditorViewMode::Split);
+}
+
+void MainWindow::replaceEditorRange(
+    int startByte,
+    int endByte,
+    const QString& replacement,
+    int caretByte) {
+  if (startByte < 0 || endByte < startByte || endByte > editor_->length()) return;
+  const QByteArray bytes = replacement.toUtf8();
+  QScopedValueRollback applying(applyingEditorTransform_, true);
+  editor_->beginUndoAction();
+  editor_->SendScintilla(QsciScintilla::SCI_SETTARGETSTART, startByte);
+  editor_->SendScintilla(QsciScintilla::SCI_SETTARGETEND, endByte);
+  editor_->SendScintilla(QsciScintilla::SCI_REPLACETARGET, bytes.size(), bytes.constData());
+  editor_->SendScintilla(QsciScintilla::SCI_SETSEL, caretByte, caretByte);
+  editor_->endUndoAction();
+}
+
+void MainWindow::wrapEditorSelection(const QString& open, const QString& close) {
+  if (viewMode_ == EditorViewMode::Preview || !document_.has_value()) return;
+  int startLine = 0;
+  int startIndex = 0;
+  int endLine = 0;
+  int endIndex = 0;
+  if (editor_->hasSelectedText()) {
+    editor_->getSelection(&startLine, &startIndex, &endLine, &endIndex);
+  } else {
+    editor_->getCursorPosition(&startLine, &startIndex);
+    endLine = startLine;
+    endIndex = startIndex;
+  }
+  const int start = editor_->positionFromLineIndex(startLine, startIndex);
+  const int end = editor_->positionFromLineIndex(endLine, endIndex);
+  const QByteArray selected = editor_->text().toUtf8().mid(start, end - start);
+  const QByteArray openBytes = open.toUtf8();
+  const QByteArray replacement = openBytes + selected + close.toUtf8();
+  QScopedValueRollback applying(applyingEditorTransform_, true);
+  editor_->beginUndoAction();
+  editor_->SendScintilla(QsciScintilla::SCI_SETTARGETSTART, start);
+  editor_->SendScintilla(QsciScintilla::SCI_SETTARGETEND, end);
+  editor_->SendScintilla(QsciScintilla::SCI_REPLACETARGET, replacement.size(), replacement.constData());
+  if (start == end) {
+    editor_->SendScintilla(QsciScintilla::SCI_SETSEL, start + openBytes.size(), start + openBytes.size());
+  } else {
+    editor_->SendScintilla(QsciScintilla::SCI_SETSEL, start + openBytes.size(),
+                           start + openBytes.size() + selected.size());
+  }
+  editor_->endUndoAction();
+}
+
+void MainWindow::toggleTaskLines(bool toggleDone) {
+  if (viewMode_ == EditorViewMode::Preview || !document_.has_value()) return;
+  int startLine = 0;
+  int startIndex = 0;
+  int endLine = 0;
+  int endIndex = 0;
+  if (editor_->hasSelectedText()) {
+    editor_->getSelection(&startLine, &startIndex, &endLine, &endIndex);
+    if (endIndex == 0 && endLine > startLine) --endLine;
+  } else {
+    editor_->getCursorPosition(&startLine, &startIndex);
+    endLine = startLine;
+  }
+  QScopedValueRollback applying(applyingEditorTransform_, true);
+  editor_->beginUndoAction();
+  for (int line = endLine; line >= startLine; --line) {
+    QString before = editor_->text(line);
+    while (before.endsWith(QLatin1Char('\n')) || before.endsWith(QLatin1Char('\r'))) before.chop(1);
+    const QString after = MarkdownEdits::toggleTaskLine(before, toggleDone);
+    if (before == after) continue;
+    const int start = editor_->positionFromLineIndex(line, 0);
+    const QByteArray beforeBytes = before.toUtf8();
+    const QByteArray afterBytes = after.toUtf8();
+    editor_->SendScintilla(QsciScintilla::SCI_SETTARGETSTART, start);
+    editor_->SendScintilla(QsciScintilla::SCI_SETTARGETEND,
+                           start + static_cast<int>(beforeBytes.size()));
+    editor_->SendScintilla(QsciScintilla::SCI_REPLACETARGET, afterBytes.size(), afterBytes.constData());
+  }
+  editor_->endUndoAction();
+}
+
+void MainWindow::updateMarkdownCompletions(bool explicitRequest) {
+  const bool batteryMode = globalConfig_.value(QStringLiteral("battery.enabled"), false).toBool();
+  if (viewMode_ == EditorViewMode::Preview ||
+      globalConfig_.value(QStringLiteral("monaco.editorOptions.disableSuggestions"), false).toBool() ||
+      (batteryMode && globalConfig_.value(QStringLiteral("battery.disableAutocomplete"), false).toBool())) return;
+  const QString source = editor_->text();
+  const int cursorByte = static_cast<int>(editor_->SendScintilla(QsciScintilla::SCI_GETCURRENTPOS));
+  const qsizetype cursorCharacter = QString::fromUtf8(source.toUtf8().first(cursorByte)).size();
+  const MarkdownCompletionResult result = MarkdownCompletion::suggestions(
+      source, cursorCharacter, workspace_.workspaceRoot(), currentPath_, emojiCompletions_);
+  if (result.isEmpty()) {
+    if (explicitRequest) statusBar()->showMessage(QStringLiteral("No Markdown completions here."), 2000);
+    return;
+  }
+  completionInsertions_.clear();
+  QStringList labels;
+  for (const MarkdownCompletionItem& item : result.items) {
+    QString label = item.label;
+    while (completionInsertions_.contains(label)) label += QLatin1Char(' ');
+    completionInsertions_.insert(label, item.insertText);
+    labels.append(label);
+  }
+  completionReplaceStartByte_ = source.first(result.replaceStart).toUtf8().size();
+  completionReplaceEndByte_ = source.first(result.replaceStart + result.replaceLength).toUtf8().size();
+  editor_->showUserList(71, labels);
+}
+
+void MainWindow::formatTouchedTables() {
+  if (tableTouchedLines_.isEmpty() || applyingEditorTransform_ ||
+      globalConfig_.value(QStringLiteral("monaco.disableAutomaticTableFormatting"), false).toBool()) return;
+  QList<int> lines = tableTouchedLines_.values();
+  tableTouchedLines_.clear();
+  std::sort(lines.begin(), lines.end());
+  QString source = editor_->text();
+  const QByteArray originalUtf8 = source.toUtf8();
+  const int anchorByte = static_cast<int>(editor_->SendScintilla(QsciScintilla::SCI_GETANCHOR));
+  const int caretByte = static_cast<int>(editor_->SendScintilla(QsciScintilla::SCI_GETCURRENTPOS));
+  QVector<qsizetype> offsets = {
+      QString::fromUtf8(originalUtf8.first(anchorByte)).size(),
+      QString::fromUtf8(originalUtf8.first(caretByte)).size()};
+  bool changed = false;
+  for (const int line : lines) {
+    MarkdownTableFormatResult result = MarkdownEdits::formatTableAtLine(source, line, offsets);
+    if (!result.changed()) continue;
+    source = std::move(result.source);
+    offsets = std::move(result.mappedOffsets);
+    changed = true;
+  }
+  if (!changed) return;
+  const int firstVisible = editor_->firstVisibleLine();
+  const QByteArray replacement = source.toUtf8();
+  const int nextAnchor = source.first(offsets.at(0)).toUtf8().size();
+  const int nextCaret = source.first(offsets.at(1)).toUtf8().size();
+  QScopedValueRollback applying(applyingEditorTransform_, true);
+  editor_->beginUndoAction();
+  editor_->SendScintilla(QsciScintilla::SCI_SETTARGETSTART, 0);
+  editor_->SendScintilla(QsciScintilla::SCI_SETTARGETEND, editor_->length());
+  editor_->SendScintilla(QsciScintilla::SCI_REPLACETARGET, replacement.size(), replacement.constData());
+  editor_->SendScintilla(QsciScintilla::SCI_SETSEL, nextAnchor, nextCaret);
+  editor_->setFirstVisibleLine(firstVisible);
+  editor_->endUndoAction();
+}
+
+bool MainWindow::handleMarkdownAutoPair(QKeyEvent* event) {
+  if (event->isAutoRepeat() || event->text().size() != 1 ||
+      (event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) return false;
+  const QChar typed = event->text().at(0);
+  const QHash<QChar, QChar> pairs = {
+      {QLatin1Char('('), QLatin1Char(')')}, {QLatin1Char('['), QLatin1Char(']')},
+      {QLatin1Char('{'), QLatin1Char('}')}, {QLatin1Char('*'), QLatin1Char('*')},
+      {QLatin1Char('_'), QLatin1Char('_')}, {QLatin1Char('~'), QLatin1Char('~')},
+      {QLatin1Char('`'), QLatin1Char('`')}};
+  const QSet<QChar> closing = {QLatin1Char(')'), QLatin1Char(']'), QLatin1Char('}')};
+  if (!pairs.contains(typed) && !closing.contains(typed)) return false;
+  if (editor_->hasSelectedText()) {
+    const QChar open = pairs.contains(typed) ? typed
+        : typed == QLatin1Char(')') ? QLatin1Char('(')
+        : typed == QLatin1Char(']') ? QLatin1Char('[') : QLatin1Char('{');
+    wrapEditorSelection(open, pairs.value(open));
+    return true;
+  }
+  const int cursor = static_cast<int>(editor_->SendScintilla(QsciScintilla::SCI_GETCURRENTPOS));
+  const QByteArray source = editor_->text().toUtf8();
+  if ((closing.contains(typed) || typed == QLatin1Char('`')) &&
+      cursor < source.size() && source.at(cursor) == typed.toLatin1()) {
+    editor_->SendScintilla(QsciScintilla::SCI_SETSEL, cursor + 1, cursor + 1);
+    return true;
+  }
+  if (typed == QLatin1Char('`') && source.first(cursor).endsWith("``")) {
+    const QByteArray insertion("`\n```");
+    replaceEditorRange(cursor, cursor, QString::fromUtf8(insertion), cursor + 1);
+    return true;
+  }
+  if (!pairs.contains(typed)) return false;
+  const QString insertion = QString(typed) + pairs.value(typed);
+  replaceEditorRange(cursor, cursor, insertion, cursor + QString(typed).toUtf8().size());
+  return true;
 }
 
 void MainWindow::editTags() {
@@ -2231,6 +3074,7 @@ void MainWindow::openFile(const QString& path) {
     const QSignalBlocker blocker(noteTabs_);
     noteTabs_->addTab(QFileInfo(document->path()).fileName());
     noteTabs_->setTabData(newIndex, document->path());
+    noteTabs_->setTabToolTip(newIndex, QFileInfo(document->path()).fileName());
     noteTabs_->setCurrentIndex(newIndex);
   }
   activateDocument(newIndex);
@@ -2428,6 +3272,7 @@ void MainWindow::updateWindowTitle() {
   const QString dirtyMarker = editor_->isModified() ? QStringLiteral("*") : QString();
   if (noteTabs_ != nullptr && activeDocumentIndex_ >= 0 && activeDocumentIndex_ < noteTabs_->count()) {
     noteTabs_->setTabText(activeDocumentIndex_, fileName + dirtyMarker);
+    noteTabs_->setTabToolTip(activeDocumentIndex_, fileName);
   }
   updateDocumentActions();
   setWindowTitle(QString("%1%2 — %3").arg(
@@ -2439,7 +3284,12 @@ void MainWindow::updateWindowTitle() {
 void MainWindow::updateDocumentActions() {
   const bool hasDocument = document_.has_value();
   if (duplicateAction_ != nullptr) duplicateAction_->setEnabled(hasDocument);
+  if (importAction_ != nullptr) importAction_->setEnabled(!workspace_.workspaceRoot().isEmpty());
+  if (exportMarkdownAction_ != nullptr) exportMarkdownAction_->setEnabled(hasDocument);
+  if (exportHtmlAction_ != nullptr) exportHtmlAction_->setEnabled(hasDocument);
+  if (exportPdfAction_ != nullptr) exportPdfAction_->setEnabled(hasDocument);
   if (editAction_ != nullptr) editAction_->setEnabled(hasDocument);
+  if (splitAction_ != nullptr) splitAction_->setEnabled(hasDocument);
   if (tagsAction_ != nullptr) tagsAction_->setEnabled(hasDocument);
   if (attachmentsAction_ != nullptr) attachmentsAction_->setEnabled(hasDocument);
   if (favoriteAction_ != nullptr) {
@@ -2491,12 +3341,18 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+  const bool editorEventTarget = watched == editor_ || watched == editor_->viewport();
+  if (editorEventTarget && event->type() == QEvent::KeyPress &&
+      handleMarkdownAutoPair(static_cast<QKeyEvent*>(event))) {
+    event->accept();
+    return true;
+  }
   if (watched == editor_ && event->type() == QEvent::FocusOut) {
     autosaveActiveDocument();
   }
   const bool editorContextMenu =
       event->type() == QEvent::ContextMenu &&
-      (watched == editor_ || watched == editor_->viewport());
+      editorEventTarget;
   if (editorContextMenu) {
     auto* context = static_cast<QContextMenuEvent*>(event);
     const QPoint viewportPosition = watched == editor_->viewport()

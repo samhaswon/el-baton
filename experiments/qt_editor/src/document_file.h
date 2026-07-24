@@ -34,12 +34,15 @@ class DocumentFile final {
   [[nodiscard]] bool writeToDisk(QString* errorMessage = nullptr) const;
   [[nodiscard]] bool metadataFlag(NoteFlag flag) const;
   [[nodiscard]] QStringList tags() const;
+  [[nodiscard]] QStringList attachments() const;
   [[nodiscard]] bool saveBody(
       const QString& body,
       QString* errorMessage = nullptr,
       bool updateModified = false);
   [[nodiscard]] bool setMetadataFlag(NoteFlag flag, bool enabled, QString* errorMessage = nullptr);
   [[nodiscard]] bool setTags(const QStringList& tags, QString* errorMessage = nullptr);
+  [[nodiscard]] bool setAttachments(const QStringList& attachments,
+                                    QString* errorMessage = nullptr);
   [[nodiscard]] bool writeCopy(
       const QString& path,
       const QString& title,
