@@ -5,7 +5,7 @@
 > native application port. Current build instructions and architecture live in
 > [`native/README.md`](native/README.md); the feature-parity matrix is
 > [`native/PORT_STATUS.md`](native/PORT_STATUS.md). The canonical build uses the
-> project-local Qt 6.10.3/QScintilla toolchain created by
+> project-local Qt 6.10.3/QScintilla/KDE SyntaxHighlighting toolchain created by
 > `scripts/bootstrap_qt_toolchain.sh`, not the Ubuntu Qt packages listed below.
 
 Packages installed for the initial host experiment:
@@ -262,4 +262,3 @@ Complete and verify each milestone before beginning the next.
 * A final report containing measured results, observed bottlenecks, known limitations, and a recommendation on whether further migration is justified.
 
 Do not claim a performance improvement without measured results.
-

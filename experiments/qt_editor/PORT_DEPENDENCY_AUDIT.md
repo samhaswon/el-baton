@@ -5,10 +5,12 @@ Audit date: 2026-07-18
 > **Current decision (2026-07-19):** This file preserves the dependency and API
 > audit that informed the port; its “current host” sections are a dated snapshot,
 > not present-day setup instructions. The selected production toolchain is
-> project-local Qt 6.10.3 with QScintilla 2.14.1 and PlantUML 1.2026.3, managed by
-> `scripts/bootstrap_qt_toolchain.sh`. See [`../../native/README.md`](../../native/README.md)
-> for the canonical setup and [`../../native/PORT_STATUS.md`](../../native/PORT_STATUS.md)
-> for implementation status.
+> project-local Qt 6.10.3 with QScintilla 2.14.1, KDE SyntaxHighlighting
+> 6.28.1, and PlantUML 1.2026.3, managed by
+> `scripts/bootstrap_qt_toolchain.sh`. See
+> [`../../native/README.md`](../../native/README.md) for the canonical setup and
+> [`../../native/PORT_STATUS.md`](../../native/PORT_STATUS.md) for implementation
+> status.
 
 This inventory covers the current Electron implementation, the isolated Qt
 prototype, and the Ubuntu 24.04 development host. It distinguishes libraries

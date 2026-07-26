@@ -4,6 +4,7 @@
 #include "markdown_completion.h"
 #include "markdown_edits.h"
 #include "markdown_pipeline.h"
+#include "markdown_syntax_lexer.h"
 #include "note_transfer_service.h"
 #include "preview_bridge.h"
 #include "reference_icons.h"
@@ -12,7 +13,6 @@
 #include "workspace_watcher.h"
 #include "workspace_graph_view.h"
 
-#include <Qsci/qscilexermarkdown.h>
 #include <Qsci/qsciscintilla.h>
 #include <QAction>
 #include <QAbstractButton>
@@ -400,11 +400,18 @@ QString selfContainedPreviewHtml(QString fragment, const QString& title,
 }
 )CSS");
   }
+  const QString printScripts = printLayout
+      ? QStringLiteral("<script src=\"%1\"></script>").arg(
+            QUrl::fromLocalFile(QStringLiteral(
+                QT_EDITOR_WEB_DIR "/vendor/mermaid.min.js"))
+                .toString(QUrl::FullyEncoded)
+                .toHtmlEscaped())
+      : QString();
   return QStringLiteral("<!doctype html><html><head><meta charset=\"utf-8\">"
                         "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
                         "<title>%1</title><style>%2</style></head>"
-                        "<body class=\"theme-light\"><main class=\"preview\">%3</main></body></html>")
-      .arg(title.toHtmlEscaped(), css, fragment);
+                        "<body class=\"theme-light\"><main class=\"preview\">%3</main>%4</body></html>")
+      .arg(title.toHtmlEscaped(), css, fragment, printScripts);
 }
 
 }  // namespace
@@ -498,6 +505,13 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
   renderTimer_.setSingleShot(true);
   renderTimer_.setInterval(120);
   connect(&renderTimer_, &QTimer::timeout, this, &MainWindow::renderDocument);
+  autosaveTimer_.setSingleShot(true);
+  autosaveTimer_.setInterval(750);
+  connect(&autosaveTimer_, &QTimer::timeout,
+          this, &MainWindow::autosaveActiveDocument);
+  connect(&autosaveWriteWatcher_,
+          &QFutureWatcher<AsyncDocumentSaveResult>::finished,
+          this, [this] { finishAutosaveWrite(); });
   if (options_.overlayEnabled) {
     usageTimer_.setInterval(1000);
     connect(&usageTimer_, &QTimer::timeout, this, &MainWindow::sampleProcessUsage);
@@ -507,6 +521,7 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
   connect(editor_, &QsciScintilla::textChanged, this, [this] {
     if (!switchingDocuments_ && document_.has_value()) {
       editorModifiedAt_ = QDateTime::currentDateTimeUtc();
+      if (!handlingWorkspaceChanges_) autosaveTimer_.start();
     }
     ++spellcheckGeneration_;
     spellcheckTimer_.start();
@@ -2206,25 +2221,7 @@ void MainWindow::updateInfoPanel() {
 }
 
 void MainWindow::configureEditor() {
-  auto* lexer = new QsciLexerMarkdown(editor_);
-  QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-  font.setPointSize(11);
-  lexer->setDefaultFont(font);
-  lexer->setDefaultPaper(QColor("#1f1f1f"));
-  lexer->setDefaultColor(QColor("#e8e8e8"));
-  for (int style = 0; style <= QsciLexerMarkdown::CodeBlock; ++style) {
-    lexer->setPaper(QColor("#1f1f1f"), style);
-    lexer->setFont(font, style);
-  }
-  const QColor heading("#e8a15b"), accent("#6aa9e9"), code("#a8cc8c"), muted("#999999");
-  for (int style = QsciLexerMarkdown::Header1; style <= QsciLexerMarkdown::Header6; ++style) lexer->setColor(heading, style);
-  lexer->setColor(accent, QsciLexerMarkdown::Link);
-  lexer->setColor(muted, QsciLexerMarkdown::BlockQuote);
-  lexer->setColor(muted, QsciLexerMarkdown::HorizontalRule);
-  lexer->setColor(code, QsciLexerMarkdown::CodeBackticks);
-  lexer->setColor(code, QsciLexerMarkdown::CodeDoubleBackticks);
-  lexer->setColor(code, QsciLexerMarkdown::CodeBlock);
-  editor_->setLexer(lexer);
+  editor_->setLexer(new MarkdownSyntaxLexer(editor_));
   editor_->setUtf8(true);
   editor_->setWrapMode(QsciScintilla::WrapWord);
   editor_->setMarginLineNumbers(0, true);
@@ -2613,6 +2610,28 @@ void MainWindow::exportPdf() {
       page->runJavaScript(QStringLiteral(R"JS(
         (async () => {
           document.querySelectorAll('details').forEach(node => { node.open = true; });
+          if (window.mermaid) {
+            mermaid.initialize({
+              startOnLoad: false,
+              securityLevel: 'strict',
+              theme: 'default',
+              themeVariables: { background: 'transparent' }
+            });
+            const diagrams = [...document.querySelectorAll('.qt-mermaid[data-source-b64]')];
+            for (let index = 0; index < diagrams.length; index++) {
+              const node = diagrams[index];
+              try {
+                const binary = atob(node.dataset.sourceB64);
+                const source = new TextDecoder().decode(
+                  Uint8Array.from(binary, character => character.charCodeAt(0)));
+                const result = await mermaid.render(`qt-print-mermaid-${index}`, source);
+                node.innerHTML = typeof result === 'string' ? result : result.svg;
+                node.hidden = false;
+              } catch {
+                node.hidden = true;
+              }
+            }
+          }
           if (document.fonts?.ready) await document.fonts.ready;
           await new Promise(resolve => requestAnimationFrame(
             () => requestAnimationFrame(resolve)));
@@ -2872,6 +2891,7 @@ bool MainWindow::handleMarkdownAutoPair(QKeyEvent* event) {
 
 void MainWindow::editTags() {
   if (!document_.has_value()) return;
+  drainAutosaveWrite();
   QDialog dialog(this);
   dialog.setWindowTitle(QStringLiteral("Edit Tags"));
   dialog.setMinimumWidth(390);
@@ -2999,6 +3019,7 @@ void MainWindow::addAttachment() {
 
 void MainWindow::toggleFavorite() {
   if (!document_.has_value()) return;
+  drainAutosaveWrite();
   const bool enabled = !document_->metadataFlag(NoteFlag::Favorited);
   QString errorMessage;
   if (!document_->setMetadataFlag(NoteFlag::Favorited, enabled, &errorMessage)) {
@@ -3014,6 +3035,7 @@ void MainWindow::toggleFavorite() {
 
 void MainWindow::togglePinned() {
   if (!document_.has_value()) return;
+  drainAutosaveWrite();
   const bool enabled = !document_->metadataFlag(NoteFlag::Pinned);
   QString errorMessage;
   if (!document_->setMetadataFlag(NoteFlag::Pinned, enabled, &errorMessage)) {
@@ -3029,6 +3051,7 @@ void MainWindow::togglePinned() {
 
 void MainWindow::toggleDeleted() {
   if (!document_.has_value()) return;
+  drainAutosaveWrite();
   const bool enabled = !document_->metadataFlag(NoteFlag::Deleted);
   if (enabled && QMessageBox::question(
       this, QStringLiteral("Move to Trash"),
@@ -3131,6 +3154,7 @@ void MainWindow::activateDocument(int index) {
 
 void MainWindow::closeDocument(int index) {
   if (index < 0 || index >= openDocuments_.size()) return;
+  drainAutosaveWrite();
   storeActiveDocumentState();
   OpenDocumentState& state = openDocuments_[index];
   if (state.modified) {
@@ -3197,21 +3221,130 @@ void MainWindow::persistOpenTabs() {
 }
 
 void MainWindow::saveFile() {
+  autosaveTimer_.stop();
   (void)saveActiveDocument(true);
 }
 
 void MainWindow::autosaveActiveDocument() {
+  autosaveTimer_.stop();
   if (switchingDocuments_ || handlingWorkspaceChanges_ ||
       !document_.has_value() || !editor_->isModified()) return;
-  (void)saveActiveDocument(false);
+  if (activeAutosave_.has_value()) {
+    autosavePending_ = true;
+    return;
+  }
+  startAutosaveWrite();
+}
+
+void MainWindow::startAutosaveWrite() {
+  if (activeAutosave_.has_value() || !document_.has_value() ||
+      !editor_->isModified()) return;
+
+  const QString bodySnapshot = editor_->text();
+  if (bodySnapshot == document_->body()) {
+    editor_->setModified(false);
+    editorModifiedAt_ = {};
+    return;
+  }
+
+  const DocumentFile previous = *document_;
+  const DocumentFile next =
+      document_->withBody(bodySnapshot, true, editorModifiedAt_);
+  const int documentIndex = activeDocumentIndex_;
+  const quint64 saveGeneration = ++saveGeneration_;
+  activeAutosave_.emplace(AutosaveSnapshot{
+      saveGeneration, documentIndex, previous, next, bodySnapshot});
+  autosavePending_ = false;
+
+  // Match the reference implementation's memory-first ordering. The watcher
+  // can now treat the exact bytes written below as an idempotent self-event.
+  document_ = next;
+  if (documentIndex >= 0 && documentIndex < openDocuments_.size()) {
+    OpenDocumentState& state = openDocuments_[documentIndex];
+    state.document = next;
+    state.body = bodySnapshot;
+    state.modified = true;
+  }
+  workspaceWatcher_->acceptDiskState(next.path(), next.serializedContent());
+
+  autosaveWriteWatcher_.setFuture(QtConcurrent::run(
+      [next] {
+        QString errorMessage;
+        const bool success = next.writeToDisk(&errorMessage);
+        return AsyncDocumentSaveResult{success, errorMessage};
+      }));
+}
+
+void MainWindow::finishAutosaveWrite(bool startPendingWrite) {
+  if (!activeAutosave_.has_value() ||
+      autosaveWriteWatcher_.isRunning()) return;
+
+  const AsyncDocumentSaveResult result = autosaveWriteWatcher_.result();
+  const AutosaveSnapshot snapshot = *activeAutosave_;
+  activeAutosave_.reset();
+  const bool currentGeneration = snapshot.generation == saveGeneration_;
+
+  if (!result.success) {
+    if (currentGeneration) {
+      document_ = snapshot.previous;
+      workspaceWatcher_->acceptDiskState(
+          snapshot.previous.path(), snapshot.previous.serializedContent());
+      if (snapshot.documentIndex >= 0 &&
+          snapshot.documentIndex < openDocuments_.size()) {
+        OpenDocumentState& state = openDocuments_[snapshot.documentIndex];
+        state.document = snapshot.previous;
+        state.modified = true;
+      }
+    }
+    qWarning() << "Autosave failed for" << snapshot.next.path()
+               << result.errorMessage;
+    statusBar()->showMessage(
+        QStringLiteral("Autosave failed: %1").arg(result.errorMessage), 5000);
+  } else if (currentGeneration) {
+    workspaceWatcher_->acknowledgeWrite(
+        snapshot.next.path(), snapshot.next.serializedContent());
+    const bool editorStillMatches =
+        currentPath_ == snapshot.next.path() &&
+        editor_->text() == snapshot.body;
+    if (editorStillMatches) {
+      editor_->setModified(false);
+      editorModifiedAt_ = {};
+      if (snapshot.documentIndex >= 0 &&
+          snapshot.documentIndex < openDocuments_.size()) {
+        OpenDocumentState& state = openDocuments_[snapshot.documentIndex];
+        state.document = snapshot.next;
+        state.body = snapshot.body;
+        state.modified = false;
+      }
+    }
+  }
+
+  if (!startPendingWrite) {
+    autosavePending_ = false;
+    return;
+  }
+  if (autosavePending_) {
+    autosavePending_ = false;
+    startAutosaveWrite();
+  }
+}
+
+void MainWindow::drainAutosaveWrite() {
+  autosaveTimer_.stop();
+  autosavePending_ = false;
+  if (!activeAutosave_.has_value()) return;
+  autosaveWriteWatcher_.future().waitForFinished();
+  finishAutosaveWrite(false);
 }
 
 bool MainWindow::saveActiveDocument(bool reportSuccess) {
+  drainAutosaveWrite();
   if (!document_.has_value() || !editor_->isModified()) return true;
 
   const QString bodySnapshot = editor_->text();
   const DocumentFile previous = *document_;
   const DocumentFile next = document_->withBody(bodySnapshot, true, editorModifiedAt_);
+  ++saveGeneration_;
   const int documentIndex = activeDocumentIndex_;
   if (documentIndex >= 0 && documentIndex < openDocuments_.size()) {
     OpenDocumentState& state = openDocuments_[documentIndex];
@@ -3312,7 +3445,7 @@ void MainWindow::updateDocumentActions() {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
-  autosaveActiveDocument();
+  (void)saveActiveDocument(false);
   storeActiveDocumentState();
   for (OpenDocumentState& state : openDocuments_) {
     if (!state.modified) continue;

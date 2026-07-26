@@ -7,10 +7,13 @@ readonly PROJECT_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd -P)"
 
 QT_VERSION="6.10.3"
 QSCINTILLA_VERSION="2.14.1"
+ECM_VERSION="6.28.0"
+KSYNTAXHIGHLIGHTING_VERSION="6.28.1"
 PLANTUML_VERSION="1.2026.3"
 DEPS_ROOT="${PROJECT_ROOT}/.deps"
 QT_INSTALLER_PATH=""
 FORCE_QSCINTILLA=0
+FORCE_KSYNTAXHIGHLIGHTING=0
 SKIP_QT_INSTALL=0
 
 # The Qt online installer URL is a moving alias. This checksum pins the
@@ -21,6 +24,12 @@ QT_INSTALLER_SHA256="${QT_INSTALLER_SHA256:-40b76bdf74f6a396341efb70ae2e754fcd87
 
 QSCINTILLA_URL="${QSCINTILLA_URL:-https://www.riverbankcomputing.com/static/Downloads/QScintilla/2.14.1/QScintilla_src-2.14.1.tar.gz}"
 QSCINTILLA_SHA256="${QSCINTILLA_SHA256:-dfe13c6acc9d85dfcba76ccc8061e71a223957a6c02f3c343b30a9d43a4cdd4d}"
+
+ECM_URL="${ECM_URL:-https://download.kde.org/stable/frameworks/6.28/extra-cmake-modules-${ECM_VERSION}.tar.xz}"
+ECM_SHA256="${ECM_SHA256:-a32e24b267e8528d0253bc8df18bdc00e676560a43b796533e1b1406f4eef4db}"
+
+KSYNTAXHIGHLIGHTING_URL="${KSYNTAXHIGHLIGHTING_URL:-https://download.kde.org/stable/frameworks/6.28/syntax-highlighting-${KSYNTAXHIGHLIGHTING_VERSION}.tar.xz}"
+KSYNTAXHIGHLIGHTING_SHA256="${KSYNTAXHIGHLIGHTING_SHA256:-fe0d4133af62c6b9c0cf7728928c64d2deb55fe808a264a5de871f4b6bc86f65}"
 
 # Pin the full GPL distribution from the upstream PlantUML release rather than
 # the significantly older JAR bundled transitively by node-plantuml.
@@ -34,9 +43,10 @@ usage() {
   cat <<'EOF'
 Usage: scripts/bootstrap_qt_toolchain.sh [options]
 
-Installs a project-local Qt toolchain and builds QScintilla against it. Nothing
-is installed into /usr and no shell profile is modified. It also downloads a
-checksum-verified PlantUML JAR for local diagram rendering.
+Installs a project-local Qt toolchain and builds QScintilla and KDE
+SyntaxHighlighting against it. Nothing is installed into /usr and no shell
+profile is modified. It also downloads a checksum-verified PlantUML JAR for
+local diagram rendering.
 
 Options:
   --qt-version VERSION          Qt version directory to use (default: 6.10.3)
@@ -46,6 +56,7 @@ Options:
   --qt-installer-arg=ARG        Extra installer argument; repeat as needed
   --skip-qt-install             Require Qt to exist; do not launch an installer
   --force-qscintilla            Rebuild the local QScintilla installation
+  --force-ksyntaxhighlighting   Rebuild local ECM and SyntaxHighlighting
   -h, --help                    Show this help
 
 Default Qt installation is interactive so credentials and license acceptance
@@ -153,6 +164,10 @@ while (($#)); do
       FORCE_QSCINTILLA=1
       shift
       ;;
+    --force-ksyntaxhighlighting)
+      FORCE_KSYNTAXHIGHLIGHTING=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -172,9 +187,13 @@ done
 require_command awk
 require_command curl
 require_command make
+require_command ninja
+require_command perl
 require_command pkg-config
 require_command realpath
 require_command sha256sum
+require_command sort
+require_command tail
 require_command tar
 pkg-config --exists hunspell || die "Hunspell development files are required (for example: libhunspell-dev)"
 [[ -f /usr/share/hunspell/en_US.aff && -f /usr/share/hunspell/en_US.dic ]] \
@@ -190,6 +209,18 @@ readonly QSCINTILLA_SOURCE="${SOURCE_DIR}/QScintilla_src-${QSCINTILLA_VERSION}"
 readonly QSCINTILLA_BUILD="${QSCINTILLA_ROOT}/build"
 readonly QSCINTILLA_PREFIX="${QSCINTILLA_ROOT}/install"
 readonly QSCINTILLA_STAMP="${QSCINTILLA_PREFIX}/.built-with-qt-${QT_VERSION}"
+readonly ECM_ROOT="${DEPS_ROOT}/ecm/${ECM_VERSION}"
+readonly ECM_ARCHIVE="${DOWNLOAD_DIR}/extra-cmake-modules-${ECM_VERSION}.tar.xz"
+readonly ECM_SOURCE="${SOURCE_DIR}/extra-cmake-modules-${ECM_VERSION}"
+readonly ECM_BUILD="${ECM_ROOT}/build"
+readonly ECM_PREFIX="${ECM_ROOT}/install"
+readonly ECM_STAMP="${ECM_PREFIX}/.built"
+readonly KSYNTAXHIGHLIGHTING_ROOT="${DEPS_ROOT}/ksyntaxhighlighting/${KSYNTAXHIGHLIGHTING_VERSION}"
+readonly KSYNTAXHIGHLIGHTING_ARCHIVE="${DOWNLOAD_DIR}/syntax-highlighting-${KSYNTAXHIGHLIGHTING_VERSION}.tar.xz"
+readonly KSYNTAXHIGHLIGHTING_SOURCE="${SOURCE_DIR}/syntax-highlighting-${KSYNTAXHIGHLIGHTING_VERSION}"
+readonly KSYNTAXHIGHLIGHTING_BUILD="${KSYNTAXHIGHLIGHTING_ROOT}/build"
+readonly KSYNTAXHIGHLIGHTING_PREFIX="${KSYNTAXHIGHLIGHTING_ROOT}/install"
+readonly KSYNTAXHIGHLIGHTING_STAMP="${KSYNTAXHIGHLIGHTING_PREFIX}/.built-with-qt-${QT_VERSION}"
 readonly PLANTUML_ROOT="${DEPS_ROOT}/plantuml/${PLANTUML_VERSION}"
 readonly PLANTUML_JAR="${PLANTUML_ROOT}/plantuml.jar"
 readonly ENV_FILE="${DEPS_ROOT}/qt-toolchain.env"
@@ -263,6 +294,25 @@ else
   log "validated Qt ${QT_VERSION} at ${QT_PREFIX}"
 fi
 
+select_cmake() {
+  local candidate="${QT_INSTALL_ROOT}/Tools/CMake/bin/cmake"
+  local version=""
+
+  if [[ ! -x "${candidate}" ]]; then
+    candidate="$(command -v cmake || true)"
+  fi
+  [[ -n "${candidate}" && -x "${candidate}" ]] \
+    || die "CMake 3.29 or newer is required to build KDE SyntaxHighlighting"
+
+  version="$("${candidate}" --version | awk 'NR == 1 { print $3 }')"
+  [[ "$(printf '%s\n%s\n' "3.29.0" "${version}" | sort -V | tail -n 1)" == "${version}" ]] \
+    || die "CMake 3.29 or newer is required; ${candidate} reports ${version}"
+  printf '%s\n' "${candidate}"
+}
+
+readonly CMAKE_COMMAND="$(select_cmake)"
+log "using CMake $("${CMAKE_COMMAND}" --version | awk 'NR == 1 { print $3 }') at ${CMAKE_COMMAND}"
+
 build_qscintilla() {
   local jobs="${QSCINTILLA_JOBS:-}"
   local library_count=0
@@ -320,6 +370,98 @@ fi
 QSCINTILLA_LIBRARY="${QSCINTILLA_PREFIX}/lib/libqscintilla2_qt6.so"
 [[ -e "${QSCINTILLA_LIBRARY}" ]] || die "missing unversioned QScintilla library: ${QSCINTILLA_LIBRARY}"
 
+build_ecm() {
+  download_verified "${ECM_URL}" "${ECM_ARCHIVE}" "${ECM_SHA256}"
+
+  if ((FORCE_KSYNTAXHIGHLIGHTING)); then
+    [[ -d "${ECM_BUILD}" ]] && remove_generated_directory "${ECM_BUILD}"
+    [[ -d "${ECM_PREFIX}" ]] && remove_generated_directory "${ECM_PREFIX}"
+  fi
+
+  if [[ ! -f "${ECM_SOURCE}/CMakeLists.txt" ]]; then
+    [[ -d "${ECM_SOURCE}" ]] && remove_generated_directory "${ECM_SOURCE}"
+    log "extracting Extra CMake Modules ${ECM_VERSION}"
+    tar -xJf "${ECM_ARCHIVE}" -C "${SOURCE_DIR}"
+  fi
+
+  log "configuring Extra CMake Modules ${ECM_VERSION}"
+  "${CMAKE_COMMAND}" -S "${ECM_SOURCE}" -B "${ECM_BUILD}" -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX="${ECM_PREFIX}" \
+    -DBUILD_TESTING=OFF
+  "${CMAKE_COMMAND}" --build "${ECM_BUILD}"
+  "${CMAKE_COMMAND}" --install "${ECM_BUILD}"
+  printf 'Extra CMake Modules %s\nSource SHA-256 %s\n' \
+    "${ECM_VERSION}" "${ECM_SHA256}" > "${ECM_STAMP}"
+}
+
+if [[ -f "${ECM_STAMP}" && -f "${ECM_PREFIX}/share/ECM/cmake/ECMConfig.cmake" && ${FORCE_KSYNTAXHIGHLIGHTING} -eq 0 ]]; then
+  log "using Extra CMake Modules ${ECM_VERSION} from ${ECM_PREFIX}"
+else
+  build_ecm
+  log "built Extra CMake Modules ${ECM_VERSION} at ${ECM_PREFIX}"
+fi
+
+build_ksyntaxhighlighting() {
+  local jobs="${KSYNTAXHIGHLIGHTING_JOBS:-}"
+
+  if [[ -z "${jobs}" ]]; then
+    if command -v nproc >/dev/null 2>&1; then
+      jobs="$(nproc)"
+    else
+      jobs=2
+    fi
+  fi
+  [[ "${jobs}" =~ ^[1-9][0-9]*$ ]] || die "KSYNTAXHIGHLIGHTING_JOBS must be a positive integer"
+
+  download_verified \
+    "${KSYNTAXHIGHLIGHTING_URL}" \
+    "${KSYNTAXHIGHLIGHTING_ARCHIVE}" \
+    "${KSYNTAXHIGHLIGHTING_SHA256}"
+
+  if ((FORCE_KSYNTAXHIGHLIGHTING)); then
+    [[ -d "${KSYNTAXHIGHLIGHTING_BUILD}" ]] && remove_generated_directory "${KSYNTAXHIGHLIGHTING_BUILD}"
+    [[ -d "${KSYNTAXHIGHLIGHTING_PREFIX}" ]] && remove_generated_directory "${KSYNTAXHIGHLIGHTING_PREFIX}"
+  fi
+
+  if [[ ! -f "${KSYNTAXHIGHLIGHTING_SOURCE}/CMakeLists.txt" ]]; then
+    [[ -d "${KSYNTAXHIGHLIGHTING_SOURCE}" ]] && remove_generated_directory "${KSYNTAXHIGHLIGHTING_SOURCE}"
+    log "extracting KDE SyntaxHighlighting ${KSYNTAXHIGHLIGHTING_VERSION}"
+    tar -xJf "${KSYNTAXHIGHLIGHTING_ARCHIVE}" -C "${SOURCE_DIR}"
+  fi
+
+  log "configuring KDE SyntaxHighlighting ${KSYNTAXHIGHLIGHTING_VERSION} with Qt ${QT_VERSION}"
+  "${CMAKE_COMMAND}" \
+    -S "${KSYNTAXHIGHLIGHTING_SOURCE}" \
+    -B "${KSYNTAXHIGHLIGHTING_BUILD}" \
+    -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX="${KSYNTAXHIGHLIGHTING_PREFIX}" \
+    -DCMAKE_PREFIX_PATH="${QT_PREFIX};${ECM_PREFIX}" \
+    -DBUILD_TESTING=OFF \
+    -DCMAKE_DISABLE_FIND_PACKAGE_Qt6PrintSupport=ON \
+    -DCMAKE_DISABLE_FIND_PACKAGE_Qt6Quick=ON \
+    -DCMAKE_DISABLE_FIND_PACKAGE_Qt6Widgets=ON \
+    -DKDE_INSTALL_LIBDIR=lib \
+    -DKSYNTAXHIGHLIGHTING_USE_GUI=ON \
+    -DNO_STANDARD_PATHS=ON \
+    -DQRC_SYNTAX=ON
+  "${CMAKE_COMMAND}" --build "${KSYNTAXHIGHLIGHTING_BUILD}" --parallel "${jobs}"
+  "${CMAKE_COMMAND}" --install "${KSYNTAXHIGHLIGHTING_BUILD}"
+  printf 'KDE SyntaxHighlighting %s\nQt %s\nSource SHA-256 %s\n' \
+    "${KSYNTAXHIGHLIGHTING_VERSION}" "${QT_VERSION}" "${KSYNTAXHIGHLIGHTING_SHA256}" \
+    > "${KSYNTAXHIGHLIGHTING_STAMP}"
+}
+
+if [[ -f "${KSYNTAXHIGHLIGHTING_STAMP}" \
+      && -f "${KSYNTAXHIGHLIGHTING_PREFIX}/lib/cmake/KF6SyntaxHighlighting/KF6SyntaxHighlightingConfig.cmake" \
+      && ${FORCE_KSYNTAXHIGHLIGHTING} -eq 0 ]]; then
+  log "using KDE SyntaxHighlighting ${KSYNTAXHIGHLIGHTING_VERSION} from ${KSYNTAXHIGHLIGHTING_PREFIX}"
+else
+  build_ksyntaxhighlighting
+  log "built KDE SyntaxHighlighting ${KSYNTAXHIGHLIGHTING_VERSION} at ${KSYNTAXHIGHLIGHTING_PREFIX}"
+fi
+
 mkdir -p -- "${PLANTUML_ROOT}"
 download_verified "${PLANTUML_URL}" "${PLANTUML_JAR}" "${PLANTUML_SHA256}"
 log "using PlantUML ${PLANTUML_VERSION} from ${PLANTUML_JAR}"
@@ -329,11 +471,14 @@ log "using PlantUML ${PLANTUML_VERSION} from ${PLANTUML_JAR}"
   printf 'export EL_BATON_DEPS_ROOT=%q\n' "${DEPS_ROOT}"
   printf 'export EL_BATON_QT_PREFIX=%q\n' "${QT_PREFIX}"
   printf 'export EL_BATON_QSCINTILLA_PREFIX=%q\n' "${QSCINTILLA_PREFIX}"
+  printf 'export EL_BATON_KSYNTAXHIGHLIGHTING_PREFIX=%q\n' "${KSYNTAXHIGHLIGHTING_PREFIX}"
   printf 'export EL_BATON_PLANTUML_JAR=%q\n' "${PLANTUML_JAR}"
+  printf 'export EL_BATON_CMAKE=%q\n' "${CMAKE_COMMAND}"
   printf 'export QSCINTILLA_ROOT=%q\n' "${QSCINTILLA_PREFIX}"
-  printf 'export CMAKE_PREFIX_PATH=%q\n' "${QT_PREFIX}:${QSCINTILLA_PREFIX}"
-  printf 'export PATH=%q:$PATH\n' "${QT_PREFIX}/bin"
-  printf 'export LD_LIBRARY_PATH=%q:${LD_LIBRARY_PATH:-}\n' "${QSCINTILLA_PREFIX}/lib:${QT_PREFIX}/lib"
+  printf 'export CMAKE_PREFIX_PATH=%q\n' "${QT_PREFIX}:${QSCINTILLA_PREFIX}:${KSYNTAXHIGHLIGHTING_PREFIX}"
+  printf 'export PATH=%q:%q:$PATH\n' "${QT_PREFIX}/bin" "$(dirname -- "${CMAKE_COMMAND}")"
+  printf 'export LD_LIBRARY_PATH=%q:${LD_LIBRARY_PATH:-}\n' \
+    "${QSCINTILLA_PREFIX}/lib:${KSYNTAXHIGHLIGHTING_PREFIX}/lib:${QT_PREFIX}/lib"
 } > "${ENV_FILE}"
 
 cat > "${CMAKE_TOOLCHAIN_FILE}" <<EOF
@@ -341,11 +486,15 @@ cat > "${CMAKE_TOOLCHAIN_FILE}" <<EOF
 list(PREPEND CMAKE_PREFIX_PATH
   "${QT_PREFIX}"
   "${QSCINTILLA_PREFIX}"
+  "${KSYNTAXHIGHLIGHTING_PREFIX}"
 )
 set(QT_HOST_PATH "${QT_PREFIX}" CACHE PATH "Project-local Qt host prefix")
 set(QSCINTILLA_ROOT "${QSCINTILLA_PREFIX}" CACHE PATH "Project-local QScintilla prefix")
 set(QSCINTILLA_INCLUDE_DIR "${QSCINTILLA_PREFIX}/include" CACHE PATH "QScintilla include directory")
 set(QSCINTILLA_LIBRARY "${QSCINTILLA_LIBRARY}" CACHE FILEPATH "QScintilla library")
+set(KF6SyntaxHighlighting_DIR
+  "${KSYNTAXHIGHLIGHTING_PREFIX}/lib/cmake/KF6SyntaxHighlighting"
+  CACHE PATH "KDE SyntaxHighlighting package directory")
 set(PLANTUML_JAR "${PLANTUML_JAR}" CACHE FILEPATH "Pinned local PlantUML executable JAR")
 EOF
 
@@ -358,6 +507,9 @@ Qt:
 
 QScintilla:
   ${QSCINTILLA_PREFIX}
+
+KDE SyntaxHighlighting:
+  ${KSYNTAXHIGHLIGHTING_PREFIX}
 
 PlantUML:
   ${PLANTUML_JAR}

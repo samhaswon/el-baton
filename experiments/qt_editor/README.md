@@ -26,7 +26,7 @@ That produces the full application at `build/native/bin/el-baton` and runs the
 rendering-core tests along with the native application tests.
 
 For an intentionally standalone experiment build, first prepare the same local
-Qt, QScintilla, and PlantUML dependencies with
+Qt, QScintilla, KDE SyntaxHighlighting, and PlantUML dependencies with
 `scripts/bootstrap_qt_toolchain.sh`, then configure this subdirectory with the
 generated initial cache:
 
@@ -39,10 +39,10 @@ ctest --test-dir experiments/qt_editor/build --output-on-failure
 ```
 
 The configure step intentionally fails when Qt WebEngine, WebChannel, SVG,
-QScintilla, yaml-cpp, Hunspell, the pinned PlantUML JAR, Node, or the
-repository-pinned web assets are unavailable. It does not substitute another
-editor, renderer, or JavaScript runtime. Node generates/copies assets at build
-time and is not launched by the application.
+QScintilla, KDE SyntaxHighlighting, yaml-cpp, Hunspell, the pinned PlantUML
+JAR, Node, or the repository-pinned web assets are unavailable. It does not
+substitute another editor, renderer, or JavaScript runtime. Node
+generates/copies assets at build time and is not launched by the application.
 
 Run with a document path:
 

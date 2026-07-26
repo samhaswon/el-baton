@@ -1,6 +1,6 @@
 # Native port status
 
-Updated: 2026-07-19
+Updated: 2026-07-24
 
 This matrix records functional parity with the retained Electron/TypeScript
 implementation. “Working” means the core workflow is usable and covered by the
@@ -25,7 +25,7 @@ stub being mistaken for finished work.
 | Area | Status | Notes |
 | --- | --- | --- |
 | Open, create, edit, and save | Working | Markdown body editing preserves YAML front matter. |
-| Autosave and filesystem watching | Working | Event-driven, serialized, memory-first writes make self-events idempotent; external conflicts are detected. |
+| Autosave and filesystem watching | Working | Editing uses a 750 ms trailing debounce and serialized background commits; edits made during a commit are coalesced into the next save. Focus/view/tab transitions flush immediately. Memory-first writes make self-events idempotent and external conflicts are detected. |
 | Favorites, pinning, trash, tags, and attachments | Working | Backed by workspace/front-matter data and reference-style actions. |
 | Note, web, attachment, and local file links | Working | `file://` navigation is restricted to the configured workspace to prevent path traversal. |
 | Search | Working | Results include contextual note previews with highlighted matches and are populated incrementally. |
@@ -44,7 +44,7 @@ stub being mistaken for finished work.
 | Markdown commands | Working | Reference shortcuts cover bold, italic, strikethrough, task state transitions, delimiter pairing, and explicit completion. |
 | Table editing | Working | Valid tables are normalized after the configured idle delay with alignment, indentation, escaped pipes, cursor, and viewport preservation. |
 | Edit/split/preview modes | Working | `Ctrl+E`, `Ctrl+Alt+S`, Escape, toolbar buttons, and persisted state switch among the three reference modes. |
-| Markdown syntax highlighting | Partial | Common constructs are highlighted; complex Markdown/HTML nesting is not yet identical to Monaco. |
+| Markdown syntax highlighting | Partial | KDE SyntaxHighlighting now provides stateful Markdown, YAML metadata, table, link, emoji, and embedded fenced-language highlighting through a native QScintilla adapter. El Baton-specific math and diagram regions still need dedicated definition rules. |
 | Remaining Monaco parity | Partial | QScintilla does not yet mirror Monaco multi-cursor editing or every lower-value built-in command. |
 
 ## Markdown preview

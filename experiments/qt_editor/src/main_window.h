@@ -42,6 +42,11 @@ class WorkspaceWatcher;
 class WorkspaceGraphView;
 struct WorkspaceChange;
 
+struct AsyncDocumentSaveResult final {
+  bool success = false;
+  QString errorMessage;
+};
+
 class MainWindow final : public QMainWindow {
   Q_OBJECT
 
@@ -106,6 +111,9 @@ class MainWindow final : public QMainWindow {
   void closeDocument(int index);
   void storeActiveDocumentState();
   void persistOpenTabs();
+  void startAutosaveWrite();
+  void finishAutosaveWrite(bool startPendingWrite = true);
+  void drainAutosaveWrite();
   [[nodiscard]] bool saveActiveDocument(bool reportSuccess);
   [[nodiscard]] bool maybeSave();
   void updateWindowTitle();
@@ -181,9 +189,11 @@ class MainWindow final : public QMainWindow {
   SyncController* sync_ = nullptr;
   QTimer renderTimer_;
   QTimer usageTimer_;
+  QTimer autosaveTimer_;
   QTimer searchTimer_;
   QTimer spellcheckTimer_;
   QTimer tableFormatTimer_;
+  QFutureWatcher<AsyncDocumentSaveResult> autosaveWriteWatcher_;
   QFutureWatcher<QVector<SpellingIssue>> spellcheckWatcher_;
   QVector<SpellingIssue> spellingIssues_;
   quint64 spellcheckGeneration_ = 0;
@@ -204,6 +214,16 @@ class MainWindow final : public QMainWindow {
   QString currentPath_;
   QDateTime editorModifiedAt_;
   std::optional<DocumentFile> document_;
+  struct AutosaveSnapshot final {
+    quint64 generation = 0;
+    int documentIndex = -1;
+    DocumentFile previous;
+    DocumentFile next;
+    QString body;
+  };
+  std::optional<AutosaveSnapshot> activeAutosave_;
+  quint64 saveGeneration_ = 0;
+  bool autosavePending_ = false;
   struct OpenDocumentState final {
     DocumentFile document;
     QString body;

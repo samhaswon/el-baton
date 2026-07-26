@@ -37,6 +37,8 @@
     }
   },
   "exclude": [
+    "build",
+    "experiments/qt_editor/build",
     "extracted"
   ]
 }

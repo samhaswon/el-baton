@@ -25,6 +25,7 @@ if(PROJECT_IS_TOP_LEVEL)
 endif()
 
 find_package(Qt6 6.4 REQUIRED COMPONENTS Concurrent Core Gui Network Sql Widgets WebChannel WebEngineWidgets Test)
+find_package(KF6SyntaxHighlighting 6.28.1 REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(HUNSPELL REQUIRED IMPORTED_TARGET hunspell)
 find_package(yaml-cpp REQUIRED)
@@ -146,6 +147,7 @@ set(QT_EDITOR_SOURCES
   src/markdown_completion.cpp
   src/markdown_edits.cpp
   src/markdown_pipeline.cpp
+  src/markdown_syntax_lexer.cpp
   src/note_transfer_service.cpp
   src/plantuml_renderer.cpp
   src/persistent_diagram_cache.cpp
@@ -200,6 +202,7 @@ target_link_libraries(qt_editor_core PUBLIC
   Qt6::Widgets
   Qt6::WebChannel
   Qt6::WebEngineWidgets
+  KF6::SyntaxHighlighting
   qt_editor_cmark
   yaml-cpp
   ZLIB::ZLIB
@@ -278,6 +281,12 @@ if(BUILD_TESTING)
   add_executable(markdown_completion_tests tests/markdown_completion_test.cpp)
   target_link_libraries(markdown_completion_tests PRIVATE qt_editor_core Qt6::Test)
   add_test(NAME markdown_completion_tests COMMAND markdown_completion_tests)
+
+  add_executable(markdown_syntax_lexer_tests tests/markdown_syntax_lexer_test.cpp)
+  target_link_libraries(markdown_syntax_lexer_tests PRIVATE qt_editor_core Qt6::Test)
+  add_test(NAME markdown_syntax_lexer_tests COMMAND markdown_syntax_lexer_tests)
+  set_tests_properties(markdown_syntax_lexer_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
   add_executable(plantuml_renderer_tests tests/plantuml_renderer_test.cpp)
   target_link_libraries(plantuml_renderer_tests PRIVATE qt_editor_core Qt6::Test)

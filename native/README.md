@@ -13,9 +13,10 @@ matrix and known gaps.
 
 ## Toolchain
 
-The canonical build uses project-local Qt 6.10.3 and QScintilla 2.14.1. The
-bootstrap script also downloads the pinned PlantUML 1.2026.3 JAR. It does not
-install into `/usr` or edit a shell profile.
+The canonical build uses project-local Qt 6.10.3, QScintilla 2.14.1, and KDE
+SyntaxHighlighting 6.28.1. The bootstrap builds the required Extra CMake
+Modules 6.28.0 locally and also downloads the pinned PlantUML 1.2026.3 JAR. It
+does not install into `/usr` or edit a shell profile.
 
 System prerequisites include a C++20 compiler, CMake, Ninja, pkg-config,
 yaml-cpp development files, Hunspell development files, an `en_US` Hunspell
@@ -34,6 +35,11 @@ The Qt installer is interactive by default so credentials and license
 acceptance are not placed on a command line. Run the script with `--help` for
 non-default paths, an already installed Qt tree, or unattended installer
 options. Do not mix modules from the project-local Qt with system Qt libraries.
+
+The bootstrap uses the CMake distributed with Qt Tools when building KDE
+SyntaxHighlighting because that framework requires CMake 3.29 or newer. The
+generated environment places that CMake on `PATH`; no system KDE Frameworks
+packages are used.
 
 Node is a build-time asset tool, not a runtime dependency of the native app. It
 generates the emoji shortcode map and cheatsheet from the reference TypeScript
