@@ -136,7 +136,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .ci-deps
-          key: native-deps-${{ matrix.platform }}-${{ matrix.qt_arch }}-${{ env.QT_VERSION }}-qscintilla-2.14.1-ksyntax-6.28.1
+          key: native-deps-${{ matrix.platform }}-${{ matrix.qt_arch }}-${{ env.QT_VERSION }}-qscintilla-2.14.1-static-win-v1-ksyntax-6.28.1
 
       - name: Build QScintilla and SyntaxHighlighting
         if: matrix.platform != 'windows'

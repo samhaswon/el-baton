@@ -62,8 +62,14 @@ if (-not (Test-Path (Join-Path $QScintillaBuild ".complete"))) {
     New-Item -ItemType Directory -Force $QScintillaBuild | Out-Null
     Push-Location $QScintillaBuild
     try {
+        # A release QScintilla DLL can spend hours in link.exe's /OPT:REF and
+        # /OPT:ICF passes on hosted Windows runners.  The application is the
+        # library's only consumer, so a static archive is both faster to link
+        # here and avoids shipping another runtime DLL.
         & (Join-Path $QtPrefix "bin/qmake.exe") `
-            (Join-Path $QScintillaSource "src/qscintilla.pro") CONFIG+=release
+            (Join-Path $QScintillaSource "src/qscintilla.pro") `
+            CONFIG+=release `
+            CONFIG+=staticlib
         if ($LASTEXITCODE -ne 0) { throw "QScintilla configure failed" }
         $Jom = Get-Command jom -ErrorAction SilentlyContinue
         if (-not $Jom) {
@@ -83,9 +89,7 @@ if (-not (Test-Path (Join-Path $QScintillaBuild ".complete"))) {
 }
 $QScintillaLibrary = Get-ChildItem $QScintillaBuild -Recurse -Filter "qscintilla2_qt6.lib" |
     Select-Object -First 1 -ExpandProperty FullName
-$QScintillaBin = Get-ChildItem $QScintillaBuild -Recurse -Filter "qscintilla2_qt6.dll" |
-    Select-Object -First 1 -ExpandProperty DirectoryName
-if (-not $QScintillaLibrary -or -not $QScintillaBin) {
+if (-not $QScintillaLibrary) {
     throw "QScintilla output was not found in $QScintillaBuild"
 }
 
@@ -150,7 +154,7 @@ $Entries = @{
     QSCINTILLA_LIBRARY = $QScintillaLibrary
     KF6SyntaxHighlighting_DIR = (Split-Path $KSyntaxConfig)
     PLANTUML_JAR = $PlantUmlJar
-    EL_BATON_CI_RUNTIME_PATH = "$QScintillaBin;$KSyntaxBin"
+    EL_BATON_CI_RUNTIME_PATH = $KSyntaxBin
 }
 foreach ($Entry in $Entries.GetEnumerator()) {
     "$($Entry.Key)=$($Entry.Value)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8

@@ -183,12 +183,14 @@ void DataSourcesTest::resolvesWorkspaceLinksSafely() {
   QVERIFY(support.open(QIODevice::WriteOnly));
   support.write("support");
   support.close();
+  const QString canonicalWorkspaceFile = QFileInfo(workspaceFile).canonicalFilePath();
+  QVERIFY(!canonicalWorkspaceFile.isEmpty());
   QCOMPARE(repository.resolveLocalFileTarget(
                QStringLiteral("../../support.txt"), note.fileName()),
-           workspaceFile);
+           canonicalWorkspaceFile);
   QCOMPARE(repository.resolveLocalFileTarget(
                QUrl::fromLocalFile(workspaceFile).toString(), note.fileName()),
-           workspaceFile);
+           canonicalWorkspaceFile);
   QVERIFY(repository.resolveNoteTarget(QStringLiteral("../outside.md")).isEmpty());
   QVERIFY(repository.resolveAttachmentTarget(QStringLiteral("../notes/Topics/A%20note.md")).isEmpty());
   QVERIFY(repository.resolveAttachmentTarget(QStringLiteral("missing.png")).isEmpty());

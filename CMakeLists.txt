@@ -22,7 +22,7 @@ if(EL_BATON_ENABLE_IPO)
   endif()
 endif()
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Concurrent Core Gui Network Sql Widgets WebChannel WebEngineWidgets Test)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Concurrent Core Gui Network PrintSupport Sql Widgets WebChannel WebEngineWidgets Test)
 find_package(KF6SyntaxHighlighting 6.28 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(ZLIB REQUIRED)
@@ -43,6 +43,7 @@ else()
   set_target_properties(el_baton_qscintilla PROPERTIES
     IMPORTED_LOCATION "${QSCINTILLA_LIBRARY}"
     INTERFACE_INCLUDE_DIRECTORIES "${QSCINTILLA_INCLUDE_DIR}"
+    INTERFACE_LINK_LIBRARIES "Qt6::Widgets;Qt6::PrintSupport"
   )
   set(QSCINTILLA_TARGET el_baton_qscintilla)
 endif()
