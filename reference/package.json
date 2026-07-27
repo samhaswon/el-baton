@@ -1,0 +1,314 @@
+{
+  "name": "el-baton",
+  "productName": "El Baton",
+  "description": "Conduct your knowledge.",
+  "version": "0.0.0-nightly25",
+  "scripts": {
+    "clean:env": "rm -rf node_modules package-lock.json",
+    "clean:deps": "npx del-cli \"node_modules/**/{README,LICENSE,license,.travis.yml,tsconfig.json,*.{md,MD,map,png,ts}}\" \"node_modules/monaco-editor/{dev,min}\" \"!node_modules/**/*.d.ts\"",
+    "clean:dist": "npx del-cli dist",
+    "clean:releases": "npx del-cli releases",
+    "clean:template": "npx del-cli \"src/renderer/template/generated/**\" \"!src/renderer/template/generated\" \"!src/renderer/template/generated/fonts\" \"!src/renderer/template/generated/fonts/IconFont.woff2\" src/renderer/template/runtime",
+    "clean": "npm run clean:dist && npm run clean:releases",
+    "template:assets": "node ./scripts/build/build_template_assets.js",
+    "template:assets:watch": "node ./scripts/build/build_template_assets.js --watch",
+    "icon:font": "node ./scripts/build/build_icon_font.js",
+    "bundle:main": "node ./scripts/build/run_webpack.js ./webpack.main.js dist/main/main.js",
+    "bundle:renderer": "node ./scripts/build/run_webpack.js ./webpack.renderer.js dist/renderer/index.html",
+    "icon:build": "node ./scripts/build/generate_icons.js",
+    "native:build": "node ./scripts/build/build_markdown_native.js",
+    "native:build:node": "node ./scripts/build/build_markdown_native.js --node",
+    "compile": "npm run native:build && npm run icon:build && npm run icon:font && npm run monaco && npm run template:assets && npm run clean:deps && cross-env NODE_ENV=development npm run bundle:main && cross-env NODE_ENV=development npm run bundle:renderer && npm run script:build:snapshot-dist",
+    "compile:release": "npm run native:build && npm run icon:build && npm run icon:font && npm run monaco && npm run template:assets && npm run clean:deps && cross-env NODE_ENV=production npm run bundle:main && cross-env NODE_ENV=production npm run bundle:renderer && npm run script:build:snapshot-dist",
+    "build:mac": "npm run compile:release && npm run script:build:patch-peers && electron-builder --mac --publish never",
+    "build:mac:x64": "npm run compile:release && npm run script:build:patch-peers && electron-builder --mac --x64 --publish never",
+    "build:mac:arm64": "npm run compile:release && npm run script:build:patch-peers && electron-builder --mac --arm64 --publish never",
+    "build:win": "npm run compile:release && npm run script:build:patch-peers && electron-builder --win --x64 --publish never && npm run script:build:fixlatestwin",
+    "build:win:arm64": "cross-env NOTABLE_NATIVE_ARCH=arm64 npm run compile:release && npm run script:build:patch-peers && electron-builder --win --arm64 --publish never && npm run script:build:fixlatestwin",
+    "build:linux": "npm run compile:release && npm run script:build:patch-peers && electron-builder --linux --x64 --publish never && npm run script:build:fixlatestlinux",
+    "build:linux:arm64": "npm run compile:release && npm run script:build:patch-peers && electron-builder --linux --arm64 --publish never && npm run script:build:fixlatestlinux",
+    "build:linux:ci": "npm run compile:release && npm run script:build:patch-peers && electron-builder --linux AppImage deb rpm --x64 --publish never && npm run script:build:fixlatestlinux",
+    "build:linux:arm64:ci": "npm run compile:release && npm run script:build:patch-peers && electron-builder --linux AppImage deb rpm --arm64 --publish never && npm run script:build:fixlatestlinux",
+    "build:linux:ci:full": "npm run compile:release && npm run script:build:patch-peers && electron-builder --linux AppImage deb rpm snap pacman --x64 --publish never && npm run script:build:fixlatestlinux",
+    "build:linux:arm64:ci:full": "npm run compile:release && npm run script:build:patch-peers && electron-builder --linux AppImage deb rpm pacman --arm64 --publish never && npm run script:build:fixlatestlinux",
+    "build:all": "npm run clean:releases && npm run compile:release && npm run script:build:patch-peers && electron-builder -mwl --x64 && npm run script:build:fixlatestwin && npm run script:build:fixlatestlinux",
+    "script:build:snapshot-dist": "node ./scripts/build/snapshot_compiled_dist.js",
+    "script:build:patch-peers": "node ./scripts/build/patch_peer_deps.js",
+    "script:build:fixlatestlinux": "node -e \"require ( './scripts/build/fix_latest_linux' )()\"",
+    "script:build:fixlatestwin": "node -e \"require ( './scripts/build/fix_latest_win' )()\"",
+    "profile:markdown-rendering": "node ./scripts/analysis/profile_markdown_rendering.js",
+    "screenshots:demo": "node ./scripts/analysis/capture_demo_screenshots.js",
+    "lint": "eslint .",
+    "test:emoji": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/emoji.test.ts src/common/emoji.ts && node --test .tmp/tests/scripts/tests/emoji.test.js",
+    "test:emoji:github": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/emoji_github.test.ts src/common/emoji.ts && node --test .tmp/tests/scripts/tests/emoji_github.test.js",
+    "test:editor-tabs": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/editor_tabs.test.ts src/common/editor_tabs.ts && node --test .tmp/tests/scripts/tests/editor_tabs.test.js",
+    "test:markdown-path": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/markdown_path_resolution.test.ts src/common/markdown_path.ts && node --test .tmp/tests/scripts/tests/markdown_path_resolution.test.js",
+    "test:markdown-emoji": "npm run -s native:build:node && npx tsc --project scripts/tests/tsconfig.markdown-emoji.json && node --test .tmp/tests/scripts/tests/markdown_emoji.test.js",
+    "test:markdown-native": "npm run -s native:build:node && npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/markdown_native.test.ts && node --test .tmp/tests/markdown_native.test.js",
+    "test:markdown-rendering": "npm run -s native:build:node && npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/markdown_rendering_helpers.test.ts src/common/markdown_render_helpers.ts && node --test .tmp/tests/scripts/tests/markdown_rendering_helpers.test.js",
+    "test:markdown-table": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/markdown_table.test.ts src/common/markdown_table.ts && node --test .tmp/tests/scripts/tests/markdown_table.test.js",
+    "test:markdown": "npm run -s test:markdown-path && npm run -s test:markdown-rendering && npm run -s test:markdown-table && npm run -s test:markdown-emoji",
+    "test:export": "npx tsc --project scripts/tests/tsconfig.export.json && node --test .tmp/tests/scripts/tests/export.test.js",
+    "test:global-config": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/global_config.test.ts src/common/global_config.ts && node --test .tmp/tests/scripts/tests/global_config.test.js",
+    "test:url": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/url.test.ts src/common/url.ts && node --test .tmp/tests/scripts/tests/url.test.js",
+    "test:filename": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/filename.test.ts src/common/filename.ts && node --test .tmp/tests/scripts/tests/filename.test.js",
+    "test:katex-ranges": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/katex_ranges.test.ts src/common/katex_ranges.ts && node --test .tmp/tests/scripts/tests/katex_ranges.test.js",
+    "test:code-fence-suggestions": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/code_fence_suggestions.test.ts src/common/code_fence_suggestions.ts && node --test .tmp/tests/scripts/tests/code_fence_suggestions.test.js",
+    "test:enex-import": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/enex_import.test.ts src/renderer/utils/enex_import.ts src/renderer/utils/metadata.ts src/renderer/utils/path.ts src/common/filename.ts && node --test .tmp/tests/scripts/tests/enex_import.test.js",
+    "test:natural-sort": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/natural_sort.test.ts src/common/natural_sort.ts && node --test .tmp/tests/scripts/tests/natural_sort.test.js",
+    "test:overstated": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --jsx react --outDir .tmp/tests scripts/tests/overstated_autosuspend.test.ts src/renderer/lib/overstated.ts && node --test .tmp/tests/scripts/tests/overstated_autosuspend.test.js",
+    "test:plantuml": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/plantuml.test.ts src/common/plantuml.ts && node --test .tmp/tests/scripts/tests/plantuml.test.js",
+    "test:plantuml-cache": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/plantuml_cache.test.ts src/common/plantuml_sqlite_cache.ts && node --test .tmp/tests/scripts/tests/plantuml_cache.test.js",
+    "test:shallow-equal": "npx tsc --ignoreConfig --types node --skipLibCheck --noImplicitAny false --module commonjs --target es2020 --outDir .tmp/tests scripts/tests/shallow_equal.test.ts src/renderer/lib/shallow_equal.ts && node --test .tmp/tests/scripts/tests/shallow_equal.test.js",
+    "test:ui": "npm run compile:release && node scripts/tests/ui_smoke.test.js",
+    "test": "npm run -s test:emoji && npm run -s test:editor-tabs && npm run -s test:markdown && npm run -s test:global-config && npm run -s test:url && npm run -s test:filename && npm run -s test:katex-ranges && npm run -s test:code-fence-suggestions && npm run -s test:enex-import && npm run -s test:natural-sort && npm run -s test:overstated && npm run -s test:plantuml && npm run -s test:plantuml-cache && npm run -s test:export && npm run -s test:shallow-equal",
+    "comparison": "wkhtmltoimage --quiet --quality 30 --encoding 'UTF-8' --zoom 2 ./resources/comparison/table.html ./resources/comparison/table.png",
+    "monaco": "node ./scripts/build/run_webpack.js ./webpack.monaco.js src/renderer/template/generated/javascript/monaco.worker.js",
+    "dev:main": "cross-env NODE_ENV=development webpack --config ./webpack.main.js --watch",
+    "dev:renderer": "cross-env NODE_ENV=development ELECTRON_WEBPACK_WDS_PORT=9080 webpack serve --config ./webpack.renderer.js --host 127.0.0.1 --port 9080 --hot",
+    "dev:electron": "wait-on tcp:9080 dist/main/main.js && cross-env NODE_ENV=development ELECTRON_WEBPACK_WDS_PORT=9080 electron .",
+    "dev": "npm run icon:font && npm run monaco && npm run template:assets && concurrently -k \"npm:template:assets:watch\" \"npm:dev:main\" \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:windows:main": "node ./node_modules/cross-env/dist/bin/cross-env.js NODE_ENV=development node ./node_modules/webpack/bin/webpack.js --config ./webpack.main.js --watch",
+    "dev:windows:renderer": "node ./node_modules/cross-env/dist/bin/cross-env.js NODE_ENV=development ELECTRON_WEBPACK_WDS_HOST=127.0.0.1 ELECTRON_WEBPACK_WDS_PORT=9080 node ./node_modules/webpack-dev-server/bin/webpack-dev-server.js --config ./webpack.renderer.js --host 127.0.0.1 --port 9080 --hot",
+    "dev:windows:electron": "node ./node_modules/wait-on/bin/wait-on tcp:9080 dist/main/main.js && node ./node_modules/cross-env/dist/bin/cross-env.js NODE_ENV=development ELECTRON_WEBPACK_WDS_HOST=127.0.0.1 ELECTRON_WEBPACK_WDS_PORT=9080 .\\node_modules\\electron\\dist\\electron.exe .",
+    "dev:windows": "cross-env EL_BATON_SKIP_ICON_REGEN=1 EL_BATON_SKIP_ICON_FONT_BUILD=1 npm run monaco && cross-env EL_BATON_SKIP_ICON_REGEN=1 EL_BATON_SKIP_ICON_FONT_BUILD=1 npm run template:assets && concurrently -k -n template:assets:watch,dev:main,dev:renderer,dev:electron \"node ./scripts/build/build_template_assets.js --watch\" \"npm run dev:windows:main\" \"npm run dev:windows:renderer\" \"npm run dev:windows:electron\"",
+    "prod": "npm run compile:release && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir && open releases/mac/*.app"
+  },
+  "main": "main.js",
+  "build": {
+    "appId": "com.elbaton.app",
+    "copyright": "Copyright © 2018-present Fabio Spampinato, 2026-present Samuel Howard",
+    "afterAllArtifactBuild": "scripts/build/hook_after_build.js",
+    "beforePack": "scripts/build/hook_before_pack.js",
+    "afterPack": "scripts/build/hook_after_pack.js",
+    "extraMetadata": {
+      "main": "main.js"
+    },
+    "files": [
+      "main.js",
+      "package.json",
+      {
+        "from": "dist",
+        "to": "dist",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "dist/native",
+        "to": "native",
+        "filter": [
+          "markdown_native.node"
+        ]
+      }
+    ],
+    "directories": {
+      "output": "releases"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "pkg",
+        "zip"
+      ],
+      "category": "public.app-category.utilities",
+      "icon": "resources/icon/icon.png",
+      "type": "distribution"
+    },
+    "dmg": {
+      "background": "resources/dmg_background/background.png",
+      "iconSize": 160,
+      "iconTextSize": 12,
+      "window": {
+        "width": 660,
+        "height": 400
+      },
+      "contents": [
+        {
+          "x": 180,
+          "y": 170,
+          "type": "file"
+        },
+        {
+          "x": 480,
+          "y": 170,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "pkg": {
+      "license": "LICENSE"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable",
+        "zip"
+      ],
+      "icon": "resources/icon/icon.ico"
+    },
+    "nsis": {
+      "installerIcon": "resources/icon/icon.ico",
+      "license": "LICENSE",
+      "warningsAsErrors": false
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm",
+        "snap"
+      ],
+      "icon": "resources/icon",
+      "category": "Utility"
+    },
+    "snap": {
+      "grade": "stable",
+      "summary": "Conduct your knowledge."
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "samhaswon",
+      "releaseType": "release",
+      "publishAutoUpdate": true
+    }
+  },
+  "license": "AGPL-3.0-or-later",
+  "author": {
+    "name": "Fabio Spampinato",
+    "email": "spampinabio@gmail.com"
+  },
+  "contributors": [
+    {
+      "name": "Fabio Spampinato",
+      "email": "spampinabio@gmail.com"
+    },
+    {
+      "name": "Samuel Howard"
+    }
+  ],
+  "homepage": "https://github.com/samhaswon/el-baton",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/samhaswon/el-baton.git"
+  },
+  "bugs": {
+    "url": "https://github.com/samhaswon/el-baton/issues"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "download": {
+    "url": "https://github.com/samhaswon/el-baton/releases"
+  },
+  "keywords": [
+    "note",
+    "markdown",
+    "electron",
+    "react"
+  ],
+  "dependencies": {
+    "node-plantuml": "^0.9.0"
+  },
+  "optionalDependencies": {
+    "fsevents": "^2.3.3"
+  },
+  "overrides": {
+    "term-size": {
+      "execa": {
+        "cross-spawn": "6.0.6"
+      }
+    },
+    "package-json": {
+      "got": "^11.8.6"
+    },
+    "cli-table2": {
+      "lodash": "^4.18.1"
+    },
+    "node-addon-api": "^8.8.0",
+    "tmp": "0.2.7",
+    "dompurify": "^3.4.11"
+  },
+  "devDependencies": {
+    "@babel/core": "^8.0.1",
+    "@babel/preset-env": "^8.0.2",
+    "@babel/preset-react": "^8.0.1",
+    "@babel/preset-typescript": "^8.0.1",
+    "@electron/remote": "^2.1.3",
+    "@notable/dumper": "^4.0.3",
+    "@types/katex": "^0.16.8",
+    "@types/lodash": "^4.17.24",
+    "@types/mime-types": "^3.0.1",
+    "@types/node": "^25.6.0",
+    "@types/prismjs": "^1.26.6",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "asciimath2tex": "^1.5.0",
+    "babel-loader": "^10.1.1",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "calls-batch": "^2.0.3",
+    "cash-dom": "^8.1.5",
+    "chokidar": "^5.0.0",
+    "concurrently": "^10.0.3",
+    "copy-webpack-plugin": "^14.0.0",
+    "crc-32": "^1.2.2",
+    "critically": "^2.0.1",
+    "cross-env": "^10.1.0",
+    "css-loader": "^7.1.4",
+    "css-minimizer-webpack-plugin": "^8.0.0",
+    "del-cli": "^7.0.0",
+    "diff": "^9.0.0",
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3",
+    "electron-builder-squirrel-windows": "^26.15.3",
+    "electron-context-menu": "^4.1.2",
+    "electron-devtools-installer": "^4.0.0",
+    "electron-dialog": "^2.0.0",
+    "electron-store": "^11.0.2",
+    "electron-updater": "^6.8.9",
+    "electron-window-state": "^5.0.3",
+    "eslint": "^10.5.0",
+    "execa": "^9.6.1",
+    "extract-zip": "^2.0.1",
+    "gemoji": "^8.1.0",
+    "gray-matter": "^4.0.3",
+    "html-entities": "^2.6.0",
+    "html-webpack-plugin": "^5.6.7",
+    "icon-font-buildr": "^2.0.0",
+    "js-yaml": "^4.2.0",
+    "katex": "^0.17.0",
+    "laxy": "^1.0.0",
+    "lodash": "^4.18.1",
+    "mermaid": "^11.15.0",
+    "mime-types": "^3.0.2",
+    "mini-css-extract-plugin": "^2.10.2",
+    "monaco-editor": "^0.55.1",
+    "node-addon-api": "^8.8.0",
+    "node-gyp": "^12.4.0",
+    "playwright": "^1.61.0",
+    "prismjs": "^1.30.0",
+    "prop-types": "^15.8.1",
+    "react": "^19.2.7",
+    "react-compiler-runtime": "^1.0.0",
+    "react-component-identity": "^1.0.1",
+    "react-component-renderless": "^1.0.2",
+    "react-dom": "^19.2.7",
+    "react-log-updates": "^1.0.7",
+    "react-router-static": "^1.0.0",
+    "react-window": "^2.2.7",
+    "style-loader": "^4.0.0",
+    "terser-webpack-plugin": "^5.6.1",
+    "tiny-glob": "^0.2.9",
+    "tsconfig-paths-webpack-plugin": "^4.2.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1",
+    "unstated": "^2.1.1",
+    "wait-on": "^9.0.10",
+    "webpack": "^5.107.2",
+    "webpack-cli": "^7.0.3",
+    "webpack-dev-server": "^5.2.5"
+  }
+}

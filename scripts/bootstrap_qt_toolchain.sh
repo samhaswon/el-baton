@@ -519,8 +519,8 @@ For the current shell:
 
 Configure with the generated toolchain hints:
   "${QT_PREFIX}/bin/qt-cmake" -G Ninja \\
-    -S "${PROJECT_ROOT}/experiments/qt_editor" \\
-    -B "${PROJECT_ROOT}/build/qt-local" \\
+    -S "${PROJECT_ROOT}" \\
+    -B "${PROJECT_ROOT}/build/native" \\
     -C "${CMAKE_TOOLCHAIN_FILE}"
 
 EOF

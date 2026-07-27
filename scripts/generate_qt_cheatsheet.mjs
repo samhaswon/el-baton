@@ -25,10 +25,10 @@ const evaluateTypeScript = (source, globals = {}) => {
   return module.exports.default;
 };
 
-const emojiSource = await readFile(resolve(root, 'src/common/emoji.ts'), 'utf8');
+const emojiSource = await readFile(resolve(root, 'reference/src/common/emoji.ts'), 'utf8');
 const emoji = evaluateTypeScript(emojiSource);
 let cheatsheetSource = await readFile(
-  resolve(root, 'src/renderer/components/main/mainbar/cheatsheet_content.ts'),
+  resolve(root, 'reference/src/renderer/components/main/mainbar/cheatsheet_content.ts'),
   'utf8'
 );
 cheatsheetSource = cheatsheetSource.replace(

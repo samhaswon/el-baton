@@ -1,7 +1,7 @@
 # El Baton ([DOWNLOAD](https://github.com/samhaswon/el-baton/releases))
 
 <p align="center">
-  <img src="resources/demo/main.png" alt="El Baton" width="750">
+  <img src="reference/resources/demo/main.png" alt="El Baton" width="750">
 </p>
 
 The markdown-based note-taking app for conducting your knowledge.
@@ -10,11 +10,11 @@ I couldn't find a note-taking app that ticked all the boxes I'm interested in: n
 
 So I built my own.
 
-> **Native Qt port:** A C++/Qt 6 port is now under active development alongside
-> the Electron application. The Electron implementation remains the behavioral
-> reference while important workflows are brought to parity. See the
-> [native developer guide](native/README.md) and [port status](native/PORT_STATUS.md)
-> for the current build instructions, implemented features, and remaining work.
+> **Native Qt port:** The C++/Qt 6 application is now the primary implementation
+> and lives in [`src/`](src/). The retained Electron/TypeScript implementation
+> lives under [`reference/`](reference/) as a behavioral reference while the
+> port reaches parity. See the [native developer guide](docs/BUILDING.md) and
+> [port status](docs/PORT_STATUS.md).
 
 ## Features
 
@@ -32,15 +32,15 @@ So I built my own.
 
 - **No proprietary formats**: El Baton is just a pretty front-end for a folder structured as shown above. Notes are plain Markdown files, their metadata is stored as Markdown front matter. Attachments are also plain files, if you attach a `picture.jpg` to a note everything about it will be preserved, and it will remain accessible like any other file.
 
-- **Proper editor**: El Baton doesn't use any WYSIWYG editor, you just write some Markdown and it gets rendered as GitHub-flavored Markdown. The built-in editor is [Monaco Editor](https://github.com/Microsoft/monaco-editor), the same one VS Code uses, this means you get things like multi-cursor by default. If you need more advanced editing features with a single shortcut you can open the current note in your default Markdown editor.
+- **Proper editor**: El Baton doesn't use a WYSIWYG editor: Markdown source is edited in QScintilla and rendered as GitHub-flavored Markdown in the preview. The retained reference application used Monaco and remains useful when checking detailed editing behavior.
 
 - **Indefinitely nestable tags**: Pretty much all the other note-taking apps differentiate between notebooks, tags and templates. IMHO this unnecessarily complicates things. In El Baton you can have root tags (`foo`), indefinitely nestable tags (`foo/bar`, `foo/.../qux`) and it still supports notebooks and templates, they are just special tags with a different icon (`Notebooks/foo`, `Templates/foo/bar`).
 
 On first launch with a new empty data directory, El Baton opens the built-in Cheatsheets panel so new users can quickly learn the workflow and core features.
 
-## [Comparison](resources/comparison/table.png?raw=true)
+## [Comparison](reference/resources/comparison/table.png?raw=true)
 
-[![Click to Enlarge](resources/comparison/table.png)](resources/comparison/table.png?raw=true)
+[![Click to Enlarge](reference/resources/comparison/table.png)](reference/resources/comparison/table.png?raw=true)
 
 Part of this comparison is personal opinion: you may disagree on the UI front, things I consider bloat may be considered features by somebody else etc. but hopefully this comparison did a good job at illustrating the main differences.
 
@@ -48,23 +48,23 @@ Part of this comparison is personal opinion: you may disagree on the UI front, t
 
 ### Dark Theme
 
-<img src="resources/demo/dark.png" alt="Dark Theme" width="750">
+<img src="reference/resources/demo/dark.png" alt="Dark Theme" width="750">
 
 ### Indefinitely Nestable Tags
 
-<img src="resources/demo/tags.png" alt="Indefinitely Nestable Tags" width="750">
+<img src="reference/resources/demo/tags.png" alt="Indefinitely Nestable Tags" width="750">
 
 ### Editor
 
-<img src="resources/demo/editor.png" alt="Editor" width="750">
+<img src="reference/resources/demo/editor.png" alt="Editor" width="750">
 
 ### Multi-Note Editor
 
-<img src="resources/demo/multi_editor.png" alt="Multi-Note Editor" width="750">
+<img src="reference/resources/demo/multi_editor.png" alt="Multi-Note Editor" width="750">
 
 ### Split-Editor + Zen Mode + Quick Open
 
-<img src="resources/demo/zen_mode-split_editor-quick_open.png" alt="Split-Editor + Zen Mode + Quick Open" width="750">
+<img src="reference/resources/demo/zen_mode-split_editor-quick_open.png" alt="Split-Editor + Zen Mode + Quick Open" width="750">
 
 ## Contributing
 

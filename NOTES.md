@@ -3,8 +3,8 @@
 > **Status (2026-07-19):** This is the original proof-of-concept brief and is
 > retained as a design record. The experiment succeeded and now powers an active
 > native application port. Current build instructions and architecture live in
-> [`native/README.md`](native/README.md); the feature-parity matrix is
-> [`native/PORT_STATUS.md`](native/PORT_STATUS.md). The canonical build uses the
+> [`docs/BUILDING.md`](docs/BUILDING.md); the feature-parity matrix is
+> [`docs/PORT_STATUS.md`](docs/PORT_STATUS.md). The canonical build uses the
 > project-local Qt 6.10.3/QScintilla/KDE SyntaxHighlighting toolchain created by
 > `scripts/bootstrap_qt_toolchain.sh`, not the Ubuntu Qt packages listed below.
 
