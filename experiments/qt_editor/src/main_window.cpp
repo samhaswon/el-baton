@@ -505,6 +505,8 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
   renderTimer_.setSingleShot(true);
   renderTimer_.setInterval(120);
   connect(&renderTimer_, &QTimer::timeout, this, &MainWindow::renderDocument);
+  connect(&renderWatcher_, &QFutureWatcher<RenderResult>::finished,
+          this, &MainWindow::finishRenderWrite);
   autosaveTimer_.setSingleShot(true);
   autosaveTimer_.setInterval(750);
   connect(&autosaveTimer_, &QTimer::timeout,
@@ -512,6 +514,10 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
   connect(&autosaveWriteWatcher_,
           &QFutureWatcher<AsyncDocumentSaveResult>::finished,
           this, [this] { finishAutosaveWrite(); });
+  infoRefreshTimer_.setSingleShot(true);
+  infoRefreshTimer_.setInterval(1250);
+  connect(&infoRefreshTimer_, &QTimer::timeout,
+          this, &MainWindow::updateInfoPanel);
   if (options_.overlayEnabled) {
     usageTimer_.setInterval(1000);
     connect(&usageTimer_, &QTimer::timeout, this, &MainWindow::sampleProcessUsage);
@@ -521,7 +527,10 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
   connect(editor_, &QsciScintilla::textChanged, this, [this] {
     if (!switchingDocuments_ && document_.has_value()) {
       editorModifiedAt_ = QDateTime::currentDateTimeUtc();
-      if (!handlingWorkspaceChanges_) autosaveTimer_.start();
+      if (!handlingWorkspaceChanges_) {
+        autosaveTimer_.start();
+        infoRefreshTimer_.start();
+      }
     }
     ++spellcheckGeneration_;
     spellcheckTimer_.start();
@@ -716,6 +725,11 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget* parent)
     workspaceWatcher_->start();
   }
   updateStatus();
+}
+
+MainWindow::~MainWindow() {
+  if (renderWatcher_.isRunning()) renderWatcher_.future().waitForFinished();
+  delete pipeline_;
 }
 
 QWidget* MainWindow::createApplicationChrome(QSplitter* documentSplitter) {
@@ -3560,16 +3574,61 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
 void MainWindow::scheduleRender() {
   if (switchingDocuments_) return;
   lastInputNs_ = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-  renderTimer_.start();
+  // Fixed-window throttling keeps the preview moving during sustained input.
+  // Restarting this timer on every keystroke would turn it into a trailing
+  // debounce and starve rendering until typing stopped.
+  if (!renderTimer_.isActive()) renderTimer_.start();
 }
 
 void MainWindow::renderDocument() {
   if (!previewReady_) return;
-  RenderResult result = pipeline_->render(editor_->text(), ++generation_, lastInputNs_);
+  RenderRequest request{
+      editor_->text(), ++generation_, lastInputNs_, forceFullPreviewRender_};
+  forceFullPreviewRender_ = false;
+  if (activeRender_.has_value()) {
+    if (pendingRender_.has_value()) {
+      request.replaceAll =
+          request.replaceAll || pendingRender_->replaceAll;
+    }
+    pendingRender_ = std::move(request);
+    return;
+  }
+  activeRender_ = std::move(request);
+  startRenderWrite();
+}
+
+void MainWindow::startRenderWrite() {
+  if (!activeRender_.has_value()) return;
+  const RenderRequest request = *activeRender_;
+  renderWatcher_.setFuture(QtConcurrent::run(
+      [pipeline = pipeline_, request] {
+        return pipeline->render(
+            request.source, request.generation, request.inputTimestampNs);
+      }));
+}
+
+void MainWindow::finishRenderWrite() {
+  if (!activeRender_.has_value() || renderWatcher_.isRunning()) return;
+  const RenderResult result = renderWatcher_.result();
+  const RenderRequest completed = *activeRender_;
+  activeRender_.reset();
+  publishRenderResult(result, completed.replaceAll);
+
+  if (pendingRender_.has_value()) {
+    activeRender_ = std::move(pendingRender_);
+    pendingRender_.reset();
+    startRenderWrite();
+  }
+}
+
+void MainWindow::publishRenderResult(
+    const RenderResult& result, bool replaceAll) {
+  QElapsedTimer uiTimer;
+  uiTimer.start();
   lastNativeTimings_ = result.timings;
   sync_->setBlocks(result.allBlocks, result.generation);
-  QJsonObject update = result.toJson(forceFullPreviewRender_ ? PatchMode::FullDocument : options_.patchMode);
-  forceFullPreviewRender_ = false;
+  QJsonObject update = result.toJson(
+      replaceAll ? PatchMode::FullDocument : options_.patchMode);
   update.insert("katexEnabled", options_.katexEnabled);
   update.insert("mermaidEnabled", options_.mermaidEnabled);
   update.insert("mermaidTheme", QStringLiteral("dark"));
@@ -3582,7 +3641,7 @@ void MainWindow::renderDocument() {
     update.insert("documentBaseUrl", QUrl::fromLocalFile(directory).toString());
   }
   bridge_->publishRender(update);
-  updateInfoPanel();
+  lastNativeUiMs_ = uiTimer.nsecsElapsed() / 1'000'000.0;
   updateStatus();
 }
 
@@ -3591,8 +3650,9 @@ void MainWindow::updateStatus(const QJsonObject& browserMetrics) {
   for (auto it = browserMetrics.begin(); it != browserMetrics.end(); ++it) lastBrowserMetrics_.insert(it.key(), it.value());
   const QJsonObject& metrics = lastBrowserMetrics_;
   const double nativeMs = lastNativeTimings_.preprocessMs + lastNativeTimings_.parseMs + lastNativeTimings_.postprocessMs;
-  const QString timings = QString("native %1 ms | DOM %2 ms | settle %3 ms | UI %4 FPS | render %5/s | sync %6 Hz (%7 dropped) | host CPU %8% | host RSS %9 MiB")
+  const QString timings = QString("native %1 ms + UI %2 ms | DOM %3 ms | settle %4 ms | UI %5 FPS | render %6/s | sync %7 Hz (%8 dropped) | host CPU %9% | host RSS %10 MiB")
       .arg(nativeMs, 0, 'f', 1)
+      .arg(lastNativeUiMs_, 0, 'f', 1)
       .arg(metrics.value("domPatchMs").toDouble(), 0, 'f', 1)
       .arg(metrics.value("settleMs").toDouble(), 0, 'f', 1)
       .arg(metrics.value("uiFps").toDouble(), 0, 'f', 0)

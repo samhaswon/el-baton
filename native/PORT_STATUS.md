@@ -1,6 +1,6 @@
 # Native port status
 
-Updated: 2026-07-24
+Updated: 2026-07-26
 
 This matrix records functional parity with the retained Electron/TypeScript
 implementation. “Working” means the core workflow is usable and covered by the
@@ -52,7 +52,7 @@ stub being mistaken for finished work.
 | Area | Status | Notes |
 | --- | --- | --- |
 | GitHub-flavored Markdown | Working | Native cmark-gfm rendering retains source ranges and stable block identities. |
-| Incremental preview updates | Working | Changed blocks are patched while unchanged KaTeX/Mermaid/PlantUML DOM is preserved. |
+| Incremental preview updates | Working | Native parsing/diffing runs on a serialized worker at a bounded continuous cadence while typing. Edits reparse a guarded, block-aligned source window and reuse cached parsed blocks outside it; unstable HTML boundaries expand the window or safely fall back to a full parse. Document-wide heading/TOC/control normalization still runs before changed blocks are patched, preserving unchanged KaTeX/Mermaid/PlantUML DOM. |
 | Raw HTML and `<details>` | Working | HTML is sanitized; interactive details and task checkboxes are retained without executing arbitrary note scripts. |
 | Wiki links and macros | Working | Note/tag/attachment links, heading anchors, TOC/page-break handling, and reference link behavior are present. |
 | Emoji and typography extensions | Working | Emoji shortcodes plus reference superscript/subscript forms such as `N~2~` are generated/rendered. |
@@ -92,3 +92,5 @@ stub being mistaken for finished work.
 3. Add packaging and platform integrations only after the core workflows are at
    parity and the Electron reference is no longer needed for comparison.
 4. Improve startup time.
+5. Lock down exposed WebEngine navigation/chrome actions, including refresh,
+   after the desired behavior and complete affected surface are specified.

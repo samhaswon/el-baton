@@ -52,6 +52,7 @@ class MainWindow final : public QMainWindow {
 
  public:
   explicit MainWindow(BenchmarkOptions options, QWidget* parent = nullptr);
+  ~MainWindow() override;
   void openFile(const QString& path);
 
  protected:
@@ -114,6 +115,9 @@ class MainWindow final : public QMainWindow {
   void startAutosaveWrite();
   void finishAutosaveWrite(bool startPendingWrite = true);
   void drainAutosaveWrite();
+  void startRenderWrite();
+  void finishRenderWrite();
+  void publishRenderResult(const RenderResult& result, bool replaceAll);
   [[nodiscard]] bool saveActiveDocument(bool reportSuccess);
   [[nodiscard]] bool maybeSave();
   void updateWindowTitle();
@@ -190,9 +194,11 @@ class MainWindow final : public QMainWindow {
   QTimer renderTimer_;
   QTimer usageTimer_;
   QTimer autosaveTimer_;
+  QTimer infoRefreshTimer_;
   QTimer searchTimer_;
   QTimer spellcheckTimer_;
   QTimer tableFormatTimer_;
+  QFutureWatcher<RenderResult> renderWatcher_;
   QFutureWatcher<AsyncDocumentSaveResult> autosaveWriteWatcher_;
   QFutureWatcher<QVector<SpellingIssue>> spellcheckWatcher_;
   QVector<SpellingIssue> spellingIssues_;
@@ -241,7 +247,16 @@ class MainWindow final : public QMainWindow {
   WorkspaceRepository workspace_;
   qint64 lastInputNs_ = 0;
   quint64 generation_ = 0;
+  struct RenderRequest final {
+    QString source;
+    quint64 generation = 0;
+    qint64 inputTimestampNs = 0;
+    bool replaceAll = false;
+  };
+  std::optional<RenderRequest> activeRender_;
+  std::optional<RenderRequest> pendingRender_;
   RenderTimings lastNativeTimings_;
+  double lastNativeUiMs_ = 0;
   QJsonObject lastBrowserMetrics_;
   quint64 lastCpuTicks_ = 0;
   qint64 lastCpuSampleMs_ = 0;

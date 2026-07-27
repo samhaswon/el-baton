@@ -42,6 +42,10 @@ struct RenderTimings {
   double preprocessMs = 0;
   double parseMs = 0;
   double postprocessMs = 0;
+  bool incremental = false;
+  qsizetype reparsedCharacters = 0;
+  int reparsedRegions = 0;
+  qsizetype identityMatchCells = 0;
 
   [[nodiscard]] QJsonObject toJson() const;
 };

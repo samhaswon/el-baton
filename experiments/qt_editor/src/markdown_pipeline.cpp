@@ -585,6 +585,36 @@ SourceRange sourceRange(cmark_node* node, const QByteArray& utf8, const QVector<
   return {toQStringOffset(utf8, startByte), toQStringOffset(utf8, std::max(startByte, endByte))};
 }
 
+QVector<RenderedBlock> parseBlocks(const QString& markdown,
+                                   qsizetype sourceOffset = 0) {
+  const QByteArray utf8 = markdown.toUtf8();
+  const QByteArray preprocessedUtf8 =
+      preprocessReferenceSyntax(preprocessMath(markdown)).toUtf8();
+  const QVector<qsizetype> starts = lineByteStarts(utf8);
+  Document document = parse(utf8);
+  Document renderDocument = parse(preprocessedUtf8);
+  const QVector<QString> renderedBlocks = renderTopLevel(renderDocument);
+
+  QVector<RenderedBlock> blocks;
+  qsizetype renderedIndex = 0;
+  for (cmark_node* node = cmark_node_first_child(document.root); node;
+       node = cmark_node_next(node)) {
+    RenderedBlock block;
+    block.kind = QString::fromUtf8(cmark_node_get_type_string(node));
+    block.range = sourceRange(node, utf8, starts);
+    block.source = markdown.sliced(block.range.start,
+                                   block.range.end - block.range.start);
+    block.html = renderedIndex < renderedBlocks.size()
+        ? renderedBlocks.at(renderedIndex)
+        : renderFragment(block.source);
+    block.range.start += sourceOffset;
+    block.range.end += sourceOffset;
+    blocks.append(std::move(block));
+    ++renderedIndex;
+  }
+  return blocks;
+}
+
 bool blockContentChanged(const RenderedBlock& left, const RenderedBlock& right) {
   return left.kind != right.kind || left.source != right.source || left.html != right.html || left.syncMode != right.syncMode;
 }
@@ -640,6 +670,40 @@ QVector<RenderedBlock> groupDetailsContainers(QVector<RenderedBlock> blocks,
   return grouped;
 }
 
+bool hasDocumentWideCmarkDefinitions(const QString& markdown) {
+  // Reference links and footnotes are resolved by cmark at document scope.
+  // Until their definition map is cached separately, parsing only a local
+  // fragment could silently change a reference outside that fragment.
+  static const QRegularExpression definition(
+      QStringLiteral(R"((?m)^ {0,3}\[(?:\^[^\]\n]+|[^\]\n]+)\]:[ \t]*)"));
+  return definition.match(markdown).hasMatch();
+}
+
+qsizetype commonPrefixLength(QStringView left, QStringView right) {
+  const qsizetype limit = std::min(left.size(), right.size());
+  qsizetype length = 0;
+  while (length < limit && left.at(length) == right.at(length)) ++length;
+  return length;
+}
+
+qsizetype commonSuffixLength(QStringView left, QStringView right,
+                             qsizetype prefixLength) {
+  const qsizetype limit =
+      std::min(left.size() - prefixLength, right.size() - prefixLength);
+  qsizetype length = 0;
+  while (length < limit &&
+         left.at(left.size() - length - 1) ==
+             right.at(right.size() - length - 1)) {
+    ++length;
+  }
+  return length;
+}
+
+bool sameParsedBlock(const RenderedBlock& left, const RenderedBlock& right) {
+  return left.kind == right.kind && left.source == right.source &&
+         left.html == right.html;
+}
+
 }  // namespace
 
 MarkdownPipeline::MarkdownPipeline() = default;
@@ -666,49 +730,186 @@ RenderResult MarkdownPipeline::render(const QString& markdown, quint64 generatio
 
   QElapsedTimer timer;
   timer.start();
-  const QByteArray utf8 = markdown.toUtf8();
-  const QByteArray preprocessedUtf8 = preprocessReferenceSyntax(preprocessMath(markdown)).toUtf8();
-  const QVector<qsizetype> starts = lineByteStarts(utf8);
-  result.timings.preprocessMs = timer.nsecsElapsed() / 1'000'000.0;
+  bool incremental = hasPreviousRender_ &&
+      !hasDocumentWideCmarkDefinitions(previousMarkdown_) &&
+      !hasDocumentWideCmarkDefinitions(markdown);
+  QVector<RenderedBlock> nextParsedBlocks;
 
-  timer.restart();
-  Document document = parse(utf8);
-  Document renderDocument = parse(preprocessedUtf8);
-  QVector<QString> renderedBlocks = renderTopLevel(renderDocument);
-  postprocessReferenceHtml(renderedBlocks);
-  QVector<RenderedBlock> current;
-  qsizetype renderedIndex = 0;
-  for (cmark_node* node = cmark_node_first_child(document.root); node; node = cmark_node_next(node)) {
-    RenderedBlock block;
-    block.kind = QString::fromUtf8(cmark_node_get_type_string(node));
-    block.range = sourceRange(node, utf8, starts);
-    block.source = markdown.sliced(block.range.start, block.range.end - block.range.start);
-    block.html = renderedIndex < renderedBlocks.size()
-        ? renderedBlocks.at(renderedIndex) : renderFragment(block.source);
-    current.append(std::move(block));
-    ++renderedIndex;
+  if (incremental && markdown == previousMarkdown_) {
+    nextParsedBlocks = parsedBlocks_;
+    result.timings.reparsedCharacters = 0;
+    result.timings.reparsedRegions = 0;
+  } else if (incremental) {
+    const qsizetype prefix =
+        commonPrefixLength(previousMarkdown_, markdown);
+    const qsizetype suffix =
+        commonSuffixLength(previousMarkdown_, markdown, prefix);
+    const qsizetype oldChangeEnd = previousMarkdown_.size() - suffix;
+    const qsizetype delta = markdown.size() - previousMarkdown_.size();
+
+    qsizetype first = 0;
+    while (first < parsedBlocks_.size() &&
+           parsedBlocks_.at(first).range.end < prefix) {
+      ++first;
+    }
+    if (first > 0) --first;
+
+    qsizetype last = first;
+    while (last < parsedBlocks_.size() &&
+           parsedBlocks_.at(last).range.start <= oldChangeEnd) {
+      ++last;
+    }
+    if (last < parsedBlocks_.size()) ++last;
+    if (last > 0) --last;
+
+    if (parsedBlocks_.isEmpty()) {
+      incremental = false;
+    } else {
+      first = std::min(first, parsedBlocks_.size() - 1);
+      last = std::clamp(last, first, parsedBlocks_.size() - 1);
+
+      QVector<RenderedBlock> reparsed;
+      bool boundariesStable = false;
+      while (true) {
+        const qsizetype oldRegionStart =
+            first == 0 ? 0 : parsedBlocks_.at(first).range.start;
+        const qsizetype oldRegionEnd =
+            last + 1 == parsedBlocks_.size()
+            ? previousMarkdown_.size()
+            : parsedBlocks_.at(last).range.end;
+        const qsizetype newRegionStart = oldRegionStart;
+        const qsizetype newRegionEnd = std::clamp(
+            oldRegionEnd + delta, newRegionStart, markdown.size());
+        reparsed = parseBlocks(
+            markdown.sliced(newRegionStart, newRegionEnd - newRegionStart),
+            newRegionStart);
+
+        const bool needsLeftAnchor =
+            parsedBlocks_.at(first).range.end <= prefix;
+        const bool needsRightAnchor =
+            parsedBlocks_.at(last).range.start >= oldChangeEnd;
+        const bool leftStable =
+            !needsLeftAnchor ||
+            (!reparsed.isEmpty() &&
+             sameParsedBlock(reparsed.constFirst(), parsedBlocks_.at(first)));
+        const bool rightStable =
+            !needsRightAnchor ||
+            (!reparsed.isEmpty() &&
+             sameParsedBlock(reparsed.constLast(), parsedBlocks_.at(last)));
+        if (leftStable && rightStable) {
+          boundariesStable = true;
+          result.timings.reparsedCharacters = newRegionEnd - newRegionStart;
+          result.timings.reparsedRegions = 1;
+          break;
+        }
+        const bool canExpandLeft = !leftStable && first > 0;
+        const bool canExpandRight =
+            !rightStable && last + 1 < parsedBlocks_.size();
+        if (!canExpandLeft && !canExpandRight) break;
+        if (canExpandLeft) --first;
+        if (canExpandRight) ++last;
+      }
+
+      if (boundariesStable) {
+        nextParsedBlocks.reserve(
+            first + reparsed.size() + parsedBlocks_.size() - last - 1);
+        for (qsizetype index = 0; index < first; ++index)
+          nextParsedBlocks.append(parsedBlocks_.at(index));
+        nextParsedBlocks += reparsed;
+        for (qsizetype index = last + 1; index < parsedBlocks_.size();
+             ++index) {
+          RenderedBlock block = parsedBlocks_.at(index);
+          block.range.start += delta;
+          block.range.end += delta;
+          nextParsedBlocks.append(std::move(block));
+        }
+      } else {
+        incremental = false;
+      }
+    }
   }
+
+  result.timings.preprocessMs = timer.nsecsElapsed() / 1'000'000.0;
+  timer.restart();
+  if (!incremental) {
+    nextParsedBlocks = parseBlocks(markdown);
+    result.timings.reparsedCharacters = markdown.size();
+    result.timings.reparsedRegions = 1;
+  }
+  result.timings.incremental = incremental;
+  parsedBlocks_ = std::move(nextParsedBlocks);
+  previousMarkdown_ = markdown;
+  hasPreviousRender_ = true;
+
+  QVector<QString> renderedBlocks;
+  renderedBlocks.reserve(parsedBlocks_.size());
+  for (const RenderedBlock& block : parsedBlocks_)
+    renderedBlocks.append(block.html);
+  postprocessReferenceHtml(renderedBlocks);
+
+  QVector<RenderedBlock> current = parsedBlocks_;
+  for (qsizetype index = 0; index < current.size(); ++index)
+    current[index].html = renderedBlocks.value(index);
   current = groupDetailsContainers(std::move(current), markdown);
   result.timings.parseMs = timer.nsecsElapsed() / 1'000'000.0;
 
   timer.restart();
-  // Sequence edit distance preserves identities across content edits while exact
-  // blocks on either side anchor insertions and removals. Bound the matrix for
-  // benchmark-sized documents: an unbounded O(n*m) allocation would itself
-  // invalidate the large-document experiment.
+  // Exact unchanged edges are overwhelmingly common during typing. Anchor
+  // those in linear time, then use edit distance only for the changed middle.
+  // This preserves identities without allocating an O(document²) matrix for a
+  // one-paragraph edit.
   const qsizetype oldCount = previousBlocks_.size();
   const qsizetype newCount = current.size();
   QVector<int> matchedOld(newCount, -1);
   QVector<bool> oldUsed(oldCount, false);
+  const auto exact = [&](qsizetype oldPosition, qsizetype newPosition) {
+    return previousBlocks_.at(oldPosition).kind ==
+               current.at(newPosition).kind &&
+           previousBlocks_.at(oldPosition).source ==
+               current.at(newPosition).source;
+  };
+
+  qsizetype prefixCount = 0;
+  while (prefixCount < oldCount && prefixCount < newCount &&
+         exact(prefixCount, prefixCount)) {
+    matchedOld[prefixCount] = static_cast<int>(prefixCount);
+    oldUsed[prefixCount] = true;
+    ++prefixCount;
+  }
+
+  qsizetype suffixCount = 0;
+  while (suffixCount < oldCount - prefixCount &&
+         suffixCount < newCount - prefixCount &&
+         exact(oldCount - suffixCount - 1, newCount - suffixCount - 1)) {
+    const qsizetype oldIndex = oldCount - suffixCount - 1;
+    const qsizetype newIndex = newCount - suffixCount - 1;
+    matchedOld[newIndex] = static_cast<int>(oldIndex);
+    oldUsed[oldIndex] = true;
+    ++suffixCount;
+  }
+
+  const qsizetype oldMiddleStart = prefixCount;
+  const qsizetype newMiddleStart = prefixCount;
+  const qsizetype oldMiddleCount = oldCount - prefixCount - suffixCount;
+  const qsizetype newMiddleCount = newCount - prefixCount - suffixCount;
+  result.timings.identityMatchCells =
+      (oldMiddleCount + 1) * (newMiddleCount + 1);
   constexpr qsizetype kMaximumEditMatrixCells = 2'000'000;
-  if ((oldCount + 1) <= kMaximumEditMatrixCells / std::max<qsizetype>(1, newCount + 1)) {
-    QVector<QVector<int>> cost(oldCount + 1, QVector<int>(newCount + 1));
-    for (qsizetype oldIndex = 0; oldIndex <= oldCount; ++oldIndex) cost[oldIndex][0] = static_cast<int>(oldIndex * 2);
-    for (qsizetype newIndex = 0; newIndex <= newCount; ++newIndex) cost[0][newIndex] = static_cast<int>(newIndex * 2);
-    for (qsizetype oldIndex = 1; oldIndex <= oldCount; ++oldIndex) {
-      for (qsizetype newIndex = 1; newIndex <= newCount; ++newIndex) {
-        const RenderedBlock& oldBlock = previousBlocks_.at(oldIndex - 1);
-        const RenderedBlock& newBlock = current.at(newIndex - 1);
+  if ((oldMiddleCount + 1) <=
+      kMaximumEditMatrixCells /
+          std::max<qsizetype>(1, newMiddleCount + 1)) {
+    QVector<QVector<int>> cost(
+        oldMiddleCount + 1, QVector<int>(newMiddleCount + 1));
+    for (qsizetype oldIndex = 0; oldIndex <= oldMiddleCount; ++oldIndex)
+      cost[oldIndex][0] = static_cast<int>(oldIndex * 2);
+    for (qsizetype newIndex = 0; newIndex <= newMiddleCount; ++newIndex)
+      cost[0][newIndex] = static_cast<int>(newIndex * 2);
+    for (qsizetype oldIndex = 1; oldIndex <= oldMiddleCount; ++oldIndex) {
+      for (qsizetype newIndex = 1; newIndex <= newMiddleCount; ++newIndex) {
+        const RenderedBlock& oldBlock =
+            previousBlocks_.at(oldMiddleStart + oldIndex - 1);
+        const RenderedBlock& newBlock =
+            current.at(newMiddleStart + newIndex - 1);
         const int substitution = oldBlock.kind == newBlock.kind
             ? (oldBlock.source == newBlock.source ? 0 : 1) : 5;
         cost[oldIndex][newIndex] = std::min({cost[oldIndex - 1][newIndex] + 2,
@@ -716,18 +917,22 @@ RenderResult MarkdownPipeline::render(const QString& markdown, quint64 generatio
                                              cost[oldIndex - 1][newIndex - 1] + substitution});
       }
     }
-    qsizetype oldIndex = oldCount;
-    qsizetype newIndex = newCount;
+    qsizetype oldIndex = oldMiddleCount;
+    qsizetype newIndex = newMiddleCount;
     while (oldIndex > 0 || newIndex > 0) {
       if (oldIndex > 0 && newIndex > 0) {
-        const RenderedBlock& oldBlock = previousBlocks_.at(oldIndex - 1);
-        const RenderedBlock& newBlock = current.at(newIndex - 1);
+        const qsizetype absoluteOld =
+            oldMiddleStart + oldIndex - 1;
+        const qsizetype absoluteNew =
+            newMiddleStart + newIndex - 1;
+        const RenderedBlock& oldBlock = previousBlocks_.at(absoluteOld);
+        const RenderedBlock& newBlock = current.at(absoluteNew);
         const int substitution = oldBlock.kind == newBlock.kind
             ? (oldBlock.source == newBlock.source ? 0 : 1) : 5;
         if (cost[oldIndex][newIndex] == cost[oldIndex - 1][newIndex - 1] + substitution) {
           if (substitution < 5) {
-            matchedOld[newIndex - 1] = static_cast<int>(oldIndex - 1);
-            oldUsed[oldIndex - 1] = true;
+            matchedOld[absoluteNew] = static_cast<int>(absoluteOld);
+            oldUsed[absoluteOld] = true;
           }
           --oldIndex;
           --newIndex;
@@ -738,32 +943,36 @@ RenderResult MarkdownPipeline::render(const QString& markdown, quint64 generatio
       else --newIndex;
     }
   } else {
-    // A bounded-lookahead linear matcher retains IDs around ordinary local
-    // insertions/deletions without quadratic memory on very large documents.
+    // A bounded-lookahead linear matcher handles unusually large changed
+    // middles without quadratic memory.
     constexpr qsizetype kLookahead = 64;
-    qsizetype oldIndex = 0;
-    for (qsizetype newIndex = 0; newIndex < newCount; ++newIndex) {
-      if (oldIndex >= oldCount) break;
-      const auto exact = [&](qsizetype oldPosition, qsizetype newPosition) {
-        return previousBlocks_.at(oldPosition).kind == current.at(newPosition).kind &&
-               previousBlocks_.at(oldPosition).source == current.at(newPosition).source;
-      };
+    const qsizetype oldMiddleEnd = oldMiddleStart + oldMiddleCount;
+    const qsizetype newMiddleEnd = newMiddleStart + newMiddleCount;
+    qsizetype oldIndex = oldMiddleStart;
+    for (qsizetype newIndex = newMiddleStart;
+         newIndex < newMiddleEnd; ++newIndex) {
+      if (oldIndex >= oldMiddleEnd) break;
       if (exact(oldIndex, newIndex)) {
         matchedOld[newIndex] = static_cast<int>(oldIndex);
         oldUsed[oldIndex++] = true;
         continue;
       }
       qsizetype upcomingNew = -1;
-      for (qsizetype candidate = newIndex + 1; candidate < std::min(newCount, newIndex + kLookahead); ++candidate) {
+      for (qsizetype candidate = newIndex + 1;
+           candidate < std::min(newMiddleEnd, newIndex + kLookahead);
+           ++candidate) {
         if (exact(oldIndex, candidate)) { upcomingNew = candidate; break; }
       }
       qsizetype upcomingOld = -1;
-      for (qsizetype candidate = oldIndex + 1; candidate < std::min(oldCount, oldIndex + kLookahead); ++candidate) {
+      for (qsizetype candidate = oldIndex + 1;
+           candidate < std::min(oldMiddleEnd, oldIndex + kLookahead);
+           ++candidate) {
         if (exact(candidate, newIndex)) { upcomingOld = candidate; break; }
       }
       if (upcomingNew >= 0 && (upcomingOld < 0 || upcomingNew - newIndex <= upcomingOld - oldIndex)) continue;
       if (upcomingOld >= 0) oldIndex = upcomingOld;
-      if (previousBlocks_.at(oldIndex).kind == current.at(newIndex).kind) {
+      if (oldIndex < oldMiddleEnd &&
+          previousBlocks_.at(oldIndex).kind == current.at(newIndex).kind) {
         matchedOld[newIndex] = static_cast<int>(oldIndex);
         oldUsed[oldIndex++] = true;
       }
@@ -796,7 +1005,14 @@ QJsonObject RenderedBlock::rangeToJson() const {
 }
 
 QJsonObject RenderTimings::toJson() const {
-  return {{"inputToRenderStartMs", inputToRenderStartMs}, {"preprocessMs", preprocessMs}, {"parseMs", parseMs}, {"postprocessMs", postprocessMs}};
+  return {{"inputToRenderStartMs", inputToRenderStartMs},
+          {"preprocessMs", preprocessMs},
+          {"parseMs", parseMs},
+          {"postprocessMs", postprocessMs},
+          {"incremental", incremental},
+          {"reparsedCharacters", reparsedCharacters},
+          {"reparsedRegions", reparsedRegions},
+          {"identityMatchCells", identityMatchCells}};
 }
 
 QJsonObject RenderResult::toJson(PatchMode patchMode) const {

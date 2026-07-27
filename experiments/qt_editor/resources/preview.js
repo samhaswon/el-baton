@@ -7,7 +7,7 @@
   const state = {
     bridge: null, generation: 0, geometry: [], geometryDirty: true, blockNodes: new Map(), blockRanges: new Map(),
     resizeObserver: null, applyingSourceScroll: false, previewScrollFrame: 0,
-    applyingUpdate: false, pendingUpdate: null, syncTimes: [], droppedSync: 0,
+    applyingUpdate: false, pendingUpdates: [], syncTimes: [], droppedSync: 0,
     frameTimes: [], renderTimes: [], activeUntil: 0, samplingFrames: false, lastFrameReportAt: 0,
     metrics: {}, diagnosticsEnabled: false, documentBaseUrl: '', mermaidCache: new Map(), hiddenMermaidNodes: new Map(),
     plantUmlCache: new Map(), plantUmlNodes: new Map(), plantUmlRequest: 0,
@@ -17,20 +17,25 @@
   const katexWorker = new Worker('katex_worker.js');
   katexWorker.onmessage = event => {
     const pending = state.katexPending.get(event.data.requestId);
-    if (!pending || pending.generation !== state.generation) return;
+    if (!pending) return;
     state.katexPending.delete(event.data.requestId);
     const started = pending.started;
+    const currentGeneration = pending.generation === state.generation;
     for (const result of event.data.results) {
       const node = pending.nodes[result.index];
-      if (!node?.isConnected) continue;
       if (result.ok) {
         const markup = DOMPurify.sanitize(result.html);
-        node.innerHTML = markup;
-        node.dataset.rendered = '1';
         state.katexMarkupCache.set(pending.keys[result.index], markup);
         if (state.katexMarkupCache.size > 3000) state.katexMarkupCache.delete(state.katexMarkupCache.keys().next().value);
+        if (currentGeneration && node?.isConnected) {
+          node.innerHTML = markup;
+          node.dataset.rendered = '1';
+        }
       }
-      else { node.className += ' qt-render-error'; node.textContent = `[KaTeX: ${result.error}]`; }
+      else if (currentGeneration && node?.isConnected) {
+        node.className += ' qt-render-error';
+        node.textContent = `[KaTeX: ${result.error}]`;
+      }
     }
     state.metrics.katexWorkerMs = performance.now() - started;
     invalidateGeometry();
@@ -320,19 +325,17 @@
   }
 
   function applyHiddenMermaidResults(batch) {
-    if (batch.generation !== state.generation) {
-      for (const result of batch.results || []) state.hiddenMermaidNodes.delete(result.id);
-      return;
-    }
     for (const result of batch.results || []) {
       const pending = state.hiddenMermaidNodes.get(result.id);
       state.hiddenMermaidNodes.delete(result.id);
-      const node = pending?.node;
-      if (!node?.isConnected) continue;
-      if (result.ok) {
-        installMermaidSvg(node, result.svg);
+      if (result.ok && pending) {
         state.mermaidCache.set(pending.cacheKey, result.svg);
         if (state.mermaidCache.size > 256) state.mermaidCache.delete(state.mermaidCache.keys().next().value);
+      }
+      const node = pending?.node;
+      if (batch.generation !== state.generation || !node?.isConnected) continue;
+      if (result.ok) {
+        installMermaidSvg(node, result.svg);
       } else {
         node.hidden = true;
       }
@@ -421,16 +424,16 @@
 
   async function enqueueUpdate(update) {
     if (update.generation <= state.generation) return;
-    state.pendingUpdate = update;
+    state.pendingUpdates.push(update);
     if (state.applyingUpdate) {
-      state.metrics.coalescedRenders = (state.metrics.coalescedRenders || 0) + 1;
+      state.metrics.queuedRenders = state.pendingUpdates.length;
       return;
     }
     state.applyingUpdate = true;
     try {
-      while (state.pendingUpdate) {
-        const next = state.pendingUpdate;
-        state.pendingUpdate = null;
+      while (state.pendingUpdates.length) {
+        const next = state.pendingUpdates.shift();
+        state.metrics.queuedRenders = state.pendingUpdates.length;
         await applyUpdate(next);
       }
     } finally {

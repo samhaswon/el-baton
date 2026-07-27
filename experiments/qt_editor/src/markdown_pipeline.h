@@ -18,8 +18,14 @@ class MarkdownPipeline final {
   [[nodiscard]] const QVector<RenderedBlock>& previousBlocks() const { return previousBlocks_; }
 
  private:
+  QString previousMarkdown_;
+  // Top-level cmark nodes before document-wide heading/TOC/control
+  // normalization and details-container grouping. These are the reusable
+  // incremental parse units.
+  QVector<RenderedBlock> parsedBlocks_;
   QVector<RenderedBlock> previousBlocks_;
   quint64 nextBlockId_ = 1;
+  bool hasPreviousRender_ = false;
 };
 
 }  // namespace qt_editor
