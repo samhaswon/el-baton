@@ -65,7 +65,16 @@ if (-not (Test-Path (Join-Path $QScintillaBuild ".complete"))) {
         & (Join-Path $QtPrefix "bin/qmake.exe") `
             (Join-Path $QScintillaSource "src/qscintilla.pro") CONFIG+=release
         if ($LASTEXITCODE -ne 0) { throw "QScintilla configure failed" }
-        nmake
+        $Jom = Get-Command jom -ErrorAction SilentlyContinue
+        if (-not $Jom) {
+            throw "jom is required to build QScintilla in parallel"
+        }
+        $ParallelJobs = if ($env:NUMBER_OF_PROCESSORS) {
+            $env:NUMBER_OF_PROCESSORS
+        } else {
+            "2"
+        }
+        & $Jom.Source "-j" $ParallelJobs
         if ($LASTEXITCODE -ne 0) { throw "QScintilla build failed" }
         New-Item -ItemType File (Join-Path $QScintillaBuild ".complete") | Out-Null
     } finally {

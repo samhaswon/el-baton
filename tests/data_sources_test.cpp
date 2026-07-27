@@ -176,7 +176,8 @@ void DataSourcesTest::resolvesWorkspaceLinksSafely() {
   repository.refresh();
   QCOMPARE(repository.resolveNoteTarget(QStringLiteral("Topics/A%20note.md")), note.fileName());
   QCOMPARE(repository.resolveNoteTarget(QStringLiteral("Resolved%20title")), note.fileName());
-  QCOMPARE(repository.resolveAttachmentTarget(QStringLiteral("image%20one.png")), attachment.fileName());
+  QCOMPARE(repository.resolveAttachmentTarget(QStringLiteral("image%20one.png")),
+           QFileInfo(attachment).canonicalFilePath());
   const QString workspaceFile = root.filePath(QStringLiteral("support.txt"));
   QFile support(workspaceFile);
   QVERIFY(support.open(QIODevice::WriteOnly));

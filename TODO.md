@@ -291,15 +291,17 @@
 - [ ] Implement a presentation mode similar to whatever Pandoc has.
     - https://pandoc.org/MANUAL.html#slide-shows
 - [ ] VLM/LLM integration
-- [ ] Replace as much rendering logic as possible and sensible with native code.
+- [X] Replace as much rendering logic as possible and sensible with native code.
+    - Most of the app is now native code, apart from what is required for KaTeX and Mermaid.js
 - [ ] Custom CSS/JS
+    - Custom theming partially implemented by using Qt.
 - [ ] Plugins
 - [ ] Double-click in preview places cursor there in the source.
     - It would be nice if this, at the very least, dropped the cursor on the correct source line. That might be doable with the current scroll synchronization implementation.
 - [ ] Maybe add some kind of OCR if one can be found that's good for creating Markdown source.
     - Or maybe just VLLM integration somehow.
     - Pix2tex for KaTeX, possibly as some kind of plugin
-- [ ] ~~Rust~~ C rewrite.
+- [ ] ~~Rust~~ ~~C~~ C++ rewrite.
 
 ## Blocked
 
@@ -308,3 +310,4 @@
 - [X] Move to built-in `node:sqlite` when the project can be upgraded to a later ~~node~~ Electron version.
     - There appears to be a disconnect between the project and Electron node versions.
 - [ ] Re-enable `VALIDATE_TYPESCRIPT_STANDARD` in CI linting
+- [ ] Windows on ARM build (blocked upstream by Qt's `qtwebengine`)

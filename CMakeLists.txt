@@ -340,7 +340,7 @@ set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 set(CPACK_DEBIAN_PACKAGE_SECTION "editors")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
 set(CPACK_DEBIAN_PACKAGE_DEPENDS
-  "libc6, libstdc++6, libhunspell-1.7-0, libyaml-cpp0.8, zlib1g")
+  "libc6, libstdc++6, libhunspell-1.7-0, libminizip1t64, libyaml-cpp0.8, zlib1g")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 set(CPACK_RPM_PACKAGE_LICENSE "AGPL-3.0-or-later")
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Editors")
