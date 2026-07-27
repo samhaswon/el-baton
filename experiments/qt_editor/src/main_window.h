@@ -25,6 +25,7 @@ class QStackedWidget;
 class QTabBar;
 class QToolButton;
 class QCheckBox;
+class QTreeWidgetItem;
 class QWebEngineView;
 class QWebEnginePage;
 class QsciScintilla;
@@ -99,6 +100,7 @@ class MainWindow final : public QMainWindow {
   QWidget* createHelpPanel();
   QWidget* createSettingsPanel();
   void refreshWorkspaceViews();
+  void selectCurrentNoteInExplorer();
   void handleWorkspaceChanges(const QVector<WorkspaceChange>& changes);
   void updateSearchResults();
   void appendSearchResultBatch(quint64 generation);
@@ -210,6 +212,7 @@ class MainWindow final : public QMainWindow {
   QSet<int> tableTouchedLines_;
   QHash<QString, QString> completionInsertions_;
   QHash<QString, QString> emojiCompletions_;
+  QHash<QString, QTreeWidgetItem*> explorerItemsByPath_;
   int completionReplaceStartByte_ = -1;
   int completionReplaceEndByte_ = -1;
   QString pendingSearchQuery_;
@@ -257,6 +260,7 @@ class MainWindow final : public QMainWindow {
   std::optional<RenderRequest> pendingRender_;
   RenderTimings lastNativeTimings_;
   double lastNativeUiMs_ = 0;
+  double lastTabSwitchUiMs_ = 0;
   QJsonObject lastBrowserMetrics_;
   quint64 lastCpuTicks_ = 0;
   qint64 lastCpuSampleMs_ = 0;

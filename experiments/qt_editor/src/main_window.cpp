@@ -1897,6 +1897,7 @@ void MainWindow::rebuildSettingsPage() {
 void MainWindow::refreshWorkspaceViews() {
   if (noteTree_ == nullptr) return;
   refreshingExplorer_ = true;
+  explorerItemsByPath_.clear();
   noteTree_->clear();
   const QVariantMap sectionState = settings_.value(QStringLiteral("window.explorerSectionsCollapsed")).toMap();
   const QVariantMap tagState = settings_.value(QStringLiteral("window.explorerTagsCollapsed")).toMap();
@@ -1923,7 +1924,11 @@ void MainWindow::refreshWorkspaceViews() {
     item->setIcon(0, referenceNoteStateIcon(note.pinned, note.favorited));
     item->setToolTip(0, note.relativePath);
     item->setData(0, Qt::UserRole, note.filePath);
-    if (QFileInfo(note.filePath) == QFileInfo(currentPath_)) noteTree_->setCurrentItem(item);
+    const QString pathKey = QFileInfo(note.filePath).absoluteFilePath();
+    if (!explorerItemsByPath_.contains(pathKey))
+      explorerItemsByPath_.insert(pathKey, item);
+    if (pathKey == QFileInfo(currentPath_).absoluteFilePath())
+      noteTree_->setCurrentItem(item);
   };
 
   QTreeWidgetItem* notesSection = addBranch(nullptr, QStringLiteral("Notes"), QStringLiteral("notes"), true);
@@ -1975,6 +1980,15 @@ void MainWindow::refreshWorkspaceViews() {
   noteTree_->resizeColumnToContents(0);
   refreshingExplorer_ = false;
   refreshGraphPage();
+}
+
+void MainWindow::selectCurrentNoteInExplorer() {
+  if (noteTree_ == nullptr || currentPath_.isEmpty()) return;
+  QTreeWidgetItem* item = explorerItemsByPath_.value(
+      QFileInfo(currentPath_).absoluteFilePath(), nullptr);
+  if (item == nullptr || noteTree_->currentItem() == item) return;
+  noteTree_->setCurrentItem(item);
+  noteTree_->scrollToItem(item);
 }
 
 void MainWindow::refreshGraphPage() {
@@ -3129,6 +3143,8 @@ void MainWindow::storeActiveDocumentState() {
 
 void MainWindow::activateDocument(int index) {
   if (switchingDocuments_ || index < 0 || index >= openDocuments_.size()) return;
+  QElapsedTimer switchTimer;
+  switchTimer.start();
   if (document_.has_value() && editor_->isModified() && !saveActiveDocument(false)) {
     const QSignalBlocker blocker(noteTabs_);
     noteTabs_->setCurrentIndex(activeDocumentIndex_);
@@ -3151,18 +3167,23 @@ void MainWindow::activateDocument(int index) {
     }
     workspaceWatcher_->setWorkspaceRoot(workspace_.workspaceRoot());
     workspaceWatcher_->start();
+    workspace_.refresh();
+    refreshWorkspaceViews();
   }
-  workspace_.refresh();
   editor_->setText(state.body);
   editor_->setModified(state.modified);
   editorModifiedAt_ = {};
   editor_->setCursorPosition(state.cursorLine, state.cursorIndex);
-  const QString fileName = QFileInfo(currentPath_).fileName();
-  refreshWorkspaceViews();
-  updateInfoPanel();
+  selectCurrentNoteInExplorer();
   updateWindowTitle();
   switchingDocuments_ = false;
+  lastTabSwitchUiMs_ = switchTimer.nsecsElapsed() / 1'000'000.0;
   renderDocument();
+  const QString activatedPath = currentPath_;
+  // Let the tab/editor repaint before rebuilding attachment and outline rows.
+  QTimer::singleShot(50, this, [this, activatedPath] {
+    if (currentPath_ == activatedPath) updateInfoPanel();
+  });
   persistOpenTabs();
 }
 
@@ -3636,6 +3657,9 @@ void MainWindow::publishRenderResult(
       globalConfig_.value(QStringLiteral("plantuml.externalServerUrl")).toString()));
   update.insert("overlayEnabled", options_.overlayEnabled);
   update.insert("hiddenMermaidPage", options_.hiddenMermaidPage);
+  QJsonObject timings = update.value("timings").toObject();
+  timings.insert("tabSwitchUiMs", lastTabSwitchUiMs_);
+  update.insert("timings", timings);
   if (!currentPath_.isEmpty()) {
     const QString directory = QFileInfo(currentPath_).absolutePath() + QLatin1Char('/');
     update.insert("documentBaseUrl", QUrl::fromLocalFile(directory).toString());
