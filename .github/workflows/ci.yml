@@ -50,14 +50,6 @@ jobs:
             arch: x64
             msvc_arch: x64
             vcpkg_triplet: x64-windows
-          - name: Windows ARM64
-            runner: windows-11-arm
-            qt_host: windows_arm64
-            qt_arch: win64_msvc2022_arm64
-            platform: windows
-            arch: arm64
-            msvc_arch: arm64
-            vcpkg_triplet: arm64-windows
           - name: macOS ARM64
             runner: macos-14
             qt_host: mac
@@ -96,7 +88,10 @@ jobs:
           version: ${{ env.QT_VERSION }}
           host: ${{ matrix.qt_host }}
           arch: ${{ matrix.qt_arch }}
-          modules: qtwebengine qtwebchannel qtpositioning qtdeclarative
+          # Qt Declarative is part of the desktop package for Qt 6.10 rather
+          # than an aqt-installable add-on. WebEngine's optional WebChannel and
+          # Positioning dependencies remain explicit.
+          modules: qtwebengine qtwebchannel qtpositioning
           cache: true
 
       - name: Install Ubuntu dependencies

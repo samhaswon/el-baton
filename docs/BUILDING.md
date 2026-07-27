@@ -204,14 +204,16 @@ the native CI pipeline.
 ## Continuous integration
 
 `.github/workflows/ci.yml` performs a clean Release build and runs the complete
-CTest suite on Ubuntu x64/ARM64, Windows x64/ARM64, and macOS ARM64. macOS
-intentionally has no Intel build. CI installs Qt 6.10.2, builds QScintilla and KDE
+CTest suite on Ubuntu x64/ARM64, Windows x64, and macOS ARM64. macOS
+intentionally has no Intel build. Windows ARM64 is excluded because the
+official Qt ARM64 packages do not provide Qt WebEngine, which the preview
+currently requires. CI installs Qt 6.10.2, builds QScintilla and KDE
 SyntaxHighlighting against that exact Qt installation, and downloads PlantUML
 with the same pinned checksum used by the local bootstrap.
 
 Linux jobs publish AppImage, DEB, and RPM artifacts for both architectures.
-Windows jobs publish deployed ZIP artifacts for both architectures, and the
-macOS ARM64 job publishes its deployed application bundle.
+The Windows x64 job publishes a deployed ZIP artifact, and the macOS ARM64 job
+publishes its deployed application bundle.
 
 The root `package.json` contains only native build-time JavaScript assets and
 their generators. Electron packaging, linting, and tests remain isolated in
