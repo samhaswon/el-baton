@@ -62,15 +62,29 @@ if (-not (Test-Path (Join-Path $QScintillaBuild ".complete"))) {
     New-Item -ItemType Directory -Force $QScintillaBuild | Out-Null
     Push-Location $QScintillaBuild
     try {
-        # A release QScintilla DLL can spend hours in link.exe's /OPT:REF and
-        # /OPT:ICF passes on hosted Windows runners.  The application is the
-        # library's only consumer, so a static archive is both faster to link
-        # here and avoids shipping another runtime DLL.
+        # Both link.exe and lib.exe have stalled for hours while processing
+        # QScintilla on hosted Windows runners.  llvm-lib produces a compatible
+        # COFF archive without the pathological Microsoft archiver behavior.
+        $LlvmBin = Join-Path $env:ProgramFiles "LLVM/bin"
+        $BundledLlvmLib = Join-Path $LlvmBin "llvm-lib.exe"
+        if (Test-Path $BundledLlvmLib) {
+            $env:PATH = "$LlvmBin;$env:PATH"
+        }
+        $LlvmLib = Get-Command llvm-lib.exe -ErrorAction SilentlyContinue
+        if (-not $LlvmLib) {
+            throw "llvm-lib.exe is required to archive QScintilla on Windows"
+        }
         & (Join-Path $QtPrefix "bin/qmake.exe") `
             (Join-Path $QScintillaSource "src/qscintilla.pro") `
             CONFIG+=release `
-            CONFIG+=staticlib
+            CONFIG+=staticlib `
+            QMAKE_LIB=llvm-lib.exe
         if ($LASTEXITCODE -ne 0) { throw "QScintilla configure failed" }
+        $ReleaseMakefile = Join-Path $QScintillaBuild "Makefile.Release"
+        if (-not (Test-Path $ReleaseMakefile) -or
+            -not (Select-String -Path $ReleaseMakefile -SimpleMatch "llvm-lib.exe" -Quiet)) {
+            throw "QScintilla makefile did not select llvm-lib.exe"
+        }
         $Jom = Get-Command jom -ErrorAction SilentlyContinue
         if (-not $Jom) {
             throw "jom is required to build QScintilla in parallel"
