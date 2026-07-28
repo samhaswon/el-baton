@@ -20,6 +20,13 @@ $SourceRoot = Join-Path $DepsRoot "sources"
 $BuildRoot = Join-Path $DepsRoot "build"
 $InstallRoot = Join-Path $DepsRoot "install"
 
+function Write-CiDiagnostic {
+    param([Parameter(Mandatory)] [string] $Message)
+
+    $Timestamp = (Get-Date).ToUniversalTime().ToString("o")
+    Write-Host "[el-baton-ci $Timestamp pid=$PID] $Message"
+}
+
 function Get-VerifiedFile {
     param(
         [Parameter(Mandatory)] [string] $Uri,
@@ -101,8 +108,76 @@ if (-not (Test-Path (Join-Path $QScintillaBuild ".complete"))) {
         if (-not $NMake) {
             throw "nmake.exe is required to build QScintilla"
         }
-        & $NMake.Source "/NOLOGO" "/F" $ReleaseMakefile
-        if ($LASTEXITCODE -ne 0) { throw "QScintilla build failed" }
+        $ExpectedLibrary = Join-Path `
+            $QScintillaBuild `
+            "release/qscintilla2_qt6.lib"
+        $NMakeArguments = @(
+            "/NOLOGO"
+            "/F"
+            "`"$ReleaseMakefile`""
+        )
+        Write-CiDiagnostic (
+            "Starting QScintilla build: executable=$($NMake.Source); " +
+            "arguments=$($NMakeArguments -join ' '); " +
+            "workingDirectory=$QScintillaBuild; " +
+            "archiver=$($LlvmAr.Source)"
+        )
+        $NMakeStartedAt = Get-Date
+        $NMakeProcess = Start-Process `
+            -FilePath $NMake.Source `
+            -ArgumentList $NMakeArguments `
+            -WorkingDirectory $QScintillaBuild `
+            -NoNewWindow `
+            -PassThru
+        Write-CiDiagnostic "nmake started with pid=$($NMakeProcess.Id)"
+
+        while (-not $NMakeProcess.WaitForExit(30000)) {
+            $NMakeProcess.Refresh()
+            $Elapsed = (Get-Date) - $NMakeStartedAt
+            $CpuSeconds = $NMakeProcess.TotalProcessorTime.TotalSeconds
+            $WorkingSetMiB = $NMakeProcess.WorkingSet64 / 1MB
+            $ChildProcesses = @(
+                Get-CimInstance `
+                    -ClassName Win32_Process `
+                    -Filter "ParentProcessId = $($NMakeProcess.Id)" `
+                    -ErrorAction SilentlyContinue
+            )
+            $ChildSummary = if ($ChildProcesses.Count -eq 0) {
+                "<none>"
+            } else {
+                (
+                    $ChildProcesses |
+                        ForEach-Object {
+                            "$($_.Name)(pid=$($_.ProcessId))"
+                        }
+                ) -join ", "
+            }
+            $LibrarySummary = if (Test-Path $ExpectedLibrary) {
+                $Library = Get-Item $ExpectedLibrary
+                (
+                    "size={0:N1} MiB, modified={1}" -f
+                    ($Library.Length / 1MB),
+                    $Library.LastWriteTimeUtc.ToString("o")
+                )
+            } else {
+                "<not created>"
+            }
+            Write-CiDiagnostic (
+                "nmake heartbeat: elapsed=$($Elapsed.ToString()); " +
+                "cpu=$("{0:N2}" -f $CpuSeconds)s; " +
+                "workingSet=$("{0:N1}" -f $WorkingSetMiB) MiB; " +
+                "children=$ChildSummary; library=$LibrarySummary"
+            )
+        }
+        $NMakeProcess.WaitForExit()
+        $NMakeElapsed = (Get-Date) - $NMakeStartedAt
+        Write-CiDiagnostic (
+            "nmake exited with code $($NMakeProcess.ExitCode) after " +
+            $NMakeElapsed.ToString()
+        )
+        if ($NMakeProcess.ExitCode -ne 0) {
+            throw "QScintilla build failed"
+        }
         New-Item -ItemType File (Join-Path $QScintillaBuild ".complete") | Out-Null
     } finally {
         Pop-Location
