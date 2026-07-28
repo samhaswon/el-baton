@@ -27,6 +27,49 @@ function Write-CiDiagnostic {
     Write-Host "[el-baton-ci $Timestamp pid=$PID] $Message"
 }
 
+function Get-BuildProcessSummary {
+    $BuildProcessNames = @(
+        "cl"
+        "cmake"
+        "katehighlightingindexer"
+        "link"
+        "ninja"
+        "nmake"
+        "perl"
+        "python"
+        "rcc"
+    )
+    $BuildProcesses = @(
+        Get-Process `
+            -Name $BuildProcessNames `
+            -ErrorAction SilentlyContinue
+    )
+    if ($BuildProcesses.Count -eq 0) {
+        return "<none>"
+    }
+    return (
+        $BuildProcesses |
+            Sort-Object ProcessName, Id |
+            ForEach-Object {
+                $BuildProcess = $_
+                try {
+                    (
+                        "{0}(pid={1},cpu={2:N1}s,mem={3:N1}MiB)" -f
+                        $BuildProcess.ProcessName,
+                        $BuildProcess.Id,
+                        $BuildProcess.CPU,
+                        ($BuildProcess.WorkingSet64 / 1MB)
+                    )
+                } catch {
+                    (
+                        "$($BuildProcess.ProcessName)" +
+                        "(pid=$($BuildProcess.Id),exited)"
+                    )
+                }
+            }
+    ) -join ", "
+}
+
 function Invoke-MonitoredProcess {
     param(
         [Parameter(Mandatory)] [string] $Label,
@@ -50,58 +93,12 @@ function Invoke-MonitoredProcess {
         -PassThru
     Write-CiDiagnostic "${Label} started with pid=$($Process.Id)"
 
-    while (-not $Process.WaitForExit(30000)) {
+    while (-not $Process.WaitForExit(60000)) {
         $Process.Refresh()
         $Elapsed = (Get-Date) - $StartedAt
         $CpuSeconds = $Process.TotalProcessorTime.TotalSeconds
         $WorkingSetMiB = $Process.WorkingSet64 / 1MB
-
-        $AllProcesses = @(
-            Get-CimInstance `
-                -ClassName Win32_Process `
-                -ErrorAction SilentlyContinue
-        )
-        $AncestorIds = [System.Collections.Generic.HashSet[uint32]]::new()
-        $DescendantIds = [System.Collections.Generic.HashSet[uint32]]::new()
-        [void] $AncestorIds.Add([uint32] $Process.Id)
-        do {
-            $FoundDescendant = $false
-            foreach ($Candidate in $AllProcesses) {
-                $CandidateId = [uint32] $Candidate.ProcessId
-                $ParentId = [uint32] $Candidate.ParentProcessId
-                if ($AncestorIds.Contains($ParentId) -and
-                    -not $DescendantIds.Contains($CandidateId)) {
-                    [void] $AncestorIds.Add($CandidateId)
-                    [void] $DescendantIds.Add($CandidateId)
-                    $FoundDescendant = $true
-                }
-            }
-        } while ($FoundDescendant)
-
-        $DescendantSummary = if ($DescendantIds.Count -eq 0) {
-            "<none>"
-        } else {
-            (
-                $AllProcesses |
-                    Where-Object {
-                        $DescendantIds.Contains([uint32] ($_.ProcessId))
-                    } |
-                    ForEach-Object {
-                        $CommandLine = if ($_.CommandLine) {
-                            ($_.CommandLine -replace "\s+", " ").Trim()
-                        } else {
-                            "<unavailable>"
-                        }
-                        if ($CommandLine.Length -gt 180) {
-                            $CommandLine = $CommandLine.Substring(0, 177) + "..."
-                        }
-                        (
-                            "$($_.Name)(pid=$($_.ProcessId), " +
-                            "parent=$($_.ParentProcessId), command=$CommandLine)"
-                        )
-                    }
-            ) -join "; "
-        }
+        $BuildProcessSummary = Get-BuildProcessSummary
 
         $ArtifactSummary = if ($Artifacts.Count -eq 0) {
             "<none configured>"
@@ -109,16 +106,17 @@ function Invoke-MonitoredProcess {
             (
                 $Artifacts |
                     ForEach-Object {
+                        $ArtifactName = Split-Path $_ -Leaf
                         if (Test-Path $_) {
                             $Artifact = Get-Item $_
                             (
                                 "{0}: {1:N1} MiB, modified={2}" -f
-                                $_,
+                                $ArtifactName,
                                 ($Artifact.Length / 1MB),
                                 $Artifact.LastWriteTimeUtc.ToString("o")
                             )
                         } else {
-                            "$($_): <not created>"
+                            "${ArtifactName}: <not created>"
                         }
                     }
             ) -join "; "
@@ -128,7 +126,7 @@ function Invoke-MonitoredProcess {
             "${Label} heartbeat: elapsed=$($Elapsed.ToString()); " +
             "rootCpu=$("{0:N2}" -f $CpuSeconds)s; " +
             "rootWorkingSet=$("{0:N1}" -f $WorkingSetMiB) MiB; " +
-            "descendants=$DescendantSummary; artifacts=$ArtifactSummary"
+            "buildProcesses=$BuildProcessSummary; artifacts=$ArtifactSummary"
         )
     }
 
@@ -242,6 +240,7 @@ if (-not (Test-Path (Join-Path $QScintillaBuild ".complete"))) {
             "release/qscintilla2_qt6.lib"
         $NMakeArguments = @(
             "/NOLOGO"
+            "/S"
             "/F"
             "`"$ReleaseMakefile`""
         )
@@ -260,27 +259,12 @@ if (-not (Test-Path (Join-Path $QScintillaBuild ".complete"))) {
             -PassThru
         Write-CiDiagnostic "nmake started with pid=$($NMakeProcess.Id)"
 
-        while (-not $NMakeProcess.WaitForExit(30000)) {
+        while (-not $NMakeProcess.WaitForExit(60000)) {
             $NMakeProcess.Refresh()
             $Elapsed = (Get-Date) - $NMakeStartedAt
             $CpuSeconds = $NMakeProcess.TotalProcessorTime.TotalSeconds
             $WorkingSetMiB = $NMakeProcess.WorkingSet64 / 1MB
-            $ChildProcesses = @(
-                Get-CimInstance `
-                    -ClassName Win32_Process `
-                    -Filter "ParentProcessId = $($NMakeProcess.Id)" `
-                    -ErrorAction SilentlyContinue
-            )
-            $ChildSummary = if ($ChildProcesses.Count -eq 0) {
-                "<none>"
-            } else {
-                (
-                    $ChildProcesses |
-                        ForEach-Object {
-                            "$($_.Name)(pid=$($_.ProcessId))"
-                        }
-                ) -join ", "
-            }
+            $BuildProcessSummary = Get-BuildProcessSummary
             $LibrarySummary = if (Test-Path $ExpectedLibrary) {
                 $Library = Get-Item $ExpectedLibrary
                 (
@@ -295,7 +279,7 @@ if (-not (Test-Path (Join-Path $QScintillaBuild ".complete"))) {
                 "nmake heartbeat: elapsed=$($Elapsed.ToString()); " +
                 "cpu=$("{0:N2}" -f $CpuSeconds)s; " +
                 "workingSet=$("{0:N1}" -f $WorkingSetMiB) MiB; " +
-                "children=$ChildSummary; library=$LibrarySummary"
+                "buildProcesses=$BuildProcessSummary; library=$LibrarySummary"
             )
         }
         $NMakeProcess.WaitForExit()
@@ -454,7 +438,6 @@ if (-not (Test-Path $KSyntaxConfig)) {
     $BuildArguments = @(
         "--build"
         $KSyntaxBuild
-        "--verbose"
         "--parallel"
         "1"
     )
@@ -473,7 +456,6 @@ if (-not (Test-Path $KSyntaxConfig)) {
     $InstallArguments = @(
         "--install"
         $KSyntaxBuild
-        "--verbose"
     )
     Invoke-MonitoredProcess `
         -Label "KSyntaxHighlighting install" `
