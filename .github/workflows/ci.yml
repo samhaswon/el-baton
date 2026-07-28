@@ -128,7 +128,7 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          choco install graphviz jom --no-progress -y
+          choco install graphviz --no-progress -y
           "$env:ProgramFiles\Graphviz\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           vcpkg install --triplet ${{ matrix.vcpkg_triplet }}
 
@@ -136,7 +136,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .ci-deps
-          key: native-deps-${{ matrix.platform }}-${{ matrix.qt_arch }}-${{ env.QT_VERSION }}-qscintilla-2.14.1-batched-llvm-ar-v3-ksyntax-6.28.1
+          key: native-deps-${{ matrix.platform }}-${{ matrix.qt_arch }}-${{ env.QT_VERSION }}-qscintilla-2.14.1-nmake-llvm-ar-v4-ksyntax-6.28.1
 
       - name: Build QScintilla and SyntaxHighlighting
         if: matrix.platform != 'windows'

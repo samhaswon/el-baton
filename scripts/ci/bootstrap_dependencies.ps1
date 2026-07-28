@@ -93,16 +93,15 @@ if (-not (Test-Path (Join-Path $QScintillaBuild ".complete"))) {
                 -Quiet)) {
             throw "QScintilla makefile did not select the batched archive helper"
         }
-        $Jom = Get-Command jom -ErrorAction SilentlyContinue
-        if (-not $Jom) {
-            throw "jom is required to build QScintilla in parallel"
+        # jom hangs after the archive helper has successfully produced the
+        # static library. Build the release makefile directly with MSVC's
+        # sequential make implementation to avoid both jom's finalization bug
+        # and qmake's recursive top-level make handoff.
+        $NMake = Get-Command nmake.exe -ErrorAction SilentlyContinue
+        if (-not $NMake) {
+            throw "nmake.exe is required to build QScintilla"
         }
-        $ParallelJobs = if ($env:NUMBER_OF_PROCESSORS) {
-            $env:NUMBER_OF_PROCESSORS
-        } else {
-            "2"
-        }
-        & $Jom.Source "-j" $ParallelJobs
+        & $NMake.Source "/NOLOGO" "/F" $ReleaseMakefile
         if ($LASTEXITCODE -ne 0) { throw "QScintilla build failed" }
         New-Item -ItemType File (Join-Path $QScintillaBuild ".complete") | Out-Null
     } finally {
