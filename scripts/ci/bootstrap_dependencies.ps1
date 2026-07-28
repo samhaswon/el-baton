@@ -177,11 +177,48 @@ function Get-VerifiedFile {
     Write-CiDiagnostic "Verified and stored $Destination"
 }
 
+function Expand-TarXzArchive {
+    param(
+        [Parameter(Mandatory)] [string] $Label,
+        [Parameter(Mandatory)] [string] $Archive,
+        [Parameter(Mandatory)] [string] $Destination,
+        [Parameter(Mandatory)] [string] $ExpectedFile
+    )
+
+    $CMake = Get-Command cmake.exe -ErrorAction SilentlyContinue
+    if (-not $CMake) {
+        throw "cmake.exe is required to extract $Label"
+    }
+
+    # Git for Windows also ships a tar.exe, but that GNU tar depends on an xz
+    # helper and misparses drive-letter paths in this invocation. Use CMake's
+    # libarchive-backed extractor so PATH order cannot select the wrong tar.
+    $ExtractArguments = @(
+        "-E"
+        "tar"
+        "xJf"
+        $Archive
+    )
+    Invoke-MonitoredProcess `
+        -Label "$Label extraction" `
+        -FilePath $CMake.Source `
+        -ArgumentList $ExtractArguments `
+        -WorkingDirectory $Destination `
+        -Artifacts @($ExpectedFile)
+
+    if (-not (Test-Path $ExpectedFile)) {
+        throw "$Label extraction did not create $ExpectedFile"
+    }
+}
+
 New-Item -ItemType Directory -Force $SourceRoot, $BuildRoot, $InstallRoot | Out-Null
 
 $QScintillaArchive = Join-Path $SourceRoot "QScintilla-$QScintillaVersion.tar.gz"
 $QScintillaSource = Join-Path $SourceRoot "QScintilla_src-$QScintillaVersion"
 $QScintillaBuild = Join-Path $BuildRoot "qscintilla-$QScintillaVersion"
+$ExpectedQScintillaLibrary = Join-Path `
+    $QScintillaBuild `
+    "release/qscintilla2_qt6.lib"
 Get-VerifiedFile `
     "https://www.riverbankcomputing.com/static/Downloads/QScintilla/$QScintillaVersion/QScintilla_src-$QScintillaVersion.tar.gz" `
     $QScintillaArchive `
@@ -235,9 +272,6 @@ if (-not (Test-Path (Join-Path $QScintillaBuild ".complete"))) {
         if (-not $NMake) {
             throw "nmake.exe is required to build QScintilla"
         }
-        $ExpectedLibrary = Join-Path `
-            $QScintillaBuild `
-            "release/qscintilla2_qt6.lib"
         $NMakeArguments = @(
             "/NOLOGO"
             "/S"
@@ -265,8 +299,8 @@ if (-not (Test-Path (Join-Path $QScintillaBuild ".complete"))) {
             $CpuSeconds = $NMakeProcess.TotalProcessorTime.TotalSeconds
             $WorkingSetMiB = $NMakeProcess.WorkingSet64 / 1MB
             $BuildProcessSummary = Get-BuildProcessSummary
-            $LibrarySummary = if (Test-Path $ExpectedLibrary) {
-                $Library = Get-Item $ExpectedLibrary
+            $LibrarySummary = if (Test-Path $ExpectedQScintillaLibrary) {
+                $Library = Get-Item $ExpectedQScintillaLibrary
                 (
                     "size={0:N1} MiB, modified={1}" -f
                     ($Library.Length / 1MB),
@@ -299,8 +333,12 @@ if (-not (Test-Path (Join-Path $QScintillaBuild ".complete"))) {
     }
 }
 Write-CiDiagnostic "Locating the generated QScintilla import/static library"
-$QScintillaLibrary = Get-ChildItem $QScintillaBuild -Recurse -Filter "qscintilla2_qt6.lib" |
-    Select-Object -First 1 -ExpandProperty FullName
+$QScintillaLibrary = if (Test-Path $ExpectedQScintillaLibrary) {
+    $ExpectedQScintillaLibrary
+} else {
+    Get-ChildItem $QScintillaBuild -Recurse -Filter "qscintilla2_qt6.lib" |
+        Select-Object -First 1 -ExpandProperty FullName
+}
 if (-not $QScintillaLibrary) {
     throw "QScintilla output was not found in $QScintillaBuild"
 }
@@ -317,10 +355,11 @@ Get-VerifiedFile `
     "a32e24b267e8528d0253bc8df18bdc00e676560a43b796533e1b1406f4eef4db"
 if (-not (Test-Path (Join-Path $EcmSource "CMakeLists.txt"))) {
     Write-CiDiagnostic "Extracting Extra CMake Modules to $EcmSource"
-    tar -xJf $EcmArchive -C $SourceRoot
-    if ($LASTEXITCODE -ne 0) {
-        throw "Extra CMake Modules extraction failed"
-    }
+    Expand-TarXzArchive `
+        -Label "Extra CMake Modules" `
+        -Archive $EcmArchive `
+        -Destination $SourceRoot `
+        -ExpectedFile (Join-Path $EcmSource "CMakeLists.txt")
     Write-CiDiagnostic "Extra CMake Modules extraction completed"
 } else {
     Write-CiDiagnostic "Extra CMake Modules source is already extracted"
@@ -388,10 +427,11 @@ Get-VerifiedFile `
     "fe0d4133af62c6b9c0cf7728928c64d2deb55fe808a264a5de871f4b6bc86f65"
 if (-not (Test-Path (Join-Path $KSyntaxSource "CMakeLists.txt"))) {
     Write-CiDiagnostic "Extracting KSyntaxHighlighting to $KSyntaxSource"
-    tar -xJf $KSyntaxArchive -C $SourceRoot
-    if ($LASTEXITCODE -ne 0) {
-        throw "KSyntaxHighlighting extraction failed"
-    }
+    Expand-TarXzArchive `
+        -Label "KSyntaxHighlighting" `
+        -Archive $KSyntaxArchive `
+        -Destination $SourceRoot `
+        -ExpectedFile (Join-Path $KSyntaxSource "CMakeLists.txt")
     Write-CiDiagnostic "KSyntaxHighlighting extraction completed"
 } else {
     Write-CiDiagnostic "KSyntaxHighlighting source is already extracted"
