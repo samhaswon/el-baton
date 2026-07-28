@@ -279,6 +279,7 @@
     - Right-clicking should show the standard copy dialogue, also generally.
 - [X] Scroll synchronization breaks under headings with significant amounts of text and/or quotes.
 - [X] In settings, add a "Clear Cache" button to clear persistent caches.
+- [ ] C++ linting with the style I like
 
 ## Mobile App
 
