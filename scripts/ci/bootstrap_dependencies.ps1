@@ -62,28 +62,36 @@ if (-not (Test-Path (Join-Path $QScintillaBuild ".complete"))) {
     New-Item -ItemType Directory -Force $QScintillaBuild | Out-Null
     Push-Location $QScintillaBuild
     try {
-        # Both link.exe and lib.exe have stalled for hours while processing
-        # QScintilla on hosted Windows runners.  llvm-lib produces a compatible
-        # COFF archive without the pathological Microsoft archiver behavior.
+        # Both lib.exe and llvm-lib.exe have stalled for hours on QScintilla's
+        # single large response file.  Feed the compatible LLVM archiver small
+        # validated batches instead.
         $LlvmBin = Join-Path $env:ProgramFiles "LLVM/bin"
-        $BundledLlvmLib = Join-Path $LlvmBin "llvm-lib.exe"
-        if (Test-Path $BundledLlvmLib) {
+        $BundledLlvmAr = Join-Path $LlvmBin "llvm-ar.exe"
+        if (Test-Path $BundledLlvmAr) {
             $env:PATH = "$LlvmBin;$env:PATH"
         }
-        $LlvmLib = Get-Command llvm-lib.exe -ErrorAction SilentlyContinue
-        if (-not $LlvmLib) {
-            throw "llvm-lib.exe is required to archive QScintilla on Windows"
+        $LlvmAr = Get-Command llvm-ar.exe -ErrorAction SilentlyContinue
+        if (-not $LlvmAr) {
+            throw "llvm-ar.exe is required to archive QScintilla on Windows"
         }
+        $env:LLVM_AR = $LlvmAr.Source
+        $ArchiveHelper = (Resolve-Path (
+            Join-Path $ProjectRoot "scripts/ci/archive_qscintilla.py"
+        )).Path.Replace("\", "/")
+        $QMakeArchiver = "QMAKE_LIB=python.exe $ArchiveHelper"
         & (Join-Path $QtPrefix "bin/qmake.exe") `
             (Join-Path $QScintillaSource "src/qscintilla.pro") `
             CONFIG+=release `
             CONFIG+=staticlib `
-            QMAKE_LIB=llvm-lib.exe
+            $QMakeArchiver
         if ($LASTEXITCODE -ne 0) { throw "QScintilla configure failed" }
         $ReleaseMakefile = Join-Path $QScintillaBuild "Makefile.Release"
         if (-not (Test-Path $ReleaseMakefile) -or
-            -not (Select-String -Path $ReleaseMakefile -SimpleMatch "llvm-lib.exe" -Quiet)) {
-            throw "QScintilla makefile did not select llvm-lib.exe"
+            -not (Select-String `
+                -Path $ReleaseMakefile `
+                -SimpleMatch "archive_qscintilla.py" `
+                -Quiet)) {
+            throw "QScintilla makefile did not select the batched archive helper"
         }
         $Jom = Get-Command jom -ErrorAction SilentlyContinue
         if (-not $Jom) {
