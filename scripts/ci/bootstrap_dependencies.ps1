@@ -150,20 +150,33 @@ function Get-VerifiedFile {
         [Parameter(Mandatory)] [string] $Sha256
     )
 
+    Write-CiDiagnostic "Checking download cache for $Destination"
     if ((Test-Path $Destination) -and
         ((Get-FileHash $Destination -Algorithm SHA256).Hash -eq $Sha256)) {
+        $CachedFile = Get-Item $Destination
+        Write-CiDiagnostic (
+            "Using verified cached download $Destination " +
+            "($("{0:N1}" -f ($CachedFile.Length / 1MB)) MiB)"
+        )
         return
     }
 
+    Write-CiDiagnostic "Downloading $Uri to $Destination"
     New-Item -ItemType Directory -Force (Split-Path $Destination) | Out-Null
     $Partial = "$Destination.part"
     Invoke-WebRequest -Uri $Uri -OutFile $Partial
+    $DownloadedFile = Get-Item $Partial
+    Write-CiDiagnostic (
+        "Download completed for $Uri " +
+        "($("{0:N1}" -f ($DownloadedFile.Length / 1MB)) MiB); verifying SHA-256"
+    )
     $Actual = (Get-FileHash $Partial -Algorithm SHA256).Hash
     if ($Actual -ne $Sha256) {
         Remove-Item -Force $Partial
         throw "Checksum mismatch for $Uri"
     }
     Move-Item -Force $Partial $Destination
+    Write-CiDiagnostic "Verified and stored $Destination"
 }
 
 New-Item -ItemType Directory -Force $SourceRoot, $BuildRoot, $InstallRoot | Out-Null
@@ -294,48 +307,110 @@ if (-not (Test-Path (Join-Path $QScintillaBuild ".complete"))) {
         if ($NMakeProcess.ExitCode -ne 0) {
             throw "QScintilla build failed"
         }
+        Write-CiDiagnostic "Writing QScintilla completion stamp"
         New-Item -ItemType File (Join-Path $QScintillaBuild ".complete") | Out-Null
+        Write-CiDiagnostic "QScintilla completion stamp written"
     } finally {
         Pop-Location
     }
 }
+Write-CiDiagnostic "Locating the generated QScintilla import/static library"
 $QScintillaLibrary = Get-ChildItem $QScintillaBuild -Recurse -Filter "qscintilla2_qt6.lib" |
     Select-Object -First 1 -ExpandProperty FullName
 if (-not $QScintillaLibrary) {
     throw "QScintilla output was not found in $QScintillaBuild"
 }
+Write-CiDiagnostic "QScintilla library resolved to $QScintillaLibrary"
 
 $EcmArchive = Join-Path $SourceRoot "extra-cmake-modules-$EcmVersion.tar.xz"
 $EcmSource = Join-Path $SourceRoot "extra-cmake-modules-$EcmVersion"
 $EcmBuild = Join-Path $BuildRoot "ecm-$EcmVersion"
 $EcmPrefix = Join-Path $InstallRoot "ecm-$EcmVersion"
+Write-CiDiagnostic "Beginning Extra CMake Modules $EcmVersion bootstrap"
 Get-VerifiedFile `
     "https://download.kde.org/stable/frameworks/6.28/extra-cmake-modules-$EcmVersion.tar.xz" `
     $EcmArchive `
     "a32e24b267e8528d0253bc8df18bdc00e676560a43b796533e1b1406f4eef4db"
 if (-not (Test-Path (Join-Path $EcmSource "CMakeLists.txt"))) {
+    Write-CiDiagnostic "Extracting Extra CMake Modules to $EcmSource"
     tar -xJf $EcmArchive -C $SourceRoot
+    if ($LASTEXITCODE -ne 0) {
+        throw "Extra CMake Modules extraction failed"
+    }
+    Write-CiDiagnostic "Extra CMake Modules extraction completed"
+} else {
+    Write-CiDiagnostic "Extra CMake Modules source is already extracted"
 }
-if (-not (Test-Path (Join-Path $EcmPrefix "share/ECM/cmake/ECMConfig.cmake"))) {
-    cmake -S $EcmSource -B $EcmBuild -G Ninja `
-        -DCMAKE_BUILD_TYPE=Release `
-        "-DCMAKE_INSTALL_PREFIX=$EcmPrefix" `
-        -DBUILD_TESTING=OFF
-    cmake --build $EcmBuild --parallel
-    cmake --install $EcmBuild
+$EcmConfig = Join-Path $EcmPrefix "share/ECM/cmake/ECMConfig.cmake"
+if (-not (Test-Path $EcmConfig)) {
+    $CMake = Get-Command cmake.exe -ErrorAction SilentlyContinue
+    if (-not $CMake) {
+        throw "cmake.exe is required to build Extra CMake Modules"
+    }
+    $EcmConfigureArguments = @(
+        "-S"
+        $EcmSource
+        "-B"
+        $EcmBuild
+        "-G"
+        "Ninja"
+        "-DCMAKE_BUILD_TYPE=Release"
+        "-DCMAKE_INSTALL_PREFIX=$EcmPrefix"
+        "-DBUILD_TESTING=OFF"
+    )
+    Invoke-MonitoredProcess `
+        -Label "Extra CMake Modules configure" `
+        -FilePath $CMake.Source `
+        -ArgumentList $EcmConfigureArguments `
+        -WorkingDirectory $ProjectRoot `
+        -Artifacts @((Join-Path $EcmBuild "CMakeCache.txt"))
+
+    $EcmBuildArguments = @(
+        "--build"
+        $EcmBuild
+        "--parallel"
+    )
+    Invoke-MonitoredProcess `
+        -Label "Extra CMake Modules build" `
+        -FilePath $CMake.Source `
+        -ArgumentList $EcmBuildArguments `
+        -WorkingDirectory $ProjectRoot `
+        -Artifacts @((Join-Path $EcmBuild "build.ninja"))
+
+    $EcmInstallArguments = @(
+        "--install"
+        $EcmBuild
+    )
+    Invoke-MonitoredProcess `
+        -Label "Extra CMake Modules install" `
+        -FilePath $CMake.Source `
+        -ArgumentList $EcmInstallArguments `
+        -WorkingDirectory $ProjectRoot `
+        -Artifacts @($EcmConfig)
+} else {
+    Write-CiDiagnostic "Using installed Extra CMake Modules at $EcmPrefix"
 }
+Write-CiDiagnostic "Extra CMake Modules bootstrap completed"
 
 $KSyntaxArchive = Join-Path $SourceRoot "syntax-highlighting-$KSyntaxVersion.tar.xz"
 $KSyntaxSource = Join-Path $SourceRoot "syntax-highlighting-$KSyntaxVersion"
 $KSyntaxBuild = Join-Path $BuildRoot "syntax-highlighting-$KSyntaxVersion"
 $KSyntaxPrefix = Join-Path $InstallRoot "syntax-highlighting-$KSyntaxVersion"
 $KSyntaxConfig = Join-Path $KSyntaxPrefix "lib/cmake/KF6SyntaxHighlighting/KF6SyntaxHighlightingConfig.cmake"
+Write-CiDiagnostic "Beginning KSyntaxHighlighting $KSyntaxVersion bootstrap"
 Get-VerifiedFile `
     "https://download.kde.org/stable/frameworks/6.28/syntax-highlighting-$KSyntaxVersion.tar.xz" `
     $KSyntaxArchive `
     "fe0d4133af62c6b9c0cf7728928c64d2deb55fe808a264a5de871f4b6bc86f65"
 if (-not (Test-Path (Join-Path $KSyntaxSource "CMakeLists.txt"))) {
+    Write-CiDiagnostic "Extracting KSyntaxHighlighting to $KSyntaxSource"
     tar -xJf $KSyntaxArchive -C $SourceRoot
+    if ($LASTEXITCODE -ne 0) {
+        throw "KSyntaxHighlighting extraction failed"
+    }
+    Write-CiDiagnostic "KSyntaxHighlighting extraction completed"
+} else {
+    Write-CiDiagnostic "KSyntaxHighlighting source is already extracted"
 }
 if (-not (Test-Path $KSyntaxConfig)) {
     $CMake = Get-Command cmake.exe -ErrorAction SilentlyContinue
@@ -407,6 +482,7 @@ if (-not (Test-Path $KSyntaxConfig)) {
         -WorkingDirectory $ProjectRoot `
         -Artifacts @($KSyntaxConfig)
 }
+Write-CiDiagnostic "KSyntaxHighlighting bootstrap completed"
 
 $PlantUmlJar = Join-Path $InstallRoot "plantuml-$PlantUmlVersion.jar"
 Get-VerifiedFile `
