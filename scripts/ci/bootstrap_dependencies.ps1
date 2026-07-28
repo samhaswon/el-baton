@@ -27,6 +27,122 @@ function Write-CiDiagnostic {
     Write-Host "[el-baton-ci $Timestamp pid=$PID] $Message"
 }
 
+function Invoke-MonitoredProcess {
+    param(
+        [Parameter(Mandatory)] [string] $Label,
+        [Parameter(Mandatory)] [string] $FilePath,
+        [Parameter(Mandatory)] [string[]] $ArgumentList,
+        [Parameter(Mandatory)] [string] $WorkingDirectory,
+        [string[]] $Artifacts = @()
+    )
+
+    Write-CiDiagnostic (
+        "Starting ${Label}: executable=$FilePath; " +
+        "arguments=$($ArgumentList -join ' '); " +
+        "workingDirectory=$WorkingDirectory"
+    )
+    $StartedAt = Get-Date
+    $Process = Start-Process `
+        -FilePath $FilePath `
+        -ArgumentList $ArgumentList `
+        -WorkingDirectory $WorkingDirectory `
+        -NoNewWindow `
+        -PassThru
+    Write-CiDiagnostic "${Label} started with pid=$($Process.Id)"
+
+    while (-not $Process.WaitForExit(30000)) {
+        $Process.Refresh()
+        $Elapsed = (Get-Date) - $StartedAt
+        $CpuSeconds = $Process.TotalProcessorTime.TotalSeconds
+        $WorkingSetMiB = $Process.WorkingSet64 / 1MB
+
+        $AllProcesses = @(
+            Get-CimInstance `
+                -ClassName Win32_Process `
+                -ErrorAction SilentlyContinue
+        )
+        $AncestorIds = [System.Collections.Generic.HashSet[uint32]]::new()
+        $DescendantIds = [System.Collections.Generic.HashSet[uint32]]::new()
+        [void] $AncestorIds.Add([uint32] $Process.Id)
+        do {
+            $FoundDescendant = $false
+            foreach ($Candidate in $AllProcesses) {
+                $CandidateId = [uint32] $Candidate.ProcessId
+                $ParentId = [uint32] $Candidate.ParentProcessId
+                if ($AncestorIds.Contains($ParentId) -and
+                    -not $DescendantIds.Contains($CandidateId)) {
+                    [void] $AncestorIds.Add($CandidateId)
+                    [void] $DescendantIds.Add($CandidateId)
+                    $FoundDescendant = $true
+                }
+            }
+        } while ($FoundDescendant)
+
+        $DescendantSummary = if ($DescendantIds.Count -eq 0) {
+            "<none>"
+        } else {
+            (
+                $AllProcesses |
+                    Where-Object {
+                        $DescendantIds.Contains([uint32] ($_.ProcessId))
+                    } |
+                    ForEach-Object {
+                        $CommandLine = if ($_.CommandLine) {
+                            ($_.CommandLine -replace "\s+", " ").Trim()
+                        } else {
+                            "<unavailable>"
+                        }
+                        if ($CommandLine.Length -gt 180) {
+                            $CommandLine = $CommandLine.Substring(0, 177) + "..."
+                        }
+                        (
+                            "$($_.Name)(pid=$($_.ProcessId), " +
+                            "parent=$($_.ParentProcessId), command=$CommandLine)"
+                        )
+                    }
+            ) -join "; "
+        }
+
+        $ArtifactSummary = if ($Artifacts.Count -eq 0) {
+            "<none configured>"
+        } else {
+            (
+                $Artifacts |
+                    ForEach-Object {
+                        if (Test-Path $_) {
+                            $Artifact = Get-Item $_
+                            (
+                                "{0}: {1:N1} MiB, modified={2}" -f
+                                $_,
+                                ($Artifact.Length / 1MB),
+                                $Artifact.LastWriteTimeUtc.ToString("o")
+                            )
+                        } else {
+                            "$($_): <not created>"
+                        }
+                    }
+            ) -join "; "
+        }
+
+        Write-CiDiagnostic (
+            "${Label} heartbeat: elapsed=$($Elapsed.ToString()); " +
+            "rootCpu=$("{0:N2}" -f $CpuSeconds)s; " +
+            "rootWorkingSet=$("{0:N1}" -f $WorkingSetMiB) MiB; " +
+            "descendants=$DescendantSummary; artifacts=$ArtifactSummary"
+        )
+    }
+
+    $Process.WaitForExit()
+    $Elapsed = (Get-Date) - $StartedAt
+    Write-CiDiagnostic (
+        "${Label} exited with code $($Process.ExitCode) after " +
+        $Elapsed.ToString()
+    )
+    if ($Process.ExitCode -ne 0) {
+        throw "${Label} failed with exit code $($Process.ExitCode)"
+    }
+}
+
 function Get-VerifiedFile {
     param(
         [Parameter(Mandatory)] [string] $Uri,
@@ -222,20 +338,74 @@ if (-not (Test-Path (Join-Path $KSyntaxSource "CMakeLists.txt"))) {
     tar -xJf $KSyntaxArchive -C $SourceRoot
 }
 if (-not (Test-Path $KSyntaxConfig)) {
-    cmake -S $KSyntaxSource -B $KSyntaxBuild -G Ninja `
-        -DCMAKE_BUILD_TYPE=Release `
-        "-DCMAKE_INSTALL_PREFIX=$KSyntaxPrefix" `
-        "-DCMAKE_PREFIX_PATH=$QtPrefix;$EcmPrefix" `
-        -DBUILD_TESTING=OFF `
-        -DCMAKE_DISABLE_FIND_PACKAGE_Qt6PrintSupport=ON `
-        -DCMAKE_DISABLE_FIND_PACKAGE_Qt6Quick=ON `
-        -DCMAKE_DISABLE_FIND_PACKAGE_Qt6Widgets=ON `
-        -DKDE_INSTALL_LIBDIR=lib `
-        -DKSYNTAXHIGHLIGHTING_USE_GUI=ON `
-        -DNO_STANDARD_PATHS=ON `
-        -DQRC_SYNTAX=ON
-    cmake --build $KSyntaxBuild --parallel
-    cmake --install $KSyntaxBuild
+    $CMake = Get-Command cmake.exe -ErrorAction SilentlyContinue
+    if (-not $CMake) {
+        throw "cmake.exe is required to build KSyntaxHighlighting"
+    }
+    $KSyntaxCache = Join-Path $KSyntaxBuild "CMakeCache.txt"
+    $KSyntaxIndex = Join-Path $KSyntaxBuild "data/index.katesyntax"
+    $KSyntaxResource = Join-Path $KSyntaxBuild "data/qrc_syntax-data.cpp"
+    $KSyntaxDll = Join-Path $KSyntaxBuild "bin/KF6SyntaxHighlighting.dll"
+    $KSyntaxImportLibrary = Join-Path `
+        $KSyntaxBuild `
+        "lib/KF6SyntaxHighlighting.lib"
+
+    $ConfigureArguments = @(
+        "-S"
+        $KSyntaxSource
+        "-B"
+        $KSyntaxBuild
+        "-G"
+        "Ninja"
+        "-DCMAKE_BUILD_TYPE=Release"
+        "-DCMAKE_INSTALL_PREFIX=$KSyntaxPrefix"
+        "-DCMAKE_PREFIX_PATH=$QtPrefix;$EcmPrefix"
+        "-DBUILD_TESTING=OFF"
+        "-DCMAKE_DISABLE_FIND_PACKAGE_Qt6PrintSupport=ON"
+        "-DCMAKE_DISABLE_FIND_PACKAGE_Qt6Quick=ON"
+        "-DCMAKE_DISABLE_FIND_PACKAGE_Qt6Widgets=ON"
+        "-DKDE_INSTALL_LIBDIR=lib"
+        "-DKSYNTAXHIGHLIGHTING_USE_GUI=ON"
+        "-DNO_STANDARD_PATHS=ON"
+        "-DQRC_SYNTAX=ON"
+    )
+    Invoke-MonitoredProcess `
+        -Label "KSyntaxHighlighting configure" `
+        -FilePath $CMake.Source `
+        -ArgumentList $ConfigureArguments `
+        -WorkingDirectory $ProjectRoot `
+        -Artifacts @($KSyntaxCache)
+
+    $BuildArguments = @(
+        "--build"
+        $KSyntaxBuild
+        "--verbose"
+        "--parallel"
+        "1"
+    )
+    Invoke-MonitoredProcess `
+        -Label "KSyntaxHighlighting build" `
+        -FilePath $CMake.Source `
+        -ArgumentList $BuildArguments `
+        -WorkingDirectory $ProjectRoot `
+        -Artifacts @(
+            $KSyntaxIndex
+            $KSyntaxResource
+            $KSyntaxDll
+            $KSyntaxImportLibrary
+        )
+
+    $InstallArguments = @(
+        "--install"
+        $KSyntaxBuild
+        "--verbose"
+    )
+    Invoke-MonitoredProcess `
+        -Label "KSyntaxHighlighting install" `
+        -FilePath $CMake.Source `
+        -ArgumentList $InstallArguments `
+        -WorkingDirectory $ProjectRoot `
+        -Artifacts @($KSyntaxConfig)
 }
 
 $PlantUmlJar = Join-Path $InstallRoot "plantuml-$PlantUmlVersion.jar"
