@@ -4,6 +4,10 @@
   "version-string": "0.1.0",
   "dependencies": [
     "hunspell",
+    {
+      "name": "pkgconf",
+      "host": true
+    },
     "yaml-cpp",
     "zlib"
   ]

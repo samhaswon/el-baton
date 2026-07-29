@@ -57,6 +57,29 @@ elseif(TARGET Hunspell::Hunspell)
 elseif(TARGET hunspell::hunspell)
   set(HUNSPELL_TARGET hunspell::hunspell)
 else()
+  if(WIN32 AND NOT PKG_CONFIG_EXECUTABLE)
+    set(EL_BATON_VCPKG_INSTALLED_DIR "")
+    if(VCPKG_INSTALLED_DIR)
+      set(EL_BATON_VCPKG_INSTALLED_DIR "${VCPKG_INSTALLED_DIR}")
+    elseif(_VCPKG_INSTALLED_DIR)
+      set(EL_BATON_VCPKG_INSTALLED_DIR "${_VCPKG_INSTALLED_DIR}")
+    endif()
+
+    if(EL_BATON_VCPKG_INSTALLED_DIR)
+      set(EL_BATON_PKGCONF_HINTS "")
+      foreach(EL_BATON_VCPKG_TRIPLET
+          "${VCPKG_HOST_TRIPLET}"
+          "${VCPKG_TARGET_TRIPLET}")
+        if(EL_BATON_VCPKG_TRIPLET)
+          list(APPEND EL_BATON_PKGCONF_HINTS
+            "${EL_BATON_VCPKG_INSTALLED_DIR}/${EL_BATON_VCPKG_TRIPLET}/tools/pkgconf")
+        endif()
+      endforeach()
+      find_program(PKG_CONFIG_EXECUTABLE
+        NAMES pkgconf pkg-config
+        HINTS ${EL_BATON_PKGCONF_HINTS})
+    endif()
+  endif()
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(HUNSPELL REQUIRED IMPORTED_TARGET hunspell)
   set(HUNSPELL_TARGET PkgConfig::HUNSPELL)
