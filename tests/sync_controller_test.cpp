@@ -1,10 +1,10 @@
 #include "preview_bridge.h"
 #include "sync_controller.h"
 
-#include <Qsci/qsciscintilla.h>
 #include <QJsonObject>
 #include <QScrollBar>
 #include <QSignalSpy>
+#include <Qsci/qsciscintilla.h>
 #include <QtTest>
 
 using qt_editor::PreviewBridge;
@@ -38,7 +38,7 @@ QJsonObject previewPosition(quint64 generation, QString id, double progress) {
           {"progress", progress}};
 }
 
-void prepareEditor(QsciScintilla& editor) {
+void prepareEditor(QsciScintilla &editor) {
   editor.resize(500, 160);
   editor.setWrapMode(QsciScintilla::WrapNone);
   editor.setText(numberedDocument());
@@ -46,12 +46,12 @@ void prepareEditor(QsciScintilla& editor) {
   QTest::qWait(1);
 }
 
-}  // namespace
+} // namespace
 
 class SyncControllerTest final : public QObject {
   Q_OBJECT
 
- private slots:
+private slots:
   void generationFilteringAndRemovedBlocks();
   void previewOwnershipAndExplicitRelease();
   void sourceOwnershipReleasesAfterIdle();
@@ -93,9 +93,8 @@ void SyncControllerTest::previewOwnershipAndExplicitRelease() {
   QCOMPARE(controller.owner(), SyncController::Owner::Preview);
   QVERIFY(editor.firstVisibleLine() >= 19);
 
-  bridge.reportPreviewScroll({{"owner", "preview"},
-                              {"generation", 9},
-                              {"phase", "end"}});
+  bridge.reportPreviewScroll(
+      {{"owner", "preview"}, {"generation", 9}, {"phase", "end"}});
   QCOMPARE(controller.owner(), SyncController::Owner::None);
   QCOMPARE(owners.count(), 2);
 }
@@ -109,7 +108,8 @@ void SyncControllerTest::sourceOwnershipReleasesAfterIdle() {
 
   editor.verticalScrollBar()->setValue(10);
   QTRY_COMPARE(controller.owner(), SyncController::Owner::Source);
-  QTRY_COMPARE_WITH_TIMEOUT(controller.owner(), SyncController::Owner::None, 300);
+  QTRY_COMPARE_WITH_TIMEOUT(controller.owner(), SyncController::Owner::None,
+                            300);
 }
 
 void SyncControllerTest::suppressesReciprocalProgrammaticScroll() {
@@ -139,9 +139,9 @@ void SyncControllerTest::interpolatesProgressInBothDirections() {
   controller.setBlocks({block("middle", 110, 330)}, 12);
 
   bridge.reportPreviewScroll(previewPosition(12, "middle", 0.5));
-  QCOMPARE(editor.firstVisibleLine(), 20);  // offset 220 / 11 chars per line
-  bridge.reportPreviewScroll({{"owner", "preview"}, {"generation", 12},
-                              {"phase", "end"}});
+  QCOMPARE(editor.firstVisibleLine(), 20); // offset 220 / 11 chars per line
+  bridge.reportPreviewScroll(
+      {{"owner", "preview"}, {"generation", 12}, {"phase", "end"}});
 
   QSignalSpy published(&bridge, &PreviewBridge::sourceScrollPublished);
   editor.verticalScrollBar()->setValue(15);
@@ -170,14 +170,14 @@ void SyncControllerTest::percentageModeUsesRawScrollbarRatio() {
   controller.setBlocks({}, 6);
   QSignalSpy published(&bridge, &PreviewBridge::sourceScrollPublished);
 
-  bridge.reportPreviewScroll({{"owner", "preview"}, {"generation", 6},
-                              {"percentage", 0.5}});
+  bridge.reportPreviewScroll(
+      {{"owner", "preview"}, {"generation", 6}, {"percentage", 0.5}});
   const int maximum = editor.verticalScrollBar()->maximum();
   QVERIFY(std::abs(editor.verticalScrollBar()->value() - maximum / 2) <= 1);
   QCOMPARE(published.count(), 0);
 
-  bridge.reportPreviewScroll({{"owner", "preview"}, {"generation", 6},
-                              {"phase", "end"}});
+  bridge.reportPreviewScroll(
+      {{"owner", "preview"}, {"generation", 6}, {"phase", "end"}});
   editor.verticalScrollBar()->setValue(maximum);
   QTRY_COMPARE(published.count(), 1);
   const QJsonObject target = published.takeFirst().at(0).toJsonObject();

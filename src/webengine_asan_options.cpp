@@ -6,7 +6,7 @@
 // Keep this default on GUI executables only. Native unit-test executables do
 // not link this file and therefore retain ASan's new/delete type check.
 #if defined(QT_EDITOR_WEBENGINE_ASAN_WORKAROUND)
-extern "C" const char* __asan_default_options() {
+extern "C" const char *__asan_default_options() {
   return "new_delete_type_mismatch=0";
 }
 #endif

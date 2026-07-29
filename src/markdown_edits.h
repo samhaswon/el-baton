@@ -15,14 +15,16 @@ struct MarkdownTableFormatResult final {
 };
 
 class MarkdownEdits final {
- public:
-  [[nodiscard]] static QString setTaskChecked(const QString& source, qsizetype taskIndex, bool checked);
-  [[nodiscard]] static QString setDetailsOpen(const QString& source, qsizetype detailsIndex, bool open);
-  [[nodiscard]] static QString toggleTaskLine(const QString& line, bool toggleDone);
-  [[nodiscard]] static MarkdownTableFormatResult formatTableAtLine(
-      const QString& source,
-      int line,
-      const QVector<qsizetype>& offsets = {});
+public:
+  [[nodiscard]] static QString
+  setTaskChecked(const QString &source, qsizetype taskIndex, bool checked);
+  [[nodiscard]] static QString
+  setDetailsOpen(const QString &source, qsizetype detailsIndex, bool open);
+  [[nodiscard]] static QString toggleTaskLine(const QString &line,
+                                              bool toggleDone);
+  [[nodiscard]] static MarkdownTableFormatResult
+  formatTableAtLine(const QString &source, int line,
+                    const QVector<qsizetype> &offsets = {});
 };
 
-}  // namespace qt_editor
+} // namespace qt_editor

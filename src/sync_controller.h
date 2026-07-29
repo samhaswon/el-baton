@@ -19,7 +19,7 @@ class PreviewBridge;
 class SyncController final : public QObject {
   Q_OBJECT
 
- public:
+public:
   enum class Owner { None, Source, Preview };
   Q_ENUM(Owner)
 
@@ -31,34 +31,35 @@ class SyncController final : public QObject {
     [[nodiscard]] QJsonObject toJson(qint64 elapsedMs) const;
   };
 
-  SyncController(QsciScintilla* editor, PreviewBridge* bridge, SyncMode mode,
-                 QObject* parent = nullptr);
+  SyncController(QsciScintilla *editor, PreviewBridge *bridge, SyncMode mode,
+                 QObject *parent = nullptr);
   void setBlocks(QVector<RenderedBlock> blocks, quint64 generation);
 
   [[nodiscard]] Owner owner() const { return owner_; }
   [[nodiscard]] quint64 generation() const { return generation_; }
   [[nodiscard]] Metrics metrics() const { return metrics_; }
 
- signals:
+signals:
   void ownerChanged(qt_editor::SyncController::Owner owner);
-  void syncMetricsChanged(const QJsonObject& metrics);
+  void syncMetricsChanged(const QJsonObject &metrics);
 
- private slots:
+private slots:
   void sourceScrolled(int value);
-  void previewScrolled(const QJsonObject& position);
+  void previewScrolled(const QJsonObject &position);
   void releaseOwner();
   void rebuildLineOffsets();
 
- private:
+private:
   [[nodiscard]] qsizetype sourceOffsetAtViewport() const;
   [[nodiscard]] int visibleLineForSourceOffset(qsizetype offset) const;
-  [[nodiscard]] const RenderedBlock* blockAtSourceOffset(qsizetype offset) const;
+  [[nodiscard]] const RenderedBlock *
+  blockAtSourceOffset(qsizetype offset) const;
   [[nodiscard]] double sourcePercentage() const;
   void acquire(Owner owner);
   void publishMetrics();
 
-  QsciScintilla* editor_;
-  PreviewBridge* bridge_;
+  QsciScintilla *editor_;
+  PreviewBridge *bridge_;
   SyncMode mode_;
   QVector<RenderedBlock> blocks_;
   QVector<qsizetype> lineOffsets_;
@@ -72,4 +73,4 @@ class SyncController final : public QObject {
   double lastPublishedProgress_ = -1.0;
 };
 
-}  // namespace qt_editor
+} // namespace qt_editor

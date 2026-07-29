@@ -11,9 +11,10 @@
 
 namespace qt_editor {
 
-class MarkdownSyntaxLexer final : public QsciLexerCustom,
-                                  private KSyntaxHighlighting::AbstractHighlighter {
- public:
+class MarkdownSyntaxLexer final
+    : public QsciLexerCustom,
+      private KSyntaxHighlighting::AbstractHighlighter {
+public:
   enum class Style {
     Default = 0,
     Heading,
@@ -49,15 +50,15 @@ class MarkdownSyntaxLexer final : public QsciLexerCustom,
     Error,
   };
 
-  explicit MarkdownSyntaxLexer(QObject* parent = nullptr);
+  explicit MarkdownSyntaxLexer(QObject *parent = nullptr);
 
-  [[nodiscard]] const char* language() const override;
+  [[nodiscard]] const char *language() const override;
   [[nodiscard]] QString description(int style) const override;
   void styleText(int start, int end) override;
 
   [[nodiscard]] bool hasValidDefinition() const;
 
- private:
+private:
   struct FormatRange {
     int offset = 0;
     int length = 0;
@@ -65,14 +66,14 @@ class MarkdownSyntaxLexer final : public QsciLexerCustom,
   };
 
   void applyFormat(int offset, int length,
-                   const KSyntaxHighlighting::Format& format) override;
-  [[nodiscard]] Style styleForFormat(
-      const KSyntaxHighlighting::Format& format) const;
+                   const KSyntaxHighlighting::Format &format) override;
+  [[nodiscard]] Style
+  styleForFormat(const KSyntaxHighlighting::Format &format) const;
   void configureStyles();
   void ensureStateBeforeLine(int line);
-  [[nodiscard]] KSyntaxHighlighting::State highlightEditorLine(
-      int line, const KSyntaxHighlighting::State& previousState,
-      bool collectFormats);
+  [[nodiscard]] KSyntaxHighlighting::State
+  highlightEditorLine(int line, const KSyntaxHighlighting::State &previousState,
+                      bool collectFormats);
   void applyLineStyles(int line, int start, int end);
 
   KSyntaxHighlighting::Repository repository_;
@@ -80,4 +81,4 @@ class MarkdownSyntaxLexer final : public QsciLexerCustom,
   QVector<FormatRange> currentRanges_;
 };
 
-}  // namespace qt_editor
+} // namespace qt_editor

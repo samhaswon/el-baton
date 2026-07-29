@@ -7,13 +7,13 @@
 #include "types.h"
 #include "workspace_repository.h"
 
-#include <QMainWindow>
 #include <QDateTime>
+#include <QFutureWatcher>
 #include <QHash>
 #include <QList>
+#include <QMainWindow>
 #include <QSet>
 #include <QTimer>
-#include <QFutureWatcher>
 
 class QAction;
 class QLabel;
@@ -51,16 +51,16 @@ struct AsyncDocumentSaveResult final {
 class MainWindow final : public QMainWindow {
   Q_OBJECT
 
- public:
-  explicit MainWindow(BenchmarkOptions options, QWidget* parent = nullptr);
+public:
+  explicit MainWindow(BenchmarkOptions options, QWidget *parent = nullptr);
   ~MainWindow() override;
-  void openFile(const QString& path);
+  void openFile(const QString &path);
 
- protected:
-  void closeEvent(QCloseEvent* event) override;
-  bool eventFilter(QObject* watched, QEvent* event) override;
+protected:
+  void closeEvent(QCloseEvent *event) override;
+  bool eventFilter(QObject *watched, QEvent *event) override;
 
- private slots:
+private slots:
   void chooseFile();
   void createNote();
   void duplicateNote();
@@ -78,36 +78,36 @@ class MainWindow final : public QMainWindow {
   void autosaveActiveDocument();
   void scheduleRender();
   void renderDocument();
-  void updateStatus(const QJsonObject& browserMetrics = {});
+  void updateStatus(const QJsonObject &browserMetrics = {});
   void sampleProcessUsage();
 
- private:
+private:
   enum class EditorViewMode { Edit, Split, Preview };
 
   void configureEditor();
   void configurePreview();
   void createMenus();
-  QWidget* createApplicationChrome(QSplitter* documentSplitter);
-  QWidget* createActivityBar(QWidget* navigationPane);
-  QWidget* createDocumentToolbar();
-  QWidget* createFindBar();
-  QWidget* createNavigationPane();
-  QWidget* createFilePanel();
-  QWidget* createExplorerPanel();
-  QWidget* createSearchPanel();
-  QWidget* createGraphPage();
-  QWidget* createInfoPanel();
-  QWidget* createHelpPanel();
-  QWidget* createSettingsPanel();
+  QWidget *createApplicationChrome(QSplitter *documentSplitter);
+  QWidget *createActivityBar(QWidget *navigationPane);
+  QWidget *createDocumentToolbar();
+  QWidget *createFindBar();
+  QWidget *createNavigationPane();
+  QWidget *createFilePanel();
+  QWidget *createExplorerPanel();
+  QWidget *createSearchPanel();
+  QWidget *createGraphPage();
+  QWidget *createInfoPanel();
+  QWidget *createHelpPanel();
+  QWidget *createSettingsPanel();
   void refreshWorkspaceViews();
   void selectCurrentNoteInExplorer();
-  void handleWorkspaceChanges(const QVector<WorkspaceChange>& changes);
+  void handleWorkspaceChanges(const QVector<WorkspaceChange> &changes);
   void updateSearchResults();
   void appendSearchResultBatch(quint64 generation);
   void updateInfoPanel();
   void refreshGraphPage();
   void updateDocumentActions();
-  void setGlobalConfigValue(const QString& key, const QVariant& value);
+  void setGlobalConfigValue(const QString &key, const QVariant &value);
   void applyGlobalConfiguration();
   void rebuildSettingsPage();
   void activateDocument(int index);
@@ -119,7 +119,7 @@ class MainWindow final : public QMainWindow {
   void drainAutosaveWrite();
   void startRenderWrite();
   void finishRenderWrite();
-  void publishRenderResult(const RenderResult& result, bool replaceAll);
+  void publishRenderResult(const RenderResult &result, bool replaceAll);
   [[nodiscard]] bool saveActiveDocument(bool reportSuccess);
   [[nodiscard]] bool maybeSave();
   void updateWindowTitle();
@@ -129,70 +129,71 @@ class MainWindow final : public QMainWindow {
   void replaceAllMatches();
   void setEditorViewMode(EditorViewMode mode);
   void toggleSplitView();
-  void wrapEditorSelection(const QString& open, const QString& close);
+  void wrapEditorSelection(const QString &open, const QString &close);
   void toggleTaskLines(bool toggleDone);
   void updateMarkdownCompletions(bool explicitRequest = false);
   void formatTouchedTables();
-  [[nodiscard]] bool handleMarkdownAutoPair(QKeyEvent* event);
-  void replaceEditorRange(int startByte, int endByte, const QString& replacement, int caretByte);
+  [[nodiscard]] bool handleMarkdownAutoPair(QKeyEvent *event);
+  void replaceEditorRange(int startByte, int endByte,
+                          const QString &replacement, int caretByte);
 
   BenchmarkOptions options_;
-  QsciScintilla* editor_ = nullptr;
-  QWebEngineView* preview_ = nullptr;
-  QSplitter* documentSplitter_ = nullptr;
-  QWebEnginePage* hiddenMermaidPage_ = nullptr;
-  QWebEngineView* hiddenMermaidView_ = nullptr;
-  QLabel* status_ = nullptr;
-  QTabBar* noteTabs_ = nullptr;
-  QTreeWidget* noteTree_ = nullptr;
-  QListWidget* searchResults_ = nullptr;
-  QListWidget* outlineList_ = nullptr;
-  QListWidget* infoAttachments_ = nullptr;
-  QLineEdit* navigationSearch_ = nullptr;
-  QWidget* findBar_ = nullptr;
-  QLineEdit* findInput_ = nullptr;
-  QLineEdit* replaceInput_ = nullptr;
-  QToolButton* replaceModeButton_ = nullptr;
-  QToolButton* replaceCurrentButton_ = nullptr;
-  QToolButton* replaceAllButton_ = nullptr;
-  QLabel* findStatus_ = nullptr;
-  QCheckBox* findCaseSensitive_ = nullptr;
-  QCheckBox* findWholeWord_ = nullptr;
-  QCheckBox* findRegex_ = nullptr;
-  QStackedWidget* navigationStack_ = nullptr;
-  QStackedWidget* mainContentStack_ = nullptr;
-  QLabel* infoPath_ = nullptr;
-  QLabel* infoCreated_ = nullptr;
-  QLabel* infoModified_ = nullptr;
-  QLabel* infoTags_ = nullptr;
-  QLabel* infoSize_ = nullptr;
-  QLabel* infoWords_ = nullptr;
-  QLabel* infoLinks_ = nullptr;
-  QLabel* infoAttachmentCount_ = nullptr;
-  WorkspaceGraphView* graphView_ = nullptr;
-  QLabel* graphStats_ = nullptr;
-  QLabel* graphSelectionTitle_ = nullptr;
-  QLabel* graphSelectionDetail_ = nullptr;
-  QAction* openAction_ = nullptr;
-  QAction* saveAction_ = nullptr;
-  QAction* newAction_ = nullptr;
-  QAction* duplicateAction_ = nullptr;
-  QAction* importAction_ = nullptr;
-  QAction* exportMarkdownAction_ = nullptr;
-  QAction* exportHtmlAction_ = nullptr;
-  QAction* exportPdfAction_ = nullptr;
-  QAction* editAction_ = nullptr;
-  QAction* splitAction_ = nullptr;
-  QAction* tagsAction_ = nullptr;
-  QAction* attachmentsAction_ = nullptr;
-  QAction* favoriteAction_ = nullptr;
-  QAction* pinAction_ = nullptr;
-  QAction* trashAction_ = nullptr;
-  MarkdownPipeline* pipeline_ = nullptr;
-  PreviewBridge* bridge_ = nullptr;
-  PlantUmlRenderer* plantUmlRenderer_ = nullptr;
-  WorkspaceWatcher* workspaceWatcher_ = nullptr;
-  SyncController* sync_ = nullptr;
+  QsciScintilla *editor_ = nullptr;
+  QWebEngineView *preview_ = nullptr;
+  QSplitter *documentSplitter_ = nullptr;
+  QWebEnginePage *hiddenMermaidPage_ = nullptr;
+  QWebEngineView *hiddenMermaidView_ = nullptr;
+  QLabel *status_ = nullptr;
+  QTabBar *noteTabs_ = nullptr;
+  QTreeWidget *noteTree_ = nullptr;
+  QListWidget *searchResults_ = nullptr;
+  QListWidget *outlineList_ = nullptr;
+  QListWidget *infoAttachments_ = nullptr;
+  QLineEdit *navigationSearch_ = nullptr;
+  QWidget *findBar_ = nullptr;
+  QLineEdit *findInput_ = nullptr;
+  QLineEdit *replaceInput_ = nullptr;
+  QToolButton *replaceModeButton_ = nullptr;
+  QToolButton *replaceCurrentButton_ = nullptr;
+  QToolButton *replaceAllButton_ = nullptr;
+  QLabel *findStatus_ = nullptr;
+  QCheckBox *findCaseSensitive_ = nullptr;
+  QCheckBox *findWholeWord_ = nullptr;
+  QCheckBox *findRegex_ = nullptr;
+  QStackedWidget *navigationStack_ = nullptr;
+  QStackedWidget *mainContentStack_ = nullptr;
+  QLabel *infoPath_ = nullptr;
+  QLabel *infoCreated_ = nullptr;
+  QLabel *infoModified_ = nullptr;
+  QLabel *infoTags_ = nullptr;
+  QLabel *infoSize_ = nullptr;
+  QLabel *infoWords_ = nullptr;
+  QLabel *infoLinks_ = nullptr;
+  QLabel *infoAttachmentCount_ = nullptr;
+  WorkspaceGraphView *graphView_ = nullptr;
+  QLabel *graphStats_ = nullptr;
+  QLabel *graphSelectionTitle_ = nullptr;
+  QLabel *graphSelectionDetail_ = nullptr;
+  QAction *openAction_ = nullptr;
+  QAction *saveAction_ = nullptr;
+  QAction *newAction_ = nullptr;
+  QAction *duplicateAction_ = nullptr;
+  QAction *importAction_ = nullptr;
+  QAction *exportMarkdownAction_ = nullptr;
+  QAction *exportHtmlAction_ = nullptr;
+  QAction *exportPdfAction_ = nullptr;
+  QAction *editAction_ = nullptr;
+  QAction *splitAction_ = nullptr;
+  QAction *tagsAction_ = nullptr;
+  QAction *attachmentsAction_ = nullptr;
+  QAction *favoriteAction_ = nullptr;
+  QAction *pinAction_ = nullptr;
+  QAction *trashAction_ = nullptr;
+  MarkdownPipeline *pipeline_ = nullptr;
+  PreviewBridge *bridge_ = nullptr;
+  PlantUmlRenderer *plantUmlRenderer_ = nullptr;
+  WorkspaceWatcher *workspaceWatcher_ = nullptr;
+  SyncController *sync_ = nullptr;
   QTimer renderTimer_;
   QTimer usageTimer_;
   QTimer autosaveTimer_;
@@ -212,7 +213,7 @@ class MainWindow final : public QMainWindow {
   QSet<int> tableTouchedLines_;
   QHash<QString, QString> completionInsertions_;
   QHash<QString, QString> emojiCompletions_;
-  QHash<QString, QTreeWidgetItem*> explorerItemsByPath_;
+  QHash<QString, QTreeWidgetItem *> explorerItemsByPath_;
   int completionReplaceStartByte_ = -1;
   int completionReplaceEndByte_ = -1;
   QString pendingSearchQuery_;
@@ -275,4 +276,4 @@ class MainWindow final : public QMainWindow {
   QList<int> splitViewSizes_ = {720, 720};
 };
 
-}  // namespace qt_editor
+} // namespace qt_editor

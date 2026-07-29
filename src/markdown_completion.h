@@ -23,15 +23,13 @@ struct MarkdownCompletionResult final {
 };
 
 class MarkdownCompletion final {
- public:
-  [[nodiscard]] static QHash<QString, QString> loadEmojiMap(const QString& path);
-  [[nodiscard]] static MarkdownCompletionResult suggestions(
-      const QString& source,
-      qsizetype cursorOffset,
-      const QString& workspaceRoot,
-      const QString& sourceFilePath,
-      const QHash<QString, QString>& emojiMap,
-      qsizetype limit = 30);
+public:
+  [[nodiscard]] static QHash<QString, QString>
+  loadEmojiMap(const QString &path);
+  [[nodiscard]] static MarkdownCompletionResult
+  suggestions(const QString &source, qsizetype cursorOffset,
+              const QString &workspaceRoot, const QString &sourceFilePath,
+              const QHash<QString, QString> &emojiMap, qsizetype limit = 30);
 };
 
-}  // namespace qt_editor
+} // namespace qt_editor

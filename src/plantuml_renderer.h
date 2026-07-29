@@ -7,8 +7,8 @@
 #include <QObject>
 #include <QVector>
 
-#include <optional>
 #include <memory>
+#include <optional>
 
 class QProcess;
 class QTimer;
@@ -23,27 +23,29 @@ class PersistentDiagramCache;
 class PlantUmlRenderer final : public QObject {
   Q_OBJECT
 
- public:
-  explicit PlantUmlRenderer(QString jarPath, QObject* parent = nullptr);
+public:
+  explicit PlantUmlRenderer(QString jarPath, QObject *parent = nullptr);
   ~PlantUmlRenderer() override;
 
   void configure(int timeoutMs, int cacheMaxEntries, qint64 cacheMaxBytes,
-                 const QString& externalServerUrl = {});
-  [[nodiscard]] static QString normalizeSource(const QString& source);
-  [[nodiscard]] static QString normalizeLocalError(const QString& message);
-  [[nodiscard]] static QString normalizeServerUrl(const QString& url);
-  [[nodiscard]] static QString buildRemoteRenderUrl(const QString& serverUrl);
-  [[nodiscard]] static QString buildRemoteSvgUrl(const QString& serverUrl, const QString& encodedDiagram);
-  [[nodiscard]] static QString encodeForServer(const QString& source);
+                 const QString &externalServerUrl = {});
+  [[nodiscard]] static QString normalizeSource(const QString &source);
+  [[nodiscard]] static QString normalizeLocalError(const QString &message);
+  [[nodiscard]] static QString normalizeServerUrl(const QString &url);
+  [[nodiscard]] static QString buildRemoteRenderUrl(const QString &serverUrl);
+  [[nodiscard]] static QString buildRemoteSvgUrl(const QString &serverUrl,
+                                                 const QString &encodedDiagram);
+  [[nodiscard]] static QString encodeForServer(const QString &source);
 
- public slots:
-  // Accepts {generation, requests:[{id, source}]} and coalesces waiting batches.
-  void requestRenderBatch(const QJsonObject& batch);
+public slots:
+  // Accepts {generation, requests:[{id, source}]} and coalesces waiting
+  // batches.
+  void requestRenderBatch(const QJsonObject &batch);
 
- signals:
-  void resultsReady(const QJsonObject& batch);
+signals:
+  void resultsReady(const QJsonObject &batch);
 
- private:
+private:
   struct Request final {
     QString id;
     QString source;
@@ -56,18 +58,20 @@ class PlantUmlRenderer final : public QObject {
     QElapsedTimer elapsed;
   };
 
-  void beginBatch(const QJsonObject& batch);
+  void beginBatch(const QJsonObject &batch);
   void advanceBatch();
-  void startProcess(const Request& request);
-  void finishProcess(QProcess* process, const QJsonObject& result);
-  void continueWithRemote(const Request& request, const QJsonObject& localResult);
-  void startRemoteRequest(const Request& request, bool encodedGet);
-  void finishRemoteRequest(QNetworkReply* reply);
-  void finishRequest(const Request& request, const QJsonObject& localResult,
-                     const std::optional<QJsonObject>& remoteResult = std::nullopt);
-  void appendResult(const Request& request, const QJsonObject& result);
+  void startProcess(const Request &request);
+  void finishProcess(QProcess *process, const QJsonObject &result);
+  void continueWithRemote(const Request &request,
+                          const QJsonObject &localResult);
+  void startRemoteRequest(const Request &request, bool encodedGet);
+  void finishRemoteRequest(QNetworkReply *reply);
+  void
+  finishRequest(const Request &request, const QJsonObject &localResult,
+                const std::optional<QJsonObject> &remoteResult = std::nullopt);
+  void appendResult(const Request &request, const QJsonObject &result);
   void finishBatch();
-  void remember(const QString& source, const QJsonObject& result);
+  void remember(const QString &source, const QJsonObject &result);
 
   QString jarPath_;
   QString externalServerUrl_;
@@ -79,14 +83,14 @@ class PlantUmlRenderer final : public QObject {
   std::optional<Batch> currentBatch_;
   QJsonObject pendingBatch_;
   std::optional<Request> activeRequest_;
-  QProcess* process_ = nullptr;
-  QTimer* processTimer_ = nullptr;
+  QProcess *process_ = nullptr;
+  QTimer *processTimer_ = nullptr;
   bool processTimedOut_ = false;
-  QNetworkAccessManager* network_ = nullptr;
-  QNetworkReply* networkReply_ = nullptr;
-  QTimer* networkTimer_ = nullptr;
+  QNetworkAccessManager *network_ = nullptr;
+  QNetworkReply *networkReply_ = nullptr;
+  QTimer *networkTimer_ = nullptr;
   QJsonObject activeLocalResult_;
   bool remoteGetAttempted_ = false;
 };
 
-}  // namespace qt_editor
+} // namespace qt_editor

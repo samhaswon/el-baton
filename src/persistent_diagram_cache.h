@@ -8,23 +8,23 @@
 namespace qt_editor {
 
 class PersistentDiagramCache final {
- public:
+public:
   explicit PersistentDiagramCache(QString databasePath);
   ~PersistentDiagramCache();
 
-  PersistentDiagramCache(const PersistentDiagramCache&) = delete;
-  PersistentDiagramCache& operator=(const PersistentDiagramCache&) = delete;
+  PersistentDiagramCache(const PersistentDiagramCache &) = delete;
+  PersistentDiagramCache &operator=(const PersistentDiagramCache &) = delete;
 
   void configure(int maxEntries, qint64 maxBytes);
-  [[nodiscard]] std::optional<QJsonObject> get(const QString& key);
-  [[nodiscard]] bool put(const QString& key, const QJsonObject& value);
+  [[nodiscard]] std::optional<QJsonObject> get(const QString &key);
+  [[nodiscard]] bool put(const QString &key, const QJsonObject &value);
   [[nodiscard]] bool clear();
-  [[nodiscard]] const QString& lastError() const { return lastError_; }
+  [[nodiscard]] const QString &lastError() const { return lastError_; }
 
- private:
+private:
   [[nodiscard]] bool ensureOpen();
   [[nodiscard]] bool prune();
-  void setError(const QString& error);
+  void setError(const QString &error);
 
   QString databasePath_;
   QString connectionName_;
@@ -34,4 +34,4 @@ class PersistentDiagramCache final {
   qint64 accessClock_ = 0;
 };
 
-}  // namespace qt_editor
+} // namespace qt_editor

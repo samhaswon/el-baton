@@ -7,7 +7,7 @@ using qt_editor::MarkdownEdits;
 class MarkdownEditsTest final : public QObject {
   Q_OBJECT
 
- private slots:
+private slots:
   void togglesTheRequestedTaskOnly();
   void ignoresCheckboxSyntaxInsideFences();
   void updatesTheRequestedDetailsTagOnly();
@@ -20,7 +20,8 @@ class MarkdownEditsTest final : public QObject {
 };
 
 void MarkdownEditsTest::togglesTheRequestedTaskOnly() {
-  const QString source = QStringLiteral("- [ ] first\n- [x] second\n- [ ] third\n");
+  const QString source =
+      QStringLiteral("- [ ] first\n- [x] second\n- [ ] third\n");
   QCOMPARE(MarkdownEdits::setTaskChecked(source, 1, false),
            QStringLiteral("- [ ] first\n- [ ] second\n- [ ] third\n"));
   QCOMPARE(MarkdownEdits::setTaskChecked(source, 2, true),
@@ -29,10 +30,11 @@ void MarkdownEditsTest::togglesTheRequestedTaskOnly() {
 }
 
 void MarkdownEditsTest::ignoresCheckboxSyntaxInsideFences() {
-  const QString source = QStringLiteral(
-      "```markdown\n- [ ] example\n```\n\n- [ ] real task\n");
-  QCOMPARE(MarkdownEdits::setTaskChecked(source, 0, true),
-           QStringLiteral("```markdown\n- [ ] example\n```\n\n- [x] real task\n"));
+  const QString source =
+      QStringLiteral("```markdown\n- [ ] example\n```\n\n- [ ] real task\n");
+  QCOMPARE(
+      MarkdownEdits::setTaskChecked(source, 0, true),
+      QStringLiteral("```markdown\n- [ ] example\n```\n\n- [x] real task\n"));
 }
 
 void MarkdownEditsTest::updatesTheRequestedDetailsTagOnly() {
@@ -40,28 +42,33 @@ void MarkdownEditsTest::updatesTheRequestedDetailsTagOnly() {
       "<details>\n<summary>One</summary>\n</details>\n"
       "<details class=\"more\" open>\n<summary>Two</summary>\n</details>\n");
   QCOMPARE(MarkdownEdits::setDetailsOpen(source, 0, true),
-           QStringLiteral(
-               "<details open>\n<summary>One</summary>\n</details>\n"
-               "<details class=\"more\" open>\n<summary>Two</summary>\n</details>\n"));
-  QCOMPARE(MarkdownEdits::setDetailsOpen(source, 1, false),
-           QStringLiteral(
-               "<details>\n<summary>One</summary>\n</details>\n"
-               "<details class=\"more\">\n<summary>Two</summary>\n</details>\n"));
+           QStringLiteral("<details open>\n<summary>One</summary>\n</details>\n"
+                          "<details class=\"more\" "
+                          "open>\n<summary>Two</summary>\n</details>\n"));
+  QCOMPARE(
+      MarkdownEdits::setDetailsOpen(source, 1, false),
+      QStringLiteral(
+          "<details>\n<summary>One</summary>\n</details>\n"
+          "<details class=\"more\">\n<summary>Two</summary>\n</details>\n"));
 }
 
 void MarkdownEditsTest::togglesTaskCommandsLikeTheReferenceEditor() {
   QCOMPARE(MarkdownEdits::toggleTaskLine(QStringLiteral("Write tests"), false),
            QStringLiteral("- [ ] Write tests"));
-  QCOMPARE(MarkdownEdits::toggleTaskLine(QStringLiteral("  - [ ] Write tests"), false),
+  QCOMPARE(MarkdownEdits::toggleTaskLine(QStringLiteral("  - [ ] Write tests"),
+                                         false),
            QStringLiteral("  Write tests"));
-  QCOMPARE(MarkdownEdits::toggleTaskLine(QStringLiteral("  - [x] Write tests"), false),
+  QCOMPARE(MarkdownEdits::toggleTaskLine(QStringLiteral("  - [x] Write tests"),
+                                         false),
            QStringLiteral("  - [ ] Write tests"));
   QCOMPARE(MarkdownEdits::toggleTaskLine(QStringLiteral("Write tests"), true),
            QStringLiteral("- [x] Write tests"));
-  QCOMPARE(MarkdownEdits::toggleTaskLine(QStringLiteral("- [ ] Write tests"), true),
-           QStringLiteral("- [x] Write tests"));
-  QCOMPARE(MarkdownEdits::toggleTaskLine(QStringLiteral("- [x] Write tests"), true),
-           QStringLiteral("- [ ] Write tests"));
+  QCOMPARE(
+      MarkdownEdits::toggleTaskLine(QStringLiteral("- [ ] Write tests"), true),
+      QStringLiteral("- [x] Write tests"));
+  QCOMPARE(
+      MarkdownEdits::toggleTaskLine(QStringLiteral("- [x] Write tests"), true),
+      QStringLiteral("- [ ] Write tests"));
 }
 
 void MarkdownEditsTest::formatsMarkdownTablesAndPreservesAlignment() {
@@ -69,19 +76,21 @@ void MarkdownEditsTest::formatsMarkdownTablesAndPreservesAlignment() {
       "Before\n\n| a | b | c |\n| :- | -: | :-: |\n| long | 1 | zz |\n\nAfter");
   const auto result = MarkdownEdits::formatTableAtLine(source, 4);
   QVERIFY(result.changed());
-  QCOMPARE(result.source, QStringLiteral(
-      "Before\n\n| a    |   b |  c  |\n| :--- | --: | :-: |\n| long |   1 | zz  |\n\nAfter"));
+  QCOMPARE(result.source,
+           QStringLiteral("Before\n\n| a    |   b |  c  |\n| :--- | --: | :-: "
+                          "|\n| long |   1 | zz  |\n\nAfter"));
   QCOMPARE(result.startLine, 2);
   QCOMPARE(result.endLine, 4);
 }
 
 void MarkdownEditsTest::preservesIndentedEscapedPipeCells() {
-  const QString source = QStringLiteral(
-      "  | name | value |\n  | --- | --- |\n  | A\\|B | 12 |");
+  const QString source =
+      QStringLiteral("  | name | value |\n  | --- | --- |\n  | A\\|B | 12 |");
   const auto result = MarkdownEdits::formatTableAtLine(source, 2);
   QVERIFY(result.changed());
-  QCOMPARE(result.source, QStringLiteral(
-      "  | name | value |\n  | ---- | ----- |\n  | A\\|B | 12    |"));
+  QCOMPARE(result.source,
+           QStringLiteral(
+               "  | name | value |\n  | ---- | ----- |\n  | A\\|B | 12    |"));
 }
 
 void MarkdownEditsTest::leavesInvalidTableCandidatesUnchanged() {
@@ -92,8 +101,9 @@ void MarkdownEditsTest::leavesInvalidTableCandidatesUnchanged() {
 }
 
 void MarkdownEditsTest::ignoresTablesInsideCodeFences() {
-  const QString source = QStringLiteral(
-      "````markdown\n| not | a table |\n| --- | --- |\n```\n| still | fenced |\n````\n");
+  const QString source =
+      QStringLiteral("````markdown\n| not | a table |\n| --- | --- |\n```\n| "
+                     "still | fenced |\n````\n");
   const auto result = MarkdownEdits::formatTableAtLine(source, 2);
   QVERIFY(!result.changed());
   QCOMPARE(result.source, source);
@@ -104,9 +114,11 @@ void MarkdownEditsTest::mapsTheCursorBackIntoItsTableCell() {
   const qsizetype cursor = source.indexOf(QLatin1Char('7')) + 1;
   const auto result = MarkdownEdits::formatTableAtLine(source, 2, {cursor});
   QVERIFY(result.changed());
-  QCOMPARE(result.source, QStringLiteral(
-      "| name | value |\n| ---- | ----- |\n| long | 7     |"));
-  QCOMPARE(result.source.at(result.mappedOffsets.constFirst() - 1), QLatin1Char('7'));
+  QCOMPARE(
+      result.source,
+      QStringLiteral("| name | value |\n| ---- | ----- |\n| long | 7     |"));
+  QCOMPARE(result.source.at(result.mappedOffsets.constFirst() - 1),
+           QLatin1Char('7'));
 }
 
 QTEST_GUILESS_MAIN(MarkdownEditsTest)

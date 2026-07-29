@@ -6,7 +6,7 @@
 class CheatsheetContentTest final : public QObject {
   Q_OBJECT
 
- private slots:
+private slots:
   void generatesAndRendersReferenceContent() {
     QFile file(QStringLiteral(QT_EDITOR_CHEATSHEET_MARKDOWN));
     QVERIFY2(file.open(QIODevice::ReadOnly), qPrintable(file.errorString()));
@@ -22,7 +22,8 @@ class CheatsheetContentTest final : public QObject {
     const qt_editor::RenderResult result = pipeline.render(markdown, 1);
     QVERIFY(result.allBlocks.size() > 50);
     QString html;
-    for (const qt_editor::RenderedBlock& block : result.allBlocks) html += block.html;
+    for (const qt_editor::RenderedBlock &block : result.allBlocks)
+      html += block.html;
     QVERIFY(html.contains(QStringLiteral("class=\"qt-katex\"")));
     QVERIFY(html.contains(QStringLiteral("class=\"mermaid qt-mermaid\"")));
     QVERIFY(html.contains(QStringLiteral("class=\"plantuml qt-plantuml\"")));

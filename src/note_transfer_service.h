@@ -12,11 +12,11 @@ struct ImportResult final {
 };
 
 class NoteTransferService final {
- public:
-  [[nodiscard]] static ImportResult importFiles(const QStringList& sourcePaths,
-                                                const QString& workspaceRoot);
-  [[nodiscard]] static QString uniquePath(const QString& directory,
-                                          const QString& requestedName);
+public:
+  [[nodiscard]] static ImportResult importFiles(const QStringList &sourcePaths,
+                                                const QString &workspaceRoot);
+  [[nodiscard]] static QString uniquePath(const QString &directory,
+                                          const QString &requestedName);
 };
 
-}  // namespace qt_editor
+} // namespace qt_editor

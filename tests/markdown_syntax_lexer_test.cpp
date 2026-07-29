@@ -12,27 +12,27 @@ int styleNumber(MarkdownSyntaxLexer::Style style) {
   return static_cast<int>(style);
 }
 
-int bytePosition(const QString& source, const QByteArray& needle) {
+int bytePosition(const QString &source, const QByteArray &needle) {
   return source.toUtf8().indexOf(needle);
 }
 
-int styleAt(const QsciScintilla& editor, int bytePosition) {
-  return static_cast<int>(const_cast<QsciScintilla&>(editor).SendScintilla(
+int styleAt(const QsciScintilla &editor, int bytePosition) {
+  return static_cast<int>(const_cast<QsciScintilla &>(editor).SendScintilla(
       QsciScintilla::SCI_GETSTYLEAT, bytePosition));
 }
 
-void styleDocument(QsciScintilla& editor, MarkdownSyntaxLexer& lexer,
-                   const QString& source) {
+void styleDocument(QsciScintilla &editor, MarkdownSyntaxLexer &lexer,
+                   const QString &source) {
   editor.setText(source);
   lexer.styleText(0, editor.length());
 }
 
-}  // namespace
+} // namespace
 
 class MarkdownSyntaxLexerTest final : public QObject {
   Q_OBJECT
 
- private slots:
+private slots:
   void loadsBundledMarkdownDefinition();
   void highlightsMarkdownConstructs();
   void highlightsEmbeddedPython();
@@ -42,7 +42,7 @@ class MarkdownSyntaxLexerTest final : public QObject {
 
 void MarkdownSyntaxLexerTest::loadsBundledMarkdownDefinition() {
   QsciScintilla editor;
-  auto* lexer = new MarkdownSyntaxLexer(&editor);
+  auto *lexer = new MarkdownSyntaxLexer(&editor);
   editor.setLexer(lexer);
 
   QVERIFY(lexer->hasValidDefinition());
@@ -52,7 +52,7 @@ void MarkdownSyntaxLexerTest::loadsBundledMarkdownDefinition() {
 
 void MarkdownSyntaxLexerTest::highlightsMarkdownConstructs() {
   QsciScintilla editor;
-  auto* lexer = new MarkdownSyntaxLexer(&editor);
+  auto *lexer = new MarkdownSyntaxLexer(&editor);
   editor.setLexer(lexer);
   const QString source = QStringLiteral(
       "---\n"
@@ -81,13 +81,12 @@ void MarkdownSyntaxLexerTest::highlightsMarkdownConstructs() {
 
 void MarkdownSyntaxLexerTest::highlightsEmbeddedPython() {
   QsciScintilla editor;
-  auto* lexer = new MarkdownSyntaxLexer(&editor);
+  auto *lexer = new MarkdownSyntaxLexer(&editor);
   editor.setLexer(lexer);
-  const QString source = QStringLiteral(
-      "```python\n"
-      "def greet(name: str):\n"
-      "    return \"Hello \" + name\n"
-      "```\n");
+  const QString source = QStringLiteral("```python\n"
+                                        "def greet(name: str):\n"
+                                        "    return \"Hello \" + name\n"
+                                        "```\n");
 
   styleDocument(editor, *lexer, source);
 
@@ -101,7 +100,7 @@ void MarkdownSyntaxLexerTest::highlightsEmbeddedPython() {
 
 void MarkdownSyntaxLexerTest::preservesUtf8ByteOffsets() {
   QsciScintilla editor;
-  auto* lexer = new MarkdownSyntaxLexer(&editor);
+  auto *lexer = new MarkdownSyntaxLexer(&editor);
   editor.setLexer(lexer);
   const QString source =
       QString::fromUtf8("Text 🐈 before https://example.com and **bold**.\n");
@@ -116,14 +115,13 @@ void MarkdownSyntaxLexerTest::preservesUtf8ByteOffsets() {
 
 void MarkdownSyntaxLexerTest::continuesFenceStateFromPartialRestyle() {
   QsciScintilla editor;
-  auto* lexer = new MarkdownSyntaxLexer(&editor);
+  auto *lexer = new MarkdownSyntaxLexer(&editor);
   editor.setLexer(lexer);
-  const QString source = QStringLiteral(
-      "Before\n"
-      "```python\n"
-      "value = 1\n"
-      "other = \"updated\"\n"
-      "```\n");
+  const QString source = QStringLiteral("Before\n"
+                                        "```python\n"
+                                        "value = 1\n"
+                                        "other = \"updated\"\n"
+                                        "```\n");
   styleDocument(editor, *lexer, source);
 
   const int changedLineStart = editor.positionFromLineIndex(3, 0);

@@ -61,4 +61,4 @@ struct RenderResult {
   [[nodiscard]] QJsonObject toJson(PatchMode patchMode) const;
 };
 
-}  // namespace qt_editor
+} // namespace qt_editor

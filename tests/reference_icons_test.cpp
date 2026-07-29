@@ -5,7 +5,7 @@
 class ReferenceIconsTest final : public QObject {
   Q_OBJECT
 
- private slots:
+private slots:
   void embeddedIconsAreRegistered() {
     QVERIFY(qt_editor::referenceIconsAvailable());
   }

@@ -7,7 +7,7 @@
 class DocumentFileTest final : public QObject {
   Q_OBJECT
 
- private slots:
+private slots:
   void loadsPlainMarkdown();
   void preservesFrontMatterOnSave();
   void removesFrontMatterBodyGutterFromEditorContent();
@@ -21,24 +21,26 @@ class DocumentFileTest final : public QObject {
 
 namespace {
 
-QString writeFile(QTemporaryDir& directory, const QByteArray& content) {
+QString writeFile(QTemporaryDir &directory, const QByteArray &content) {
   const QString path = directory.filePath(QStringLiteral("note.md"));
   QFile file(path);
-  if (!file.open(QIODevice::WriteOnly) || file.write(content) != content.size()) return {};
+  if (!file.open(QIODevice::WriteOnly) || file.write(content) != content.size())
+    return {};
   return path;
 }
 
-QByteArray readFile(const QString& path) {
+QByteArray readFile(const QString &path) {
   QFile file(path);
   return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
 }
 
-}  // namespace
+} // namespace
 
 void DocumentFileTest::loadsPlainMarkdown() {
   QTemporaryDir directory;
   QVERIFY(directory.isValid());
-  const QString path = writeFile(directory, QByteArrayLiteral("# Note\n\nBody\n"));
+  const QString path =
+      writeFile(directory, QByteArrayLiteral("# Note\n\nBody\n"));
   QVERIFY(!path.isEmpty());
 
   QString error;
@@ -60,16 +62,19 @@ void DocumentFileTest::preservesFrontMatterOnSave() {
   auto document = qt_editor::DocumentFile::load(path, &error);
   QVERIFY2(document.has_value(), qPrintable(error));
   QCOMPARE(document->body(), QStringLiteral("# Old\r\n"));
-  QVERIFY2(document->saveBody(QStringLiteral("# New\r\n"), &error), qPrintable(error));
+  QVERIFY2(document->saveBody(QStringLiteral("# New\r\n"), &error),
+           qPrintable(error));
   QCOMPARE(
       readFile(path),
-      QByteArrayLiteral("---\r\ntitle: Test\r\ncreated: '2026-07-18'\r\n---\r\n# New\r\n"));
+      QByteArrayLiteral(
+          "---\r\ntitle: Test\r\ncreated: '2026-07-18'\r\n---\r\n# New\r\n"));
 }
 
 void DocumentFileTest::removesFrontMatterBodyGutterFromEditorContent() {
   QTemporaryDir directory;
   QVERIFY(directory.isValid());
-  const QByteArray original = QByteArrayLiteral("---\ntitle: Test\n---\n\n# Heading\n");
+  const QByteArray original =
+      QByteArrayLiteral("---\ntitle: Test\n---\n\n# Heading\n");
   const QString path = writeFile(directory, original);
   QVERIFY(!path.isEmpty());
 
@@ -77,20 +82,24 @@ void DocumentFileTest::removesFrontMatterBodyGutterFromEditorContent() {
   auto document = qt_editor::DocumentFile::load(path, &error);
   QVERIFY2(document.has_value(), qPrintable(error));
   QCOMPARE(document->body(), QStringLiteral("# Heading\n"));
-  QVERIFY2(document->saveBody(QStringLiteral("# Changed\n"), &error), qPrintable(error));
-  QCOMPARE(readFile(path), QByteArrayLiteral("---\ntitle: Test\n---\n\n# Changed\n"));
+  QVERIFY2(document->saveBody(QStringLiteral("# Changed\n"), &error),
+           qPrintable(error));
+  QCOMPARE(readFile(path),
+           QByteArrayLiteral("---\ntitle: Test\n---\n\n# Changed\n"));
 }
 
 void DocumentFileTest::treatsUnclosedFrontMatterAsMarkdown() {
   QTemporaryDir directory;
   QVERIFY(directory.isValid());
-  const QString path = writeFile(directory, QByteArrayLiteral("---\ntitle: unfinished\n# Body\n"));
+  const QString path = writeFile(
+      directory, QByteArrayLiteral("---\ntitle: unfinished\n# Body\n"));
   QVERIFY(!path.isEmpty());
 
   const auto document = qt_editor::DocumentFile::load(path);
   QVERIFY(document.has_value());
   QCOMPARE(document->metadataPrefix(), QString());
-  QCOMPARE(document->body(), QStringLiteral("---\ntitle: unfinished\n# Body\n"));
+  QCOMPARE(document->body(),
+           QStringLiteral("---\ntitle: unfinished\n# Body\n"));
 }
 
 void DocumentFileTest::createsAndDuplicatesNotes() {
@@ -98,13 +107,17 @@ void DocumentFileTest::createsAndDuplicatesNotes() {
   QVERIFY(directory.isValid());
   const QString originalPath = directory.filePath(QStringLiteral("Alpha.md"));
   QString error;
-  auto original = qt_editor::DocumentFile::create(originalPath, QStringLiteral("Alpha's Note"), &error);
+  auto original = qt_editor::DocumentFile::create(
+      originalPath, QStringLiteral("Alpha's Note"), &error);
   QVERIFY2(original.has_value(), qPrintable(error));
-  QVERIFY(original->metadataPrefix().contains(QStringLiteral("title: 'Alpha''s Note'")));
+  QVERIFY(original->metadataPrefix().contains(
+      QStringLiteral("title: 'Alpha''s Note'")));
   QCOMPARE(original->body(), QStringLiteral("# Alpha's Note\n"));
 
   const QString copyPath = directory.filePath(QStringLiteral("Alpha 2.md"));
-  QVERIFY2(original->writeCopy(copyPath, QStringLiteral("Alpha 2"), QStringLiteral("# Changed\n"), &error), qPrintable(error));
+  QVERIFY2(original->writeCopy(copyPath, QStringLiteral("Alpha 2"),
+                               QStringLiteral("# Changed\n"), &error),
+           qPrintable(error));
   const auto copy = qt_editor::DocumentFile::load(copyPath, &error);
   QVERIFY2(copy.has_value(), qPrintable(error));
   QVERIFY(copy->metadataPrefix().contains(QStringLiteral("title: 'Alpha 2'")));
@@ -116,11 +129,15 @@ void DocumentFileTest::persistsMetadataFlags() {
   QVERIFY(directory.isValid());
   QString error;
   auto document = qt_editor::DocumentFile::create(
-      directory.filePath(QStringLiteral("flags.md")), QStringLiteral("Flags"), &error);
+      directory.filePath(QStringLiteral("flags.md")), QStringLiteral("Flags"),
+      &error);
   QVERIFY2(document.has_value(), qPrintable(error));
   QVERIFY(!document->metadataFlag(qt_editor::NoteFlag::Favorited));
-  QVERIFY2(document->setMetadataFlag(qt_editor::NoteFlag::Favorited, true, &error), qPrintable(error));
-  QVERIFY2(document->setMetadataFlag(qt_editor::NoteFlag::Pinned, true, &error), qPrintable(error));
+  QVERIFY2(
+      document->setMetadataFlag(qt_editor::NoteFlag::Favorited, true, &error),
+      qPrintable(error));
+  QVERIFY2(document->setMetadataFlag(qt_editor::NoteFlag::Pinned, true, &error),
+           qPrintable(error));
   QVERIFY(document->metadataFlag(qt_editor::NoteFlag::Favorited));
   QVERIFY(document->metadataFlag(qt_editor::NoteFlag::Pinned));
 
@@ -128,11 +145,18 @@ void DocumentFileTest::persistsMetadataFlags() {
   QVERIFY2(reloaded.has_value(), qPrintable(error));
   QVERIFY(reloaded->metadataFlag(qt_editor::NoteFlag::Favorited));
   QVERIFY(reloaded->metadataFlag(qt_editor::NoteFlag::Pinned));
-  QVERIFY2(reloaded->setMetadataFlag(qt_editor::NoteFlag::Favorited, false, &error), qPrintable(error));
+  QVERIFY2(
+      reloaded->setMetadataFlag(qt_editor::NoteFlag::Favorited, false, &error),
+      qPrintable(error));
   QVERIFY(!reloaded->metadataFlag(qt_editor::NoteFlag::Favorited));
-  QVERIFY2(reloaded->setTags({QStringLiteral("work"), QStringLiteral("alpha's")}, &error), qPrintable(error));
-  QCOMPARE(reloaded->tags(), QStringList({QStringLiteral("work"), QStringLiteral("alpha's")}));
-  QVERIFY2(reloaded->saveBody(QStringLiteral("# Flags updated\n"), &error, true), qPrintable(error));
+  QVERIFY2(reloaded->setTags(
+               {QStringLiteral("work"), QStringLiteral("alpha's")}, &error),
+           qPrintable(error));
+  QCOMPARE(reloaded->tags(),
+           QStringList({QStringLiteral("work"), QStringLiteral("alpha's")}));
+  QVERIFY2(
+      reloaded->saveBody(QStringLiteral("# Flags updated\n"), &error, true),
+      qPrintable(error));
   QVERIFY(reloaded->metadataPrefix().contains(QStringLiteral("modified:")));
   QCOMPARE(reloaded->body(), QStringLiteral("# Flags updated\n"));
 }
@@ -140,28 +164,31 @@ void DocumentFileTest::persistsMetadataFlags() {
 void DocumentFileTest::readsInlineAndBlockMetadataLists() {
   QTemporaryDir directory;
   QVERIFY(directory.isValid());
-  const QString path = writeFile(directory, QByteArrayLiteral(
-      "---\n"
-      "title: Lists\n"
-      "tags: ['Projects/Test', plain]\n"
-      "attachments:\n"
-      "  - 'diagram one.svg'\n"
-      "  - report.pdf\n"
-      "---\n\n# Lists\n"));
+  const QString path =
+      writeFile(directory, QByteArrayLiteral("---\n"
+                                             "title: Lists\n"
+                                             "tags: ['Projects/Test', plain]\n"
+                                             "attachments:\n"
+                                             "  - 'diagram one.svg'\n"
+                                             "  - report.pdf\n"
+                                             "---\n\n# Lists\n"));
   QVERIFY(!path.isEmpty());
   const auto document = qt_editor::DocumentFile::load(path);
   QVERIFY(document.has_value());
-  QCOMPARE(document->tags(),
-           QStringList({QStringLiteral("Projects/Test"), QStringLiteral("plain")}));
+  QCOMPARE(document->tags(), QStringList({QStringLiteral("Projects/Test"),
+                                          QStringLiteral("plain")}));
   QCOMPARE(document->attachments(),
-           QStringList({QStringLiteral("diagram one.svg"), QStringLiteral("report.pdf")}));
+           QStringList({QStringLiteral("diagram one.svg"),
+                        QStringLiteral("report.pdf")}));
 }
 
 void DocumentFileTest::comparesCanonicalContentIndependentlyOfEditorState() {
   QTemporaryDir directory;
   QVERIFY(directory.isValid());
-  const QString path = writeFile(directory, QByteArrayLiteral(
-      "---\ntitle: Race\nmodified: '2026-07-19T12:00:00.000Z'\n---\n\n# Saved revision\n"));
+  const QString path = writeFile(
+      directory, QByteArrayLiteral(
+                     "---\ntitle: Race\nmodified: "
+                     "'2026-07-19T12:00:00.000Z'\n---\n\n# Saved revision\n"));
   QVERIFY(!path.isEmpty());
 
   const auto canonical = qt_editor::DocumentFile::load(path);
@@ -175,7 +202,8 @@ void DocumentFileTest::comparesCanonicalContentIndependentlyOfEditorState() {
   QFile external(path);
   QVERIFY(external.open(QIODevice::WriteOnly | QIODevice::Truncate));
   const QByteArray externalContent = QByteArrayLiteral(
-      "---\ntitle: Race\nmodified: '2026-07-19T12:00:01.000Z'\n---\n\n# External revision\n");
+      "---\ntitle: Race\nmodified: '2026-07-19T12:00:01.000Z'\n---\n\n# "
+      "External revision\n");
   QCOMPARE(external.write(externalContent), externalContent.size());
   external.close();
   const auto externallyChanged = qt_editor::DocumentFile::load(path);
@@ -186,16 +214,18 @@ void DocumentFileTest::comparesCanonicalContentIndependentlyOfEditorState() {
 void DocumentFileTest::preparesCanonicalRevisionBeforeWritingIt() {
   QTemporaryDir directory;
   QVERIFY(directory.isValid());
-  const QString path = writeFile(directory, QByteArrayLiteral(
-      "---\ntitle: Memory first\nmodified: '2026-07-19T12:00:00.000Z'\n---\n\n# Old\n"));
+  const QString path =
+      writeFile(directory, QByteArrayLiteral(
+                               "---\ntitle: Memory first\nmodified: "
+                               "'2026-07-19T12:00:00.000Z'\n---\n\n# Old\n"));
   QVERIFY(!path.isEmpty());
   const auto current = qt_editor::DocumentFile::load(path);
   QVERIFY(current.has_value());
 
   const QDateTime changedAt = QDateTime::fromString(
       QStringLiteral("2026-07-19T12:34:56.789Z"), Qt::ISODateWithMs);
-  const qt_editor::DocumentFile next = current->withBody(
-      QStringLiteral("# New\n"), true, changedAt);
+  const qt_editor::DocumentFile next =
+      current->withBody(QStringLiteral("# New\n"), true, changedAt);
   QCOMPARE(next.body(), QStringLiteral("# New\n"));
   QVERIFY(next.modifiedAt().has_value());
   QCOMPARE(next.modifiedAt()->toUTC(), changedAt);

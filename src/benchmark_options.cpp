@@ -2,38 +2,56 @@
 
 namespace qt_editor {
 
-void addRuntimeOptions(QCommandLineParser& parser) {
-  parser.addOption({"sync", "Scroll synchronization mode: off, percentage, or semantic.", "mode", "semantic"});
-  parser.addOption({"patch", "Preview update mode: full or blocks.", "mode", "blocks"});
+void addRuntimeOptions(QCommandLineParser &parser) {
+  parser.addOption(
+      {"sync", "Scroll synchronization mode: off, percentage, or semantic.",
+       "mode", "semantic"});
+  parser.addOption(
+      {"patch", "Preview update mode: full or blocks.", "mode", "blocks"});
   parser.addOption({"no-katex", "Disable KaTeX rendering."});
   parser.addOption({"no-mermaid", "Disable Mermaid rendering."});
-  parser.addOption({"hidden-mermaid-page", "Render Mermaid in a hidden QWebEnginePage (milestone 4 mode)."});
-  parser.addOption({"unthrottled-webengine", "Disable Chromium's compositor frame-rate limit (diagnostic; may increase CPU use)."});
+  parser.addOption(
+      {"hidden-mermaid-page",
+       "Render Mermaid in a hidden QWebEnginePage (milestone 4 mode)."});
+  parser.addOption({"unthrottled-webengine",
+                    "Disable Chromium's compositor frame-rate "
+                    "limit (diagnostic; may increase CPU use)."});
 }
 
-void addBenchmarkOptions(QCommandLineParser& parser) {
+void addBenchmarkOptions(QCommandLineParser &parser) {
   addRuntimeOptions(parser);
   parser.addOption({"no-overlay", "Disable the instrumentation overlay."});
 }
 
-BenchmarkOptions parseBenchmarkOptions(const QCommandLineParser& parser, bool benchmarkOverlayOption) {
+BenchmarkOptions parseBenchmarkOptions(const QCommandLineParser &parser,
+                                       bool benchmarkOverlayOption) {
   BenchmarkOptions options;
   const QString sync = parser.value("sync").toLower();
-  options.syncMode = sync == "off" ? SyncMode::Disabled : sync == "percentage" ? SyncMode::Percentage : SyncMode::Semantic;
-  options.patchMode = parser.value("patch").compare("full", Qt::CaseInsensitive) == 0 ? PatchMode::FullDocument : PatchMode::Blocks;
+  options.syncMode = sync == "off"          ? SyncMode::Disabled
+                     : sync == "percentage" ? SyncMode::Percentage
+                                            : SyncMode::Semantic;
+  options.patchMode =
+      parser.value("patch").compare("full", Qt::CaseInsensitive) == 0
+          ? PatchMode::FullDocument
+          : PatchMode::Blocks;
   options.katexEnabled = !parser.isSet("no-katex");
   options.mermaidEnabled = !parser.isSet("no-mermaid");
-  options.overlayEnabled = benchmarkOverlayOption && !parser.isSet("no-overlay");
+  options.overlayEnabled =
+      benchmarkOverlayOption && !parser.isSet("no-overlay");
   options.hiddenMermaidPage = parser.isSet("hidden-mermaid-page");
   options.unthrottledWebEngine = parser.isSet("unthrottled-webengine");
   return options;
 }
 
-QString describeBenchmarkOptions(const BenchmarkOptions& options) {
-  const QString sync = options.syncMode == SyncMode::Disabled ? "off" : options.syncMode == SyncMode::Percentage ? "percentage" : "semantic";
+QString describeBenchmarkOptions(const BenchmarkOptions &options) {
+  const QString sync = options.syncMode == SyncMode::Disabled     ? "off"
+                       : options.syncMode == SyncMode::Percentage ? "percentage"
+                                                                  : "semantic";
   return QString("sync=%1 | patch=%2 | KaTeX=%3 | Mermaid=%4 | WebEngine=%5")
-      .arg(sync, options.patchMode == PatchMode::Blocks ? "blocks" : "full", options.katexEnabled ? "on" : "off",
-           options.mermaidEnabled ? "on" : "off", options.unthrottledWebEngine ? "unthrottled" : "vsync");
+      .arg(sync, options.patchMode == PatchMode::Blocks ? "blocks" : "full",
+           options.katexEnabled ? "on" : "off",
+           options.mermaidEnabled ? "on" : "off",
+           options.unthrottledWebEngine ? "unthrottled" : "vsync");
 }
 
-}  // namespace qt_editor
+} // namespace qt_editor

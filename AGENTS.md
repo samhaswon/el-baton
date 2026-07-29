@@ -14,6 +14,8 @@ README screenshots are generated with `npm run screenshots:demo -- --compile` fo
 
 ## Code Style
 
+For C/C++ code, use `clang-format`. 
+
 Write secure code. 
 Beautiful is better than ugly.
 Explicit is better than implicit.

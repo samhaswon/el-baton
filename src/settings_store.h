@@ -7,18 +7,19 @@
 namespace qt_editor {
 
 class SettingsStore final {
- public:
+public:
   explicit SettingsStore(QString path);
 
   [[nodiscard]] static QString referencePath();
-  [[nodiscard]] QVariant value(const QString& dottedKey, const QVariant& fallback = {}) const;
-  void setValue(const QString& dottedKey, const QVariant& value);
-  [[nodiscard]] bool save(QString* errorMessage = nullptr) const;
-  [[nodiscard]] const QString& path() const { return path_; }
+  [[nodiscard]] QVariant value(const QString &dottedKey,
+                               const QVariant &fallback = {}) const;
+  void setValue(const QString &dottedKey, const QVariant &value);
+  [[nodiscard]] bool save(QString *errorMessage = nullptr) const;
+  [[nodiscard]] const QString &path() const { return path_; }
 
- private:
+private:
   QString path_;
   QJsonObject root_;
 };
 
-}  // namespace qt_editor
+} // namespace qt_editor

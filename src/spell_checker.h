@@ -14,11 +14,10 @@ struct SpellingIssue final {
 };
 
 class SpellChecker final {
- public:
+public:
   [[nodiscard]] static bool isAvailable();
-  [[nodiscard]] static QVector<SpellingIssue> check(
-      const QString& markdown,
-      const QStringList& addedWords = {});
+  [[nodiscard]] static QVector<SpellingIssue>
+  check(const QString &markdown, const QStringList &addedWords = {});
 };
 
-}  // namespace qt_editor
+} // namespace qt_editor

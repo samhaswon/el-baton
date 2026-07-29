@@ -9,7 +9,7 @@
 class ApplicationPathsTest final : public QObject {
   Q_OBJECT
 
- private slots:
+private slots:
   void appendsStableApplicationDirectory();
   void createsEveryRuntimeDirectory();
   void resolvesInstalledDataBeforeBuildFallback();
@@ -17,7 +17,8 @@ class ApplicationPathsTest final : public QObject {
 
 void ApplicationPathsTest::appendsStableApplicationDirectory() {
   const el_baton::ApplicationPaths paths =
-      el_baton::ApplicationPaths::fromBaseDirectories("/config", "/cache", "/runtime");
+      el_baton::ApplicationPaths::fromBaseDirectories("/config", "/cache",
+                                                      "/runtime");
 
   QCOMPARE(paths.configDirectory, QStringLiteral("/config/el-baton"));
   QCOMPARE(paths.cacheDirectory, QStringLiteral("/cache/el-baton"));
@@ -29,8 +30,10 @@ void ApplicationPathsTest::createsEveryRuntimeDirectory() {
   QVERIFY(temporaryDirectory.isValid());
 
   const QDir root(temporaryDirectory.path());
-  const el_baton::ApplicationPaths paths = el_baton::ApplicationPaths::fromBaseDirectories(
-      root.filePath("config"), root.filePath("cache"), root.filePath("runtime"));
+  const el_baton::ApplicationPaths paths =
+      el_baton::ApplicationPaths::fromBaseDirectories(root.filePath("config"),
+                                                      root.filePath("cache"),
+                                                      root.filePath("runtime"));
 
   QString errorMessage;
   QVERIFY2(paths.ensureCreated(&errorMessage), qPrintable(errorMessage));
@@ -46,24 +49,21 @@ void ApplicationPathsTest::resolvesInstalledDataBeforeBuildFallback() {
   QVERIFY(root.mkpath(QStringLiteral("bin")));
   QVERIFY(root.mkpath(QStringLiteral("share/el-baton/web")));
 
-  QFile preview(root.filePath(QStringLiteral("share/el-baton/web/preview.html")));
+  QFile preview(
+      root.filePath(QStringLiteral("share/el-baton/web/preview.html")));
   QVERIFY(preview.open(QIODevice::WriteOnly));
   preview.write("<!doctype html>");
   preview.close();
 
   const QString applicationDirectory = root.filePath(QStringLiteral("bin"));
-  QCOMPARE(
-      el_baton::ApplicationPaths::dataFileForApplication(
-          applicationDirectory,
-          QStringLiteral("web/preview.html"),
-          QStringLiteral("/build/web/preview.html")),
-      QFileInfo(preview).canonicalFilePath());
-  QCOMPARE(
-      el_baton::ApplicationPaths::dataFileForApplication(
-          applicationDirectory,
-          QStringLiteral("missing.txt"),
-          QStringLiteral("/build/missing.txt")),
-      QStringLiteral("/build/missing.txt"));
+  QCOMPARE(el_baton::ApplicationPaths::dataFileForApplication(
+               applicationDirectory, QStringLiteral("web/preview.html"),
+               QStringLiteral("/build/web/preview.html")),
+           QFileInfo(preview).canonicalFilePath());
+  QCOMPARE(el_baton::ApplicationPaths::dataFileForApplication(
+               applicationDirectory, QStringLiteral("missing.txt"),
+               QStringLiteral("/build/missing.txt")),
+           QStringLiteral("/build/missing.txt"));
 }
 
 QTEST_GUILESS_MAIN(ApplicationPathsTest)

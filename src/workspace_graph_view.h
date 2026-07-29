@@ -12,11 +12,11 @@ namespace qt_editor {
 class WorkspaceGraphView final : public QWidget {
   Q_OBJECT
 
- public:
-  explicit WorkspaceGraphView(QWidget* parent = nullptr);
+public:
+  explicit WorkspaceGraphView(QWidget *parent = nullptr);
 
-  void setGraph(const WorkspaceGraph& graph);
-  void setSearchQuery(const QString& query);
+  void setGraph(const WorkspaceGraph &graph);
+  void setSearchQuery(const QString &query);
   void setNodeKindsVisible(bool notes, bool tags, bool attachments);
   void setLinkStatesVisible(bool linked, bool unlinked);
   void setCollisionRadius(double radius);
@@ -25,25 +25,25 @@ class WorkspaceGraphView final : public QWidget {
   void reheat();
   void fitToView();
   void zoomBy(double factor);
-  [[nodiscard]] bool saveImage(const QString& filePath);
+  [[nodiscard]] bool saveImage(const QString &filePath);
 
- signals:
-  void nodeSelected(const WorkspaceGraphNode& node, int connections);
-  void nodeActivated(const WorkspaceGraphNode& node);
+signals:
+  void nodeSelected(const WorkspaceGraphNode &node, int connections);
+  void nodeActivated(const WorkspaceGraphNode &node);
   void visibleCountsChanged(int nodes, int edges);
 
- protected:
-  void paintEvent(QPaintEvent* event) override;
-  void resizeEvent(QResizeEvent* event) override;
-  void showEvent(QShowEvent* event) override;
-  void hideEvent(QHideEvent* event) override;
-  void mousePressEvent(QMouseEvent* event) override;
-  void mouseMoveEvent(QMouseEvent* event) override;
-  void mouseReleaseEvent(QMouseEvent* event) override;
-  void mouseDoubleClickEvent(QMouseEvent* event) override;
-  void wheelEvent(QWheelEvent* event) override;
+protected:
+  void paintEvent(QPaintEvent *event) override;
+  void resizeEvent(QResizeEvent *event) override;
+  void showEvent(QShowEvent *event) override;
+  void hideEvent(QHideEvent *event) override;
+  void mousePressEvent(QMouseEvent *event) override;
+  void mouseMoveEvent(QMouseEvent *event) override;
+  void mouseReleaseEvent(QMouseEvent *event) override;
+  void mouseDoubleClickEvent(QMouseEvent *event) override;
+  void wheelEvent(QWheelEvent *event) override;
 
- private:
+private:
   struct NodeState final {
     WorkspaceGraphNode node;
     QPointF position;
@@ -54,9 +54,9 @@ class WorkspaceGraphView final : public QWidget {
 
   void rebuildVisibility();
   void simulationStep();
-  [[nodiscard]] QPointF toScreen(const QPointF& world) const;
-  [[nodiscard]] QPointF toWorld(const QPointF& screen) const;
-  [[nodiscard]] int nodeAt(const QPointF& screen) const;
+  [[nodiscard]] QPointF toScreen(const QPointF &world) const;
+  [[nodiscard]] QPointF toWorld(const QPointF &screen) const;
+  [[nodiscard]] int nodeAt(const QPointF &screen) const;
   [[nodiscard]] QColor nodeColor(WorkspaceGraphNodeKind kind) const;
 
   QVector<NodeState> nodes_;
@@ -84,4 +84,4 @@ class WorkspaceGraphView final : public QWidget {
   bool simulationPending_ = false;
 };
 
-}  // namespace qt_editor
+} // namespace qt_editor

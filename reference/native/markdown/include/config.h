@@ -9,7 +9,7 @@
 #endif
 
 #ifdef HAVE___ATTRIBUTE__
-#define CMARK_ATTRIBUTE(list) __attribute__ (list)
+#define CMARK_ATTRIBUTE(list) __attribute__(list)
 #else
 #define CMARK_ATTRIBUTE(list)
 #endif

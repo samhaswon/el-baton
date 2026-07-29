@@ -1,7 +1,7 @@
 #include "workspace_watcher.h"
 
-#include <QDir>
 #include <QDateTime>
+#include <QDir>
 #include <QFile>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -16,7 +16,7 @@ using qt_editor::WorkspaceWatcher;
 class WorkspaceWatcherTest final : public QObject {
   Q_OBJECT
 
- private slots:
+private slots:
   void classifiesSnapshotChanges();
   void pairsMovedFilesAsRenames();
   void watchesNewNotesInNestedDirectories();
@@ -27,16 +27,18 @@ class WorkspaceWatcherTest final : public QObject {
 
 namespace {
 
-WatchedFileState state(const QByteArray& digest, qint64 size = 10, qint64 modifiedMs = 1000) {
+WatchedFileState state(const QByteArray &digest, qint64 size = 10,
+                       qint64 modifiedMs = 1000) {
   return {size, modifiedMs, digest};
 }
 
-bool writeFile(const QString& path, const QByteArray& content) {
+bool writeFile(const QString &path, const QByteArray &content) {
   QFile file(path);
-  return file.open(QIODevice::WriteOnly) && file.write(content) == content.size();
+  return file.open(QIODevice::WriteOnly) &&
+         file.write(content) == content.size();
 }
 
-}  // namespace
+} // namespace
 
 void WorkspaceWatcherTest::classifiesSnapshotChanges() {
   const WorkspaceSnapshot before{
@@ -50,7 +52,8 @@ void WorkspaceWatcherTest::classifiesSnapshotChanges() {
       {QStringLiteral("/notes/unchanged.md"), state("same")},
   };
 
-  const QVector<WorkspaceChange> changes = WorkspaceWatcher::compareSnapshots(before, after);
+  const QVector<WorkspaceChange> changes =
+      WorkspaceWatcher::compareSnapshots(before, after);
   QCOMPARE(changes.size(), 3);
   QCOMPARE(changes.at(0).kind, WorkspaceChangeKind::Added);
   QCOMPARE(changes.at(0).path, QStringLiteral("/notes/added.md"));
@@ -68,7 +71,8 @@ void WorkspaceWatcherTest::pairsMovedFilesAsRenames() {
       {QStringLiteral("/notes/nested/new.md"), state("same-content")},
   };
 
-  const QVector<WorkspaceChange> changes = WorkspaceWatcher::compareSnapshots(before, after);
+  const QVector<WorkspaceChange> changes =
+      WorkspaceWatcher::compareSnapshots(before, after);
   QCOMPARE(changes.size(), 1);
   QCOMPARE(changes.constFirst().kind, WorkspaceChangeKind::Renamed);
   QCOMPARE(changes.constFirst().previousPath, QStringLiteral("/notes/old.md"));
@@ -91,10 +95,12 @@ void WorkspaceWatcherTest::watchesNewNotesInNestedDirectories() {
 
   QTRY_VERIFY_WITH_TIMEOUT(!changesSpy.isEmpty(), 3000);
   bool found = false;
-  for (const QList<QVariant>& arguments : changesSpy) {
-    const QVector<WorkspaceChange> changes = qvariant_cast<QVector<WorkspaceChange>>(arguments.constFirst());
-    for (const WorkspaceChange& change : changes) {
-      if (change.kind == WorkspaceChangeKind::Added && change.path == path) found = true;
+  for (const QList<QVariant> &arguments : changesSpy) {
+    const QVector<WorkspaceChange> changes =
+        qvariant_cast<QVector<WorkspaceChange>>(arguments.constFirst());
+    for (const WorkspaceChange &change : changes) {
+      if (change.kind == WorkspaceChangeKind::Added && change.path == path)
+        found = true;
     }
   }
   QVERIFY(found);
@@ -120,7 +126,8 @@ void WorkspaceWatcherTest::suppressesAcknowledgedAppWrites() {
   // SetFileTime requires FILE_WRITE_ATTRIBUTES on Windows, which Qt does not
   // request for a read-only handle.
   QVERIFY(metadataOnly.open(QIODevice::ReadWrite));
-  QVERIFY(metadataOnly.setFileTime(QDateTime::currentDateTime().addSecs(1), QFileDevice::FileModificationTime));
+  QVERIFY(metadataOnly.setFileTime(QDateTime::currentDateTime().addSecs(1),
+                                   QFileDevice::FileModificationTime));
   metadataOnly.close();
   QTest::qWait(350);
   QCOMPARE(changesSpy.size(), 0);
@@ -128,7 +135,8 @@ void WorkspaceWatcherTest::suppressesAcknowledgedAppWrites() {
   QVERIFY(writeFile(path, QByteArrayLiteral("# External write\n")));
   QTRY_COMPARE_WITH_TIMEOUT(changesSpy.size(), 1, 3000);
   const QVector<WorkspaceChange> changes =
-      qvariant_cast<QVector<WorkspaceChange>>(changesSpy.constFirst().constFirst());
+      qvariant_cast<QVector<WorkspaceChange>>(
+          changesSpy.constFirst().constFirst());
   QCOMPARE(changes.size(), 1);
   QCOMPARE(changes.constFirst().kind, WorkspaceChangeKind::Modified);
   QCOMPARE(changes.constFirst().path, path);
@@ -156,7 +164,8 @@ void WorkspaceWatcherTest::reportsExternalWriteRacingAppAcknowledgement() {
 
   QTRY_COMPARE_WITH_TIMEOUT(changesSpy.size(), 1, 3000);
   const QVector<WorkspaceChange> changes =
-      qvariant_cast<QVector<WorkspaceChange>>(changesSpy.constFirst().constFirst());
+      qvariant_cast<QVector<WorkspaceChange>>(
+          changesSpy.constFirst().constFirst());
   QCOMPARE(changes.size(), 1);
   QCOMPARE(changes.constFirst().kind, WorkspaceChangeKind::Modified);
   QCOMPARE(changes.constFirst().path, path);
