@@ -270,9 +270,10 @@ jobs:
         shell: pwsh
         run: |
           $env:PATH = "$env:EL_BATON_CI_RUNTIME_PATH;$env:VCPKG_INSTALLATION_ROOT\installed\${{ matrix.vcpkg_triplet }}\bin;$env:QT_ROOT_DIR\bin;$env:PATH"
-          cmake --install build/ci --prefix build/ci/stage --config Release
+          $stage = Join-Path $env:GITHUB_WORKSPACE "build/ci/stage"
+          cmake --install build/ci --prefix "$stage" --config Release
           New-Item -ItemType Directory -Force build/ci/packages | Out-Null
-          Compress-Archive -Path build/ci/stage/* `
+          Compress-Archive -Path (Join-Path $stage "*") `
             -DestinationPath build/ci/packages/el-baton-0.1.0-windows-${{ matrix.arch }}.zip
 
       - name: Build macOS deployment
