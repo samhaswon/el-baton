@@ -7,6 +7,8 @@
 #include <Qsci/qsciscintilla.h>
 #include <QtTest>
 
+#include <utility>
+
 using qt_editor::PreviewBridge;
 using qt_editor::RenderedBlock;
 using qt_editor::SourceRange;

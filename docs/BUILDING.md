@@ -85,6 +85,45 @@ GUI executables narrowly disable that one check by default; unit-test
 executables retain it. An explicit `ASAN_OPTIONS` overrides the application
 default when investigating or after upgrading QtWebEngine.
 
+## C++ formatting
+
+Native C and C++ sources use `clang-format`. Format the primary application and
+test sources before committing:
+
+```bash
+find src tests -type f \
+  \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' \
+     -o -name '*.h' -o -name '*.hpp' \) \
+  -exec clang-format -i {} +
+```
+
+Check the same files without modifying them:
+
+```bash
+find src tests -type f \
+  \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' \
+     -o -name '*.h' -o -name '*.hpp' \) \
+  -exec clang-format --dry-run --Werror {} +
+```
+
+Format C/C++ files elsewhere in the repository individually when editing them.
+Do not mechanically reformat vendored sources under `third_party/` or generated
+build output.
+
+`CPPLINT.cfg` configures cpplint as a complementary correctness check rather
+than a second formatter. It leaves layout and include grouping to
+`clang-format`, accepts the project's C++20 and include-root conventions, and
+excludes generated, vendored, and retained-reference trees. Run it with:
+
+```bash
+.venv/bin/cpplint --recursive src tests
+```
+
+Use `cpplint` without the `.venv/bin/` prefix when it is installed elsewhere.
+Warnings that remain enabled—such as missing direct includes, unsafe legacy
+integer types, and asymmetric control-flow braces—should be fixed rather than
+suppressed.
+
 ## Workspace and configuration
 
 For compatibility during the port, the native application reads the workspace

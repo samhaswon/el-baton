@@ -51,3 +51,4 @@ reference/src/renderer/template/generated/fonts/*
 reference/src/renderer/template/runtime/
 reference/native/markdown/build/
 reference/native/markdown/generated/
+**venv/

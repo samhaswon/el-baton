@@ -10,6 +10,7 @@
 #include <QUuid>
 
 #include <algorithm>
+#include <utility>
 
 namespace qt_editor {
 

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <utility>
 
 namespace qt_editor {
 namespace {

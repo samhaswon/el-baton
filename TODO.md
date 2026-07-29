@@ -1,5 +1,12 @@
 # El Baton TODO
 
+> This is the historical product backlog inherited from the Electron
+> implementation and early native-port work. Checked entries may describe the
+> retained code under `reference/`, while unchecked entries are not
+> automatically commitments for the Qt application. See
+> [`docs/PORT_STATUS.md`](docs/PORT_STATUS.md) for the authoritative native
+> parity matrix and current priorities.
+
 ## MVP Features
 
 - [X] CSS refinement for the info pane.

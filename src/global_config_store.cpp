@@ -9,6 +9,8 @@
 
 #include <yaml-cpp/yaml.h>
 
+#include <string>
+
 namespace qt_editor {
 namespace {
 

@@ -88,15 +88,21 @@
 #include <Qsci/qsciscintilla.h>
 #include <QtConcurrentRun>
 
+#include <algorithm>
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <utility>
 #ifdef Q_OS_LINUX
 #include <unistd.h>
 #endif
 
 namespace qt_editor {
 namespace {
+
+using ScintillaPosition =
+    decltype(std::declval<QsciScintilla &>().SendScintilla(
+        QsciScintilla::SCI_GETLENGTH));
 
 QString webDirectory() {
   static const QString directory = el_baton::ApplicationPaths::webDirectory(
@@ -719,8 +725,9 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget *parent)
                             : editor_->length();
     QByteArray visibleUtf8(endByte - startByte + 1, '\0');
     editor_->SendScintilla(QsciScintilla::SCI_GETTEXTRANGE,
-                           static_cast<long>(startByte),
-                           static_cast<long>(endByte), visibleUtf8.data());
+                           static_cast<ScintillaPosition>(startByte),
+                           static_cast<ScintillaPosition>(endByte),
+                           visibleUtf8.data());
     visibleUtf8.truncate(endByte - startByte);
 
     spellcheckRequestGeneration_ = spellcheckGeneration_;
@@ -826,7 +833,7 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget *parent)
     int line = 0;
     int index = 0;
     editor_->getCursorPosition(&line, &index);
-    const long firstVisibleLine =
+    const ScintillaPosition firstVisibleLine =
         editor_->SendScintilla(QsciScintilla::SCI_GETFIRSTVISIBLELINE);
     editor_->setText(nextSource);
     editor_->setModified(true);
@@ -1498,15 +1505,17 @@ QWidget *MainWindow::createSearchPanel() {
                 editor_->text().first(sourceOffset).toUtf8();
             const QByteArray match =
                 editor_->text().sliced(sourceOffset, matchLength).toUtf8();
-            const long startPosition = prefix.size();
-            const long endPosition = startPosition + match.size();
+            const ScintillaPosition startPosition =
+                static_cast<ScintillaPosition>(prefix.size());
+            const ScintillaPosition endPosition =
+                startPosition + static_cast<ScintillaPosition>(match.size());
             const int startLine = static_cast<int>(editor_->SendScintilla(
                 QsciScintilla::SCI_LINEFROMPOSITION, startPosition));
             const int endLine = static_cast<int>(editor_->SendScintilla(
                 QsciScintilla::SCI_LINEFROMPOSITION, endPosition));
-            const long startLinePosition = editor_->SendScintilla(
+            const ScintillaPosition startLinePosition = editor_->SendScintilla(
                 QsciScintilla::SCI_POSITIONFROMLINE, startLine);
-            const long endLinePosition = editor_->SendScintilla(
+            const ScintillaPosition endLinePosition = editor_->SendScintilla(
                 QsciScintilla::SCI_POSITIONFROMLINE, endLine);
             editor_->setSelection(
                 startLine, static_cast<int>(startPosition - startLinePosition),
@@ -4182,9 +4191,9 @@ bool MainWindow::saveActiveDocument(bool reportSuccess) {
     }
     const QString message =
         QString("Unable to save %1: %2").arg(currentPath_, errorMessage);
-    if (reportSuccess)
+    if (reportSuccess) {
       QMessageBox::critical(this, QStringLiteral("Save failed"), message);
-    else {
+    } else {
       qWarning() << message;
       statusBar()->showMessage(
           QStringLiteral("Autosave failed: %1").arg(errorMessage), 5000);
@@ -4339,7 +4348,7 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
         watched == editor_->viewport()
             ? context->pos()
             : editor_->viewport()->mapFrom(editor_, context->pos());
-    const long position =
+    const ScintillaPosition position =
         editor_->SendScintilla(QsciScintilla::SCI_POSITIONFROMPOINTCLOSE,
                                viewportPosition.x(), viewportPosition.y());
     const bool spellingIsCurrent =
@@ -4544,11 +4553,13 @@ void MainWindow::sampleProcessUsage() {
       const quint64 ticks = fields[13].toULongLong() + fields[14].toULongLong();
       const qint64 now = QDateTime::currentMSecsSinceEpoch();
       if (lastCpuSampleMs_ > 0 && now > lastCpuSampleMs_) {
-        const long ticksPerSecond = sysconf(_SC_CLK_TCK);
-        processCpuPercent_ =
-            100.0 * static_cast<double>(ticks - lastCpuTicks_) * 1000.0 /
-            (static_cast<double>(ticksPerSecond) *
-             static_cast<double>(now - lastCpuSampleMs_));
+        const qint64 ticksPerSecond = static_cast<qint64>(sysconf(_SC_CLK_TCK));
+        if (ticksPerSecond > 0) {
+          processCpuPercent_ =
+              100.0 * static_cast<double>(ticks - lastCpuTicks_) * 1000.0 /
+              (static_cast<double>(ticksPerSecond) *
+               static_cast<double>(now - lastCpuSampleMs_));
+        }
       }
       lastCpuTicks_ = ticks;
       lastCpuSampleMs_ = now;

@@ -5,6 +5,8 @@
 #include <QSaveFile>
 #include <QStandardPaths>
 
+#include <utility>
+
 namespace qt_editor {
 namespace {
 

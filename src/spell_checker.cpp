@@ -8,7 +8,10 @@
 
 #include <hunspell.hxx>
 
+#include <algorithm>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace qt_editor {
 namespace {

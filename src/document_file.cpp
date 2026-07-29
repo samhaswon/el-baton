@@ -6,6 +6,8 @@
 #include <QRegularExpression>
 #include <QSaveFile>
 
+#include <utility>
+
 namespace qt_editor {
 namespace {
 

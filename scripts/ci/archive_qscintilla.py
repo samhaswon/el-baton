@@ -14,7 +14,6 @@ import threading
 import time
 from typing import TextIO
 
-
 CHUNK_SIZE = 64
 STARTED_AT = time.monotonic()
 
@@ -67,8 +66,7 @@ def parse_arguments(arguments: list[str]) -> tuple[Path, list[Path]]:
             output = Path(unquote(argument[5:]))
         elif argument.startswith("@"):
             objects.extend(
-                Path(token)
-                for token in read_response_file(Path(unquote(argument[1:])))
+                Path(token) for token in read_response_file(Path(unquote(argument[1:])))
             )
         elif lowered == "/nologo":
             continue
@@ -146,10 +144,7 @@ def main() -> int:
         )
         if not output.is_file() or output.stat().st_size == 0:
             raise RuntimeError(f"archiver did not produce {output}")
-        log(
-            f"Created {output} "
-            f"({output.stat().st_size / (1024 * 1024):.1f} MiB)"
-        )
+        log(f"Created {output} " f"({output.stat().st_size / (1024 * 1024):.1f} MiB)")
         return 0
     except (OSError, RuntimeError, subprocess.CalledProcessError, ValueError) as error:
         log(f"QScintilla archive failed: {error}", stream=sys.stderr)
