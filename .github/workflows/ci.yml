@@ -292,7 +292,12 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: el-baton-${{ matrix.platform }}-${{ matrix.arch }}
-          path: build/ci/packages/*
+          path: |
+            build/ci/packages/*.AppImage
+            build/ci/packages/*.deb
+            build/ci/packages/*.rpm
+            build/ci/packages/*.tar.gz
+            build/ci/packages/*.zip
           if-no-files-found: error
 
       - name: Upload build logs on failure
