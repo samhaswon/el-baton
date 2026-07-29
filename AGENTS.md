@@ -12,7 +12,19 @@ When type checking, do not run `npm exec tsc --noEmit` without `--` because npm 
 
 README screenshots are generated with `npm run screenshots:demo -- --compile` for a fresh build or `npm run screenshots:demo` if the app is already built.
 
-Check C++ code with `cppcheck`. 
+C++ code should locally use the GNU tool chain. Check C++ code with `cppcheck`, fuzz it with
+```bash
+source .deps/qt-toolchain.env
+
+cmake -S . -B build/fuzz -G Ninja \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_C_COMPILER=clang-18 \
+  -DCMAKE_CXX_COMPILER=clang++-18 \
+  -DEL_BATON_ENABLE_FUZZING=ON
+
+cmake --build build/fuzz --target fuzzers
+```
+and expand fuzzing as appropriate to cover your changes. 
 
 ## Code Style
 
