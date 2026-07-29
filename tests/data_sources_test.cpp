@@ -158,7 +158,9 @@ void DataSourcesTest::repairsLegacyStringContainers() {
 
 void DataSourcesTest::resolvesWorkspaceLinksSafely() {
   QTemporaryDir directory;
+  QTemporaryDir outsideDirectory;
   QVERIFY(directory.isValid());
+  QVERIFY(outsideDirectory.isValid());
   QDir root(directory.path());
   QVERIFY(root.mkpath(QStringLiteral("notes/Topics")));
   QVERIFY(root.mkpath(QStringLiteral("attachments")));
@@ -196,10 +198,15 @@ void DataSourcesTest::resolvesWorkspaceLinksSafely() {
   QVERIFY(repository.resolveAttachmentTarget(QStringLiteral("missing.png")).isEmpty());
   QVERIFY(repository.resolveLocalFileTarget(
               QStringLiteral("../../../outside.txt"), note.fileName()).isEmpty());
+  const QString outsidePath = outsideDirectory.filePath(QStringLiteral("outside.txt"));
+  QFile outside(outsidePath);
+  QVERIFY(outside.open(QIODevice::WriteOnly));
+  QCOMPARE(outside.write("outside"), 7);
+  outside.close();
   QVERIFY(repository.resolveLocalFileTarget(
-              QUrl::fromLocalFile(QStringLiteral("/etc/passwd")).toString(), note.fileName()).isEmpty());
+              QUrl::fromLocalFile(outsidePath).toString(), note.fileName()).isEmpty());
   const QString escapingLink = root.filePath(QStringLiteral("outside-link"));
-  if (QFile::link(QStringLiteral("/etc/passwd"), escapingLink)) {
+  if (QFile::link(outsidePath, escapingLink)) {
     QVERIFY(repository.resolveLocalFileTarget(
                 QUrl::fromLocalFile(escapingLink).toString(), note.fileName()).isEmpty());
   }
@@ -207,7 +214,9 @@ void DataSourcesTest::resolvesWorkspaceLinksSafely() {
 
 void DataSourcesTest::buildsWorkspaceGraphAndAttachmentMetadata() {
   QTemporaryDir directory;
+  QTemporaryDir outsideDirectory;
   QVERIFY(directory.isValid());
+  QVERIFY(outsideDirectory.isValid());
   QDir root(directory.path());
   QVERIFY(root.mkpath(QStringLiteral("notes/media")));
   QVERIFY(root.mkpath(QStringLiteral("attachments/diagrams")));
@@ -224,8 +233,13 @@ void DataSourcesTest::buildsWorkspaceGraphAndAttachmentMetadata() {
   QVERIFY(write(QStringLiteral("notes/media/inline image.png"), QByteArrayLiteral("png")));
   QVERIFY(write(QStringLiteral("attachments/diagrams/graph.svg"), QByteArrayLiteral("<svg/>")));
   QVERIFY(write(QStringLiteral("attachments/unreferenced.pdf"), QByteArrayLiteral("pdf")));
+  const QString outsidePath = outsideDirectory.filePath(QStringLiteral("outside.txt"));
+  QFile outside(outsidePath);
+  QVERIFY(outside.open(QIODevice::WriteOnly));
+  QCOMPARE(outside.write("outside"), 7);
+  outside.close();
   const QString escapingAttachment = root.filePath(QStringLiteral("attachments/escaping-link"));
-  (void)QFile::link(QStringLiteral("/etc/passwd"), escapingAttachment);
+  (void)QFile::link(outsidePath, escapingAttachment);
 
   qt_editor::WorkspaceRepository repository;
   repository.setWorkspaceRoot(directory.path());

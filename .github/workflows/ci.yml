@@ -204,6 +204,25 @@ jobs:
           $env:PATH = "$env:EL_BATON_CI_RUNTIME_PATH;$env:VCPKG_INSTALLATION_ROOT\installed\${{ matrix.vcpkg_triplet }}\bin;$env:QT_ROOT_DIR\bin;$env:PATH"
           $env:QT_QPA_PLATFORM = "offscreen"
           ctest --test-dir build/ci -C Release --output-on-failure
+          $ctestExitCode = $LASTEXITCODE
+          if ($ctestExitCode -ne 0) {
+            $failedTestsPath = "build/ci/Testing/Temporary/LastTestsFailed.log"
+            if (Test-Path $failedTestsPath) {
+              foreach ($entry in Get-Content $failedTestsPath) {
+                $testName = ($entry -split ":", 2)[1]
+                $testExecutable = Get-ChildItem build/ci -Recurse -Filter "$testName.exe" |
+                  Select-Object -First 1
+                if ($null -eq $testExecutable) {
+                  Write-Host "Could not locate the executable for failed test $testName"
+                  continue
+                }
+                Write-Host "Re-running $testName directly for QtTest diagnostics"
+                & $testExecutable.FullName -o -,txt
+                Write-Host "$testName direct exit code: $LASTEXITCODE"
+              }
+            }
+            exit $ctestExitCode
+          }
 
       - name: Build Linux packages
         if: matrix.platform == 'linux'
