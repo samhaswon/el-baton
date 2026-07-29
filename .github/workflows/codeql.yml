@@ -19,6 +19,10 @@ on:
   schedule:
     - cron: '22 9 * * 6'
 
+env:
+  QT_VERSION: 6.10.2
+  EL_BATON_CI_DEPS_ROOT: ${{ github.workspace }}/.ci-deps
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
@@ -45,6 +49,8 @@ jobs:
         include:
         - language: actions
           build-mode: none
+        - language: c-cpp
+          build-mode: manual
         - language: javascript-typescript
           build-mode: none
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
@@ -61,11 +67,51 @@ jobs:
       with:
         submodules: recursive
 
-    # Add any setup steps before running the `github/codeql-action/init` action.
-    # This includes steps like installing compilers or runtimes (`actions/setup-node`
-    # or others). This is typically only required for manual builds.
-    # - name: Setup runtime (example)
-    #   uses: actions/setup-example@v1
+    - name: Setup Node for native assets
+      if: matrix.language == 'c-cpp'
+      uses: actions/setup-node@v6
+      with:
+        node-version-file: .nvmrc
+
+    - name: Install JavaScript build assets
+      if: matrix.language == 'c-cpp'
+      run: npm install --ignore-scripts
+
+    - name: Install Qt
+      if: matrix.language == 'c-cpp'
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: ${{ env.QT_VERSION }}
+        host: linux
+        arch: linux_gcc_64
+        modules: qtwebengine qtwebchannel qtpositioning
+        cache: true
+
+    - name: Install native build dependencies
+      if: matrix.language == 'c-cpp'
+      run: |
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends -y \
+          graphviz \
+          hunspell-en-us \
+          libhunspell-dev \
+          libminizip-dev \
+          libyaml-cpp-dev \
+          ninja-build \
+          pkg-config \
+          zlib1g-dev
+
+    - name: Cache built native dependencies
+      if: matrix.language == 'c-cpp'
+      uses: actions/cache@v5
+      with:
+        path: .ci-deps
+        key: codeql-native-deps-linux-gcc64-${{ env.QT_VERSION }}-qscintilla-2.14.1-ksyntax-6.28.1
+
+    - name: Build QScintilla and SyntaxHighlighting
+      if: matrix.language == 'c-cpp'
+      shell: bash
+      run: scripts/ci/bootstrap_dependencies.sh
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
@@ -80,22 +126,23 @@ jobs:
         # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
         # queries: security-extended,security-and-quality
 
-    # If the analyze step fails for one of the languages you are analyzing with
-    # "We were unable to automatically build your code", modify the matrix above
-    # to set the build mode to "manual" for that language. Then modify this step
-    # to build your code.
-    # ℹ️ Command-line programs to run using the OS shell.
-    # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
-    - name: Run manual build steps
-      if: matrix.build-mode == 'manual'
+    - name: Configure native application
+      if: matrix.language == 'c-cpp'
       shell: bash
       run: |
-        echo 'If you are using a "manual" build mode for one or more of the' \
-          'languages you are analyzing, replace this with the commands to build' \
-          'your code, for example:'
-        echo '  make bootstrap'
-        echo '  make release'
-        exit 1
+        cmake -S . -B build/codeql -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          "-DCMAKE_PREFIX_PATH=${QT_ROOT_DIR}" \
+          "-DQSCINTILLA_INCLUDE_DIR=${QSCINTILLA_INCLUDE_DIR}" \
+          "-DQSCINTILLA_LIBRARY=${QSCINTILLA_LIBRARY}" \
+          "-DKF6SyntaxHighlighting_DIR=${KF6SyntaxHighlighting_DIR}" \
+          "-DPLANTUML_JAR=${PLANTUML_JAR}" \
+          -DEL_BATON_ENABLE_IPO=OFF \
+          -DBUILD_TESTING=OFF
+
+    - name: Build native application for CodeQL
+      if: matrix.language == 'c-cpp'
+      run: cmake --build build/codeql --parallel
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4

@@ -250,6 +250,11 @@ currently requires. CI installs Qt 6.10.2, builds QScintilla and KDE
 SyntaxHighlighting against that exact Qt installation, and downloads PlantUML
 with the same pinned checksum used by the local bootstrap.
 
+`.github/workflows/codeql.yml` analyzes GitHub Actions, JavaScript/TypeScript,
+and the native C/C++ application. The C/C++ job performs a manual Release build
+after CodeQL initialization, with tests and IPO disabled so analysis focuses on
+the application sources and avoids LTO artifacts.
+
 Linux jobs publish AppImage, DEB, and RPM artifacts for both architectures.
 The Windows x64 job publishes a deployed ZIP artifact, and the macOS ARM64 job
 publishes its deployed application bundle.

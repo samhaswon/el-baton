@@ -80,6 +80,7 @@ stub being mistaken for finished work.
 | Release optimization | Working | GCC/Clang use `-O3` and LTO; MSVC uses `/O2 /Qpar` and `/GL` when the capability probe succeeds. |
 | C/C++ formatting | Working | Native application and test sources have been normalized with `clang-format`; contributor and build documentation records the format/check commands and excludes vendored code. |
 | Native unit tests | Working | CTest covers rendering, serialization, watching, spellcheck, diagrams, generated assets, and paths. |
+| Code scanning | Working | CodeQL analyzes workflow and JavaScript/TypeScript sources plus a manual native C/C++ build on Ubuntu. |
 | Build CI | Working | Clean Release builds and CTest run on Ubuntu x64/ARM64, Windows x64, and macOS ARM64. Linux publishes AppImage, DEB, and RPM artifacts for both architectures; Windows publishes a deployed x64 ZIP. Intel macOS is intentionally excluded, while Windows ARM64 is unavailable because the official Qt packages omit Qt WebEngine. |
 | Packaging and signing | Partial | CI publishes tagged releases and nightly prereleases with unsigned ZIP/tar bundles, AppImage, DEB, RPM, and SHA-256 manifests. Platform installers, signing, and macOS notarization remain to be implemented. |
 | Updater and notifications | Not ported | Platform services remain in the reference implementation. |
