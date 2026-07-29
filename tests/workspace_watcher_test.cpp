@@ -117,7 +117,9 @@ void WorkspaceWatcherTest::suppressesAcknowledgedAppWrites() {
   QVERIFY(writeFile(path, appContent));
   watcher.acknowledgeWrite(path, appContent);
   QFile metadataOnly(path);
-  QVERIFY(metadataOnly.open(QIODevice::ReadOnly));
+  // SetFileTime requires FILE_WRITE_ATTRIBUTES on Windows, which Qt does not
+  // request for a read-only handle.
+  QVERIFY(metadataOnly.open(QIODevice::ReadWrite));
   QVERIFY(metadataOnly.setFileTime(QDateTime::currentDateTime().addSecs(1), QFileDevice::FileModificationTime));
   metadataOnly.close();
   QTest::qWait(350);

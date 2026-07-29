@@ -216,9 +216,18 @@ jobs:
                   Write-Host "Could not locate the executable for failed test $testName"
                   continue
                 }
+                $testLog = "build/ci/Testing/Temporary/$testName.txt"
+                if (Test-Path $testLog) {
+                  Write-Host "QtTest output for $testName"
+                  Get-Content $testLog
+                }
                 Write-Host "Re-running $testName directly for QtTest diagnostics"
-                & $testExecutable.FullName -o -,txt
+                $directLog = "build/ci/Testing/Temporary/$testName-direct.txt"
+                & $testExecutable.FullName -o "$directLog,txt"
                 Write-Host "$testName direct exit code: $LASTEXITCODE"
+                if (Test-Path $directLog) {
+                  Get-Content $directLog
+                }
               }
             }
             exit $ctestExitCode

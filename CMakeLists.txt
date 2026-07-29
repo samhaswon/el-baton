@@ -391,9 +391,10 @@ if(BUILD_TESTING)
 
   add_executable(data_sources_tests tests/data_sources_test.cpp)
   target_link_libraries(data_sources_tests PRIVATE el_baton_core Qt6::Test)
-  # Force QtTest's text logger onto stdout. In particular, the default logger
-  # can produce an empty CTest failure record on Windows when a test aborts.
-  add_test(NAME data_sources_tests COMMAND data_sources_tests -o -,txt)
+  # Keep a durable QtTest log because Windows CI can produce an empty CTest
+  # output record for failed QtTest executables.
+  add_test(NAME data_sources_tests COMMAND data_sources_tests
+    -o "${CMAKE_BINARY_DIR}/Testing/Temporary/data_sources_tests.txt,txt")
 
   add_executable(note_transfer_service_tests tests/note_transfer_service_test.cpp)
   target_link_libraries(note_transfer_service_tests PRIVATE el_baton_core Qt6::Test)
@@ -401,7 +402,8 @@ if(BUILD_TESTING)
 
   add_executable(workspace_watcher_tests tests/workspace_watcher_test.cpp)
   target_link_libraries(workspace_watcher_tests PRIVATE el_baton_core Qt6::Test)
-  add_test(NAME workspace_watcher_tests COMMAND workspace_watcher_tests -o -,txt)
+  add_test(NAME workspace_watcher_tests COMMAND workspace_watcher_tests
+    -o "${CMAKE_BINARY_DIR}/Testing/Temporary/workspace_watcher_tests.txt,txt")
 
   add_executable(markdown_edits_tests tests/markdown_edits_test.cpp)
   target_link_libraries(markdown_edits_tests PRIVATE el_baton_core Qt6::Test)

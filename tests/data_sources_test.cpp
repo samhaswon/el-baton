@@ -205,11 +205,13 @@ void DataSourcesTest::resolvesWorkspaceLinksSafely() {
   outside.close();
   QVERIFY(repository.resolveLocalFileTarget(
               QUrl::fromLocalFile(outsidePath).toString(), note.fileName()).isEmpty());
+#ifdef Q_OS_UNIX
   const QString escapingLink = root.filePath(QStringLiteral("outside-link"));
   if (QFile::link(outsidePath, escapingLink)) {
     QVERIFY(repository.resolveLocalFileTarget(
                 QUrl::fromLocalFile(escapingLink).toString(), note.fileName()).isEmpty());
   }
+#endif
 }
 
 void DataSourcesTest::buildsWorkspaceGraphAndAttachmentMetadata() {
@@ -238,8 +240,10 @@ void DataSourcesTest::buildsWorkspaceGraphAndAttachmentMetadata() {
   QVERIFY(outside.open(QIODevice::WriteOnly));
   QCOMPARE(outside.write("outside"), 7);
   outside.close();
+#ifdef Q_OS_UNIX
   const QString escapingAttachment = root.filePath(QStringLiteral("attachments/escaping-link"));
   (void)QFile::link(outsidePath, escapingAttachment);
+#endif
 
   qt_editor::WorkspaceRepository repository;
   repository.setWorkspaceRoot(directory.path());
