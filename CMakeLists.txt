@@ -220,7 +220,6 @@ target_compile_options(el_baton_cmark PRIVATE
   >
   $<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,CXX,MSVC>>:
     /guard:cf
-    /sdl
   >
 )
 
