@@ -88,12 +88,14 @@ stub being mistaken for finished work.
 
 ## Near-term priorities
 
-1. Finish multi-note export archives and the lower-use import formats retained
+1. Bound ENEX attachment decoding and report oversized resources before they
+   can exhaust memory during import.
+2. Finish multi-note export archives and the lower-use import formats retained
    in the Electron dumper.
-2. Continue side-by-side visual and interaction testing against the reference
+3. Continue side-by-side visual and interaction testing against the reference
    app, especially preview spacing, syntax highlighting, and scroll behavior.
-3. Add packaging and platform integrations only after the core workflows are at
+4. Add packaging and platform integrations only after the core workflows are at
    parity and the Electron reference is no longer needed for comparison.
-4. Improve startup time.
-5. Lock down exposed WebEngine navigation/chrome actions, including refresh,
+5. Improve startup time.
+6. Lock down exposed WebEngine navigation/chrome actions, including refresh,
    after the desired behavior and complete affected surface are specified.

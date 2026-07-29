@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(el_baton VERSION 0.1.0 LANGUAGES C CXX)
+project(el_baton VERSION 0.0.0 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
 
@@ -160,19 +160,57 @@ target_compile_options(el_baton_build_options INTERFACE
     -Wuseless-cast
     -Wundef
     -Wshadow
+    -Wformat=2
+    -Wformat-security
     -fno-omit-frame-pointer
   >
   $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:
     /W4
     /permissive-
   >
-  $<$<AND:$<CONFIG:Debug>,$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>>:
-    -fsanitize=address
+  $<$<AND:$<CONFIG:Debug>,$<COMPILE_LANG_AND_ID:C,CXX,GNU,Clang,AppleClang>>:
+    -fsanitize=address,undefined
+  >
+  $<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,CXX,GNU,Clang>>:
+    -fstack-protector-strong
+    -fstack-clash-protection
+    -D_FORTIFY_SOURCE=3
+    -fPIE
+  >
+  $<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,CXX,MSVC>>:
+    /guard:cf
+    /sdl
   >
 )
 target_link_options(el_baton_build_options INTERFACE
   $<$<AND:$<CONFIG:Debug>,$<LINK_LANG_AND_ID:CXX,GNU,Clang,AppleClang>>:
-    -fsanitize=address
+    -fsanitize=address,undefined
+  >
+  $<$<AND:$<CONFIG:Release>,$<LINK_LANG_AND_ID:CXX,GNU,Clang>>:
+    -pie
+    -Wl,-z,relro,-z,now,-z,noexecstack
+  >
+  $<$<AND:$<CONFIG:Release>,$<LINK_LANG_AND_ID:CXX,MSVC>>:
+    /guard:cf
+  >
+)
+
+# Keep third-party cmark free from the project's warning policy, while still
+# instrumenting it in Debug so parser memory/undefined-behavior bugs are
+# observable under the same sanitizers as native code.
+target_compile_options(el_baton_cmark PRIVATE
+  $<$<AND:$<CONFIG:Debug>,$<COMPILE_LANG_AND_ID:C,CXX,GNU,Clang,AppleClang>>:
+    -fsanitize=address,undefined
+  >
+  $<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,CXX,GNU,Clang>>:
+    -fstack-protector-strong
+    -fstack-clash-protection
+    -D_FORTIFY_SOURCE=3
+    -fPIE
+  >
+  $<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,CXX,MSVC>>:
+    /guard:cf
+    /sdl
   >
 )
 

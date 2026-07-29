@@ -12,6 +12,8 @@ When type checking, do not run `npm exec tsc --noEmit` without `--` because npm 
 
 README screenshots are generated with `npm run screenshots:demo -- --compile` for a fresh build or `npm run screenshots:demo` if the app is already built.
 
+Check C++ code with `cppcheck`. 
+
 ## Code Style
 
 For C/C++ code, use `clang-format`. 
