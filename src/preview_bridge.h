@@ -1,0 +1,78 @@
+#pragma once
+
+#include <QHash>
+#include <QJsonObject>
+#include <QObject>
+
+#include <memory>
+
+namespace qt_editor {
+
+class PersistentDiagramCache;
+
+// Minimal semantic C++/JavaScript API. No method evaluates script supplied by a
+// document.
+class PreviewBridge final : public QObject {
+  Q_OBJECT
+
+public:
+  explicit PreviewBridge(QObject *parent = nullptr);
+  ~PreviewBridge() override;
+
+  void configureDiagramCache(int maxEntries, qint64 maxBytes);
+
+  // Sends one batched document update to the preview.
+  void publishRender(const QJsonObject &update);
+  // Sends a semantic source-owned scroll target to the preview.
+  void publishSourceScroll(const QJsonObject &target);
+  // Returns locally rendered PlantUML SVG/errors to the visible preview.
+  void publishPlantUmlResults(const QJsonObject &batch);
+
+signals:
+  void renderPublished(const QJsonObject &update);
+  void sourceScrollPublished(const QJsonObject &target);
+  void mermaidRenderRequested(const QJsonObject &batch);
+  void mermaidResultsPublished(const QJsonObject &batch);
+  void plantUmlRenderRequested(const QJsonObject &batch);
+  void plantUmlResultsPublished(const QJsonObject &batch);
+  void previewScrolled(const QJsonObject &position);
+  void browserMetricsChanged(const QJsonObject &metrics);
+  void externalLinkRequested(const QString &url);
+  void internalLinkRequested(const QString &kind, const QString &target);
+  void taskToggleRequested(qsizetype taskIndex, bool checked);
+  void detailsToggleRequested(qsizetype detailsIndex, bool open);
+  void clientReady(const QString &role);
+
+public slots:
+  // Reports a preview-owned semantic position: block ID, progress, and
+  // generation.
+  void reportPreviewScroll(const QJsonObject &position);
+  // Reports aggregated browser timings and geometry stability, never per-event
+  // logs.
+  void reportMetrics(const QJsonObject &metrics);
+  // Requests that C++ open a normal http(s) link; non-http(s) schemes are
+  // rejected.
+  void requestExternalLink(const QString &url);
+  // Requests a semantic app-owned link without exposing arbitrary local URLs.
+  void requestInternalLink(const QString &kind, const QString &target);
+  // Requests source mutations by renderer-assigned semantic indices.
+  void requestTaskToggle(qsizetype taskIndex, bool checked);
+  void requestDetailsToggle(qsizetype detailsIndex, bool open);
+  // Requests one semantic batch of Mermaid sources for the optional hidden
+  // page.
+  void requestMermaidRender(const QJsonObject &batch);
+  // Returns rendered SVG/errors from the hidden page to the visible preview.
+  void reportMermaidResults(const QJsonObject &batch);
+  // Requests local rendering of semantic PlantUML source blocks.
+  void requestPlantUmlRender(const QJsonObject &batch);
+  // Announces that a page has connected before C++ publishes its first batch.
+  void reportReady(const QString &role);
+
+private:
+  bool mermaidReady_ = false;
+  QJsonObject pendingMermaidBatch_;
+  QHash<QString, QString> pendingMermaidCacheKeys_;
+  std::unique_ptr<PersistentDiagramCache> persistentCache_;
+};
+
+} // namespace qt_editor

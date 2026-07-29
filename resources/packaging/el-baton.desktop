@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=El Baton
+Comment=Markdown-based knowledge and note editor
+Exec=el-baton %f
+Icon=el-baton
+Terminal=false
+Categories=Office;Utility;TextEditor;
+MimeType=text/markdown;text/x-markdown;

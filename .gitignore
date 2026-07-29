@@ -33,18 +33,22 @@ Thumbs.db
 .Trashes
 
 # Other paths to ignore
+.deps/
 .codex
+.agents/
 bower_components
 node_modules
 dist
 releases
 releases-test/
 extracted/
+**build/
 .tmp/
-src/renderer/template/generated/*
-!src/renderer/template/generated/fonts/
-src/renderer/template/generated/fonts/*
-!src/renderer/template/generated/fonts/IconFont.woff2
-src/renderer/template/runtime/
-native/markdown/build/
-native/markdown/generated/
+reference/src/renderer/template/generated/*
+!reference/src/renderer/template/generated/fonts/
+reference/src/renderer/template/generated/fonts/*
+!reference/src/renderer/template/generated/fonts/IconFont.woff2
+reference/src/renderer/template/runtime/
+reference/native/markdown/build/
+reference/native/markdown/generated/
+**venv/

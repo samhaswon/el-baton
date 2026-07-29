@@ -1,0 +1,306 @@
+name: Native CI
+
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  QT_VERSION: 6.10.2
+  EL_BATON_CI_DEPS_ROOT: ${{ github.workspace }}/.ci-deps
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu x64
+            runner: ubuntu-24.04
+            qt_host: linux
+            qt_arch: linux_gcc_64
+            platform: linux
+            arch: x64
+            package_arch: x86_64
+            timeout_minutes: 90
+          - name: Ubuntu ARM64
+            runner: ubuntu-24.04-arm
+            qt_host: linux_arm64
+            qt_arch: linux_gcc_arm64
+            platform: linux
+            arch: arm64
+            package_arch: aarch64
+            timeout_minutes: 90
+          - name: Windows x64
+            runner: windows-2022
+            qt_host: windows
+            qt_arch: win64_msvc2022_64
+            platform: windows
+            arch: x64
+            msvc_arch: x64
+            vcpkg_triplet: x64-windows
+            timeout_minutes: 180
+          - name: macOS ARM64
+            runner: macos-14
+            qt_host: mac
+            qt_arch: clang_64
+            platform: macos
+            arch: arm64
+            timeout_minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Verify macOS architecture
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: test "$(uname -m)" = arm64
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install JavaScript build assets
+        run: npm install --ignore-scripts
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: ${{ matrix.qt_host }}
+          arch: ${{ matrix.qt_arch }}
+          # Qt Declarative is part of the desktop package for Qt 6.10 rather
+          # than an aqt-installable add-on. WebEngine's optional WebChannel and
+          # Positioning dependencies remain explicit.
+          modules: qtwebengine qtwebchannel qtpositioning
+          cache: true
+
+      - name: Install Ubuntu dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            file \
+            rpm \
+            libhunspell-dev \
+            hunspell-en-us \
+            libminizip-dev \
+            libyaml-cpp-dev \
+            graphviz \
+            ninja-build \
+            pkg-config \
+            zlib1g-dev
+
+      - name: Install macOS dependencies
+        if: matrix.platform == 'macos'
+        run: brew install graphviz hunspell ninja pkg-config yaml-cpp
+
+      - name: Initialize MSVC
+        if: matrix.platform == 'windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc_arch }}
+
+      - name: Install Windows dependencies
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          choco install graphviz --no-progress -y
+          "$env:ProgramFiles\Graphviz\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          vcpkg install --triplet ${{ matrix.vcpkg_triplet }}
+
+      - name: Cache built native dependencies
+        uses: actions/cache@v5
+        with:
+          path: .ci-deps
+          key: native-deps-${{ matrix.platform }}-${{ matrix.qt_arch }}-${{ env.QT_VERSION }}-qscintilla-2.14.1-nmake-llvm-ar-force-exit-v5-ksyntax-6.28.1
+
+      - name: Build QScintilla and SyntaxHighlighting
+        if: matrix.platform != 'windows'
+        shell: bash
+        run: scripts/ci/bootstrap_dependencies.sh
+
+      - name: Build QScintilla and SyntaxHighlighting
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: scripts/ci/bootstrap_dependencies.ps1
+
+      - name: Configure
+        if: matrix.platform != 'windows'
+        shell: bash
+        run: |
+          extra_prefix=""
+          if [[ "${{ matrix.platform }}" == "macos" ]]; then
+            extra_prefix="$(brew --prefix yaml-cpp);$(brew --prefix hunspell)"
+          fi
+          cmake -S . -B build/ci -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            "-DCMAKE_PREFIX_PATH=${QT_ROOT_DIR};${extra_prefix}" \
+            "-DQSCINTILLA_INCLUDE_DIR=${QSCINTILLA_INCLUDE_DIR}" \
+            "-DQSCINTILLA_LIBRARY=${QSCINTILLA_LIBRARY}" \
+            "-DKF6SyntaxHighlighting_DIR=${KF6SyntaxHighlighting_DIR}" \
+            "-DPLANTUML_JAR=${PLANTUML_JAR}" \
+            -DBUILD_TESTING=ON
+
+      - name: Configure
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          cmake -S . -B build/ci -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            "-DCMAKE_PREFIX_PATH=$env:QT_ROOT_DIR" `
+            "-DVCPKG_TARGET_TRIPLET=${{ matrix.vcpkg_triplet }}" `
+            "-DQSCINTILLA_INCLUDE_DIR=$env:QSCINTILLA_INCLUDE_DIR" `
+            "-DQSCINTILLA_LIBRARY=$env:QSCINTILLA_LIBRARY" `
+            "-DKF6SyntaxHighlighting_DIR=$env:KF6SyntaxHighlighting_DIR" `
+            "-DPLANTUML_JAR=$env:PLANTUML_JAR" `
+            -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build/ci --config Release --parallel
+
+      - name: Test
+        if: matrix.platform == 'linux'
+        env:
+          QT_QPA_PLATFORM: offscreen
+          LD_LIBRARY_PATH: ${{ env.EL_BATON_CI_LIBRARY_PATH }}
+        run: ctest --test-dir build/ci -C Release --output-on-failure
+
+      - name: Test
+        if: matrix.platform == 'macos'
+        env:
+          QT_QPA_PLATFORM: offscreen
+          DYLD_LIBRARY_PATH: ${{ env.EL_BATON_CI_LIBRARY_PATH }}
+        run: ctest --test-dir build/ci -C Release --output-on-failure
+
+      - name: Test
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:EL_BATON_CI_RUNTIME_PATH;$env:VCPKG_INSTALLATION_ROOT\installed\${{ matrix.vcpkg_triplet }}\bin;$env:QT_ROOT_DIR\bin;$env:PATH"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          ctest --test-dir build/ci -C Release --output-on-failure
+          $ctestExitCode = $LASTEXITCODE
+          if ($ctestExitCode -ne 0) {
+            $failedTestsPath = "build/ci/Testing/Temporary/LastTestsFailed.log"
+            if (Test-Path $failedTestsPath) {
+              foreach ($entry in Get-Content $failedTestsPath) {
+                $testName = ($entry -split ":", 2)[1]
+                $testExecutable = Get-ChildItem build/ci -Recurse -Filter "$testName.exe" |
+                  Select-Object -First 1
+                if ($null -eq $testExecutable) {
+                  Write-Host "Could not locate the executable for failed test $testName"
+                  continue
+                }
+                $testLog = "build/ci/Testing/Temporary/$testName.txt"
+                if (Test-Path $testLog) {
+                  Write-Host "QtTest output for $testName"
+                  Get-Content $testLog
+                }
+                Write-Host "Re-running $testName directly for QtTest diagnostics"
+                $directLog = "build/ci/Testing/Temporary/$testName-direct.txt"
+                & $testExecutable.FullName -o "$directLog,txt"
+                Write-Host "$testName direct exit code: $LASTEXITCODE"
+                if (Test-Path $directLog) {
+                  Get-Content $directLog
+                }
+              }
+            }
+            exit $ctestExitCode
+          }
+
+      - name: Build Linux packages
+        if: matrix.platform == 'linux'
+        shell: bash
+        env:
+          LD_LIBRARY_PATH: ${{ env.EL_BATON_CI_LIBRARY_PATH }}
+        run: |
+          cpack --config build/ci/CPackConfig.cmake -G DEB
+          cpack --config build/ci/CPackConfig.cmake -G RPM
+
+          appdir="${GITHUB_WORKSPACE}/build/ci/AppDir"
+          cmake --install build/ci --prefix "${appdir}/usr"
+
+          tool="${RUNNER_TEMP}/linuxdeploy-${{ matrix.package_arch }}.AppImage"
+          url="https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-${{ matrix.package_arch }}.AppImage"
+          curl --fail --location --retry 3 --output "${tool}" "${url}"
+          if [[ "${{ matrix.package_arch }}" == "x86_64" ]]; then
+            expected="c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d"
+          else
+            expected="620095110d693282b8ebeb244a95b5e911cf8f65f76c88b4b47d16ae6346fcff"
+          fi
+          printf '%s  %s\n' "${expected}" "${tool}" | sha256sum --check
+          chmod +x "${tool}"
+
+          mkdir -p build/ci/packages
+          APPIMAGE_EXTRACT_AND_RUN=1 \
+          OUTPUT="${GITHUB_WORKSPACE}/build/ci/packages/el-baton-0.1.0-linux-${{ matrix.arch }}.AppImage" \
+            "${tool}" \
+              --appdir "${appdir}" \
+              --desktop-file "${appdir}/usr/share/applications/el-baton.desktop" \
+              --icon-file "${appdir}/usr/share/icons/hicolor/256x256/apps/el-baton.png" \
+              --output appimage
+
+      - name: Build Windows deployment
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:EL_BATON_CI_RUNTIME_PATH;$env:VCPKG_INSTALLATION_ROOT\installed\${{ matrix.vcpkg_triplet }}\bin;$env:QT_ROOT_DIR\bin;$env:PATH"
+          $stage = Join-Path $env:GITHUB_WORKSPACE "build/ci/stage"
+          cmake --install build/ci --prefix "$stage" --config Release
+          New-Item -ItemType Directory -Force build/ci/packages | Out-Null
+          Compress-Archive -Path (Join-Path $stage "*") `
+            -DestinationPath build/ci/packages/el-baton-0.1.0-windows-${{ matrix.arch }}.zip
+
+      - name: Build macOS deployment
+        if: matrix.platform == 'macos'
+        shell: bash
+        env:
+          DYLD_LIBRARY_PATH: ${{ env.EL_BATON_CI_LIBRARY_PATH }}
+        run: |
+          cmake --install build/ci --prefix build/ci/stage
+          mkdir -p build/ci/packages
+          tar -C build/ci/stage -czf \
+            build/ci/packages/el-baton-0.1.0-macos-arm64.tar.gz .
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: el-baton-${{ matrix.platform }}-${{ matrix.arch }}
+          path: build/ci/packages/*
+          if-no-files-found: error
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: native-ci-logs-${{ matrix.platform }}
+          path: |
+            build/ci/CMakeCache.txt
+            build/ci/Testing/Temporary/
+          if-no-files-found: ignore

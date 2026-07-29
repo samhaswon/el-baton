@@ -1,0 +1,18 @@
+<RCC>
+  <qresource prefix="/reference-icons">
+    <file alias="delete.svg">../font_icons/delete.svg</file>
+    <file alias="info.svg">../font_icons/info.svg</file>
+    <file alias="magnify.svg">../font_icons/magnify.svg</file>
+    <file alias="note.svg">../font_icons/note.svg</file>
+    <file alias="notebook.svg">../font_icons/notebook.svg</file>
+    <file alias="notebook-multiple.svg">../font_icons/notebook-multiple.svg</file>
+    <file alias="paperclip.svg">../font_icons/paperclip.svg</file>
+    <file alias="pencil.svg">../font_icons/pencil.svg</file>
+    <file alias="pin.svg">../font_icons/pin.svg</file>
+    <file alias="pin-outline.svg">../font_icons/pin-outline.svg</file>
+    <file alias="split-view.svg">../font_icons/split-view.svg</file>
+    <file alias="star.svg">../font_icons/star.svg</file>
+    <file alias="star-outline.svg">../font_icons/star-outline.svg</file>
+    <file alias="tag-multiple.svg">../font_icons/tag-multiple.svg</file>
+  </qresource>
+</RCC>

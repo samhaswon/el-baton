@@ -1,3 +1,21 @@
+# El Baton Changelog
+
+## Native Qt port (unreleased)
+
+- Promoted the C++/Qt 6 application in `src/` to the primary implementation;
+  retained the Electron/TypeScript application under `reference/` for parity
+  checks.
+- Ported the main workspace shell, multi-note editor, search, graph, settings,
+  Markdown preview, diagrams, import/export, autosave, filesystem watching, and
+  high-value editor commands.
+- Added incremental native Markdown reparsing and stable DOM patching for
+  responsive large-note editing.
+- Added cross-platform native builds and tests for Ubuntu x64/ARM64, Windows
+  x64, and macOS ARM64, with tagged nightly/release publication.
+- Standardized native C/C++ and test sources with `clang-format`, and added a
+  project-scoped cpplint policy that retains actionable portability and
+  direct-include checks without imposing conflicting Google formatting rules.
+
 ### Version 0.0.0
 
 - Rebrand and packaging updates:
@@ -38,7 +56,7 @@
   - Hardened CI and release workflows for Linux and Windows.
   - Fixed transient build failures and removed redundant build setup steps after the new flow stabilized.
 
-# Notable Changelog
+## Upstream Notable changelog
 
 ### Version 1.5.1
 

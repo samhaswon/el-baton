@@ -26,44 +26,65 @@ Pull requests are especially welcome for issues labeled as [`bug`](https://githu
 
 # Local Development Setup
 
-Follow these steps in order to get El Baton ready for development:
+The primary application is the native Qt build. Follow
+[`docs/BUILDING.md`](../docs/BUILDING.md) for the complete dependency and
+toolchain setup. The normal build loop is:
 
 ```bash
 git clone https://github.com/samhaswon/el-baton.git
 cd el-baton
-npm install
-npm run monaco
-npm run icon:build
-npm run icon:font
-npm run template:seed
-npm run template:scss
-npm run template:css
-npm run dev # Terminal 1
+npm install --ignore-scripts
+scripts/bootstrap_qt_toolchain.sh
+source .deps/qt-toolchain.env
+qt-cmake -S . -B build/native -G Ninja -C .deps/qt-toolchain.cmake
+cmake --build build/native
+ctest --test-dir build/native --output-on-failure
 ```
 
-You might also need:
+The executable is `build/native/bin/el-baton`. The former Electron application
+is retained under `reference/` for behavioral comparison and is not part of the
+normal build.
 
-- `wine`
-- `Graphviz`
-- Inkscape
-- An LLM to deal with whatever is currently going on with the CSS since `svelto` is broken and had to be replaced.
-
-## Onboarding test note
-
-When testing first-run onboarding behavior (for example, opening Cheatsheets on first empty data directory), use an isolated `HOME` so persistent editor/window state does not interfere:
+Before submitting C or C++ changes, run `clang-format` over the files you
+changed. To format and validate the primary native source tree:
 
 ```bash
-mkdir -p /tmp/elbaton-onboarding-test/home
+find src tests -type f \
+  \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' \
+     -o -name '*.h' -o -name '*.hpp' \) \
+  -exec clang-format -i {} +
+find src tests -type f \
+  \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' \
+     -o -name '*.h' -o -name '*.hpp' \) \
+  -exec clang-format --dry-run --Werror {} +
+```
+
+Do not accidentally reformat vendored code under `third_party/`. Run the relevant CTest
+targets for logic changes; run the full suite when changing shared rendering,
+serialization, filesystem, or build behavior. See
+[`docs/BUILDING.md`](../docs/BUILDING.md) for the complete validation and
+toolchain notes.
+
+Run the project-configured cpplint pass as an additional native check:
+
+```bash
+.venv/bin/cpplint --recursive src tests
+```
+
+The repository configuration intentionally defers formatting and include
+grouping to `clang-format`, but actionable portability and direct-include
+diagnostics remain enabled.
+
+When testing first-run onboarding behavior, use isolated XDG directories so
+persistent editor/window state does not interfere:
+
+```bash
+mkdir -p /tmp/elbaton-onboarding-test/config
+mkdir -p /tmp/elbaton-onboarding-test/cache
 mkdir -p /tmp/elbaton-onboarding-test/data-empty
-HOME=/tmp/elbaton-onboarding-test/home npm run dev
+XDG_CONFIG_HOME=/tmp/elbaton-onboarding-test/config \
+XDG_CACHE_HOME=/tmp/elbaton-onboarding-test/cache \
+build/native/bin/el-baton
 ```
 
 Then select `/tmp/elbaton-onboarding-test/data-empty` as the data directory.
-
-## Screenshots
-
-Screenshots are automated with Playwright. To capture screenshots:
-
-```bash
-npm run screenshots:demo -- --compile
-```

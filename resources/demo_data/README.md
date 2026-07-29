@@ -24,4 +24,6 @@ npm run screenshots:demo -- --compile
 
 This uses a **production** bundle (`compile:release`) so Electron routes to local built files instead of a webpack dev server.
 
-The capture script copies `seed/` into `workspace/`, injects deterministic settings into `.home/.el-baton.json`, and writes screenshots to `resources/demo/`.
+The retained reference capture script copies `seed/` into `workspace/`,
+injects deterministic settings into `.home/.el-baton.json`, and writes
+screenshots to `reference/resources/demo/`.

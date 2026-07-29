@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "alwaysStrict": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "forceConsistentCasingInFileNames": true,
+    "inlineSourceMap": false,
+    "jsx": "react",
+    "lib": ["dom", "scripthost", "es2015", "es2016", "es2017", "es2018", "es2019", "es2020", "es2021", "es2022", "es2023", "es2024", "esnext"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "newLine": "LF",
+    "noImplicitAny": false, //TODO: Enable this after the remaining implicit component props and callback parameters are typed.
+    "noEmitOnError": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": true,
+    "resolveJsonModule": true,
+    "sourceMap": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "strictBindCallApply": true,
+    "strictFunctionTypes": true,
+    "strictNullChecks": true,
+    "strictPropertyInitialization": true,
+    "target": "es2023",
+    "paths": {
+      "asciimath2tex/asciimath2tex.js": ["./types/asciimath2tex"],
+      "@common/*": ["./src/common/*"],
+      "@main/*": ["./src/main/*"],
+      "@renderer/*": ["./src/renderer/*"],
+      "@root/*": ["./*"],
+      "@static/*": ["./src/renderer/template/runtime/*"],
+      "electron-util": ["./common/electron_util_shim"],
+      "overstated": ["./src/renderer/lib/overstated"]
+    }
+  },
+  "exclude": [
+    "build",
+    "experiments/qt_editor/build",
+    "extracted"
+  ]
+}
