@@ -215,6 +215,13 @@ Linux jobs publish AppImage, DEB, and RPM artifacts for both architectures.
 The Windows x64 job publishes a deployed ZIP artifact, and the macOS ARM64 job
 publishes its deployed application bundle.
 
+The same matrix is reused for tag publication. Tags matching `*-nightly*`
+produce a GitHub prerelease through `.github/workflows/nightly.yml`; tags
+matching `v*` (excluding nightly tags) produce a normal GitHub release through
+`.github/workflows/release.yml`. Publication happens only after every platform
+build and test succeeds. Each release includes all native packages and a
+`SHA256SUMS` manifest. Packages are currently unsigned.
+
 The root `package.json` contains only native build-time JavaScript assets and
 their generators. Electron packaging, linting, and tests remain isolated in
 `reference/package.json` and are not installed by native CI.

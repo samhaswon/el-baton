@@ -80,7 +80,7 @@ stub being mistaken for finished work.
 | Release optimization | Working | GCC/Clang use `-O3` and LTO; MSVC uses `/O2 /Qpar` and `/GL` when the capability probe succeeds. |
 | Native unit tests | Working | CTest covers rendering, serialization, watching, spellcheck, diagrams, generated assets, and paths. |
 | Build CI | Working | Clean Release builds and CTest run on Ubuntu x64/ARM64, Windows x64, and macOS ARM64. Linux publishes AppImage, DEB, and RPM artifacts for both architectures; Windows publishes a deployed x64 ZIP. Intel macOS is intentionally excluded, while Windows ARM64 is unavailable because the official Qt packages omit Qt WebEngine. |
-| Packaging and signing | Partial | CI produces unsigned deployed ZIP/tar bundles plus AppImage, DEB, and RPM packages. Platform installers, signing, notarization, and release publication remain to be implemented for Qt. |
+| Packaging and signing | Partial | CI publishes tagged releases and nightly prereleases with unsigned ZIP/tar bundles, AppImage, DEB, RPM, and SHA-256 manifests. Platform installers, signing, and macOS notarization remain to be implemented. |
 | Updater and notifications | Not ported | Platform services remain in the reference implementation. |
 | Battery-aware behavior | Partial | User-configured throttling/disable behavior exists; native automatic battery-state integration is not complete. |
 

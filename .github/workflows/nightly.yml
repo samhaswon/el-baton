@@ -1,0 +1,59 @@
+name: Nightly Publish
+
+on:
+  push:
+    tags:
+      - "*-nightly*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and test native packages
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: Publish nightly release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+
+    steps:
+      - name: Download native packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: el-baton-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd release-assets
+          sha256sum * | sort --key=2 > SHA256SUMS
+
+      - name: Replace nightly prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          if gh release view "${TAG_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release delete "${TAG_NAME}" --repo "${GITHUB_REPOSITORY}" --yes
+          fi
+          gh release create "${TAG_NAME}" release-assets/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --verify-tag \
+            --title "${TAG_NAME}" \
+            --prerelease \
+            --notes "Automated native nightly build for ${TAG_NAME}."
