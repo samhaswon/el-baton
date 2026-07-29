@@ -1,0 +1,124 @@
+name: Native fuzzing
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ "master", "main", "dev" ]
+  schedule:
+    - cron: "17 4 * * 0"
+
+permissions:
+  contents: read
+
+env:
+  QT_VERSION: 6.10.2
+  EL_BATON_CI_DEPS_ROOT: ${{ github.workspace }}/.ci-deps
+  CC: clang-18
+  CXX: clang++-18
+
+jobs:
+  fuzz:
+    name: libFuzzer (${{ matrix.target }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - fuzzer: markdown_pipeline
+            corpus: markdown
+          - fuzzer: document_file
+            corpus: document
+          - fuzzer: enex_import
+            corpus: enex
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install JavaScript build assets
+        run: npm install --ignore-scripts
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          arch: linux_gcc_64
+          modules: qtwebengine qtwebchannel qtpositioning
+          cache: true
+
+      - name: Install native fuzzing dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            clang-18 \
+            graphviz \
+            hunspell-en-us \
+            libclang-rt-18-dev \
+            libhunspell-dev \
+            libminizip-dev \
+            libyaml-cpp-dev \
+            llvm-18 \
+            llvm-18-tools \
+            ninja-build \
+            pkg-config \
+            zlib1g-dev
+
+      - name: Cache native dependencies
+        uses: actions/cache@v5
+        with:
+          path: .ci-deps
+          key: fuzz-native-deps-linux-clang18-${{ env.QT_VERSION }}-qscintilla-2.14.1-ksyntax-6.28.1
+
+      - name: Build QScintilla and SyntaxHighlighting
+        shell: bash
+        run: scripts/ci/bootstrap_dependencies.sh
+
+      - name: Configure fuzzers
+        shell: bash
+        run: |
+          cmake -S . -B build/fuzz -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=clang-18 \
+            -DCMAKE_CXX_COMPILER=clang++-18 \
+            "-DCMAKE_PREFIX_PATH=${QT_ROOT_DIR}" \
+            "-DQSCINTILLA_INCLUDE_DIR=${QSCINTILLA_INCLUDE_DIR}" \
+            "-DQSCINTILLA_LIBRARY=${QSCINTILLA_LIBRARY}" \
+            "-DKF6SyntaxHighlighting_DIR=${KF6SyntaxHighlighting_DIR}" \
+            "-DPLANTUML_JAR=${PLANTUML_JAR}" \
+            -DEL_BATON_ENABLE_FUZZING=ON \
+            -DEL_BATON_ENABLE_IPO=OFF \
+            -DBUILD_TESTING=OFF
+
+      - name: Build fuzzer
+        run: cmake --build build/fuzz --target ${{ matrix.fuzzer }}_fuzzer --parallel
+
+      - name: Run fuzzer
+        shell: bash
+        run: |
+          mkdir -p "build/fuzz/corpus/${{ matrix.corpus }}"
+          mkdir -p "build/fuzz/artifacts/${{ matrix.fuzzer }}"
+          cp -a "fuzz/corpus/${{ matrix.corpus }}/." "build/fuzz/corpus/${{ matrix.corpus }}/"
+          ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 \
+          LLVM_SYMBOLIZER_PATH="$(command -v llvm-symbolizer-18)" \
+          "build/fuzz/${{ matrix.fuzzer }}_fuzzer" \
+            "build/fuzz/corpus/${{ matrix.corpus }}" \
+            -max_total_time=300 \
+            -max_len=65536 \
+            -artifact_prefix="build/fuzz/artifacts/${{ matrix.fuzzer }}/"
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-${{ matrix.fuzzer }}-artifacts
+          path: build/fuzz/artifacts/${{ matrix.fuzzer }}/
+          if-no-files-found: ignore

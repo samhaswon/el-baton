@@ -11,6 +11,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 option(EL_BATON_ENABLE_IPO "Enable interprocedural optimization in Release builds" ON)
+option(EL_BATON_ENABLE_FUZZING "Build Clang/libFuzzer targets" OFF)
 if(EL_BATON_ENABLE_IPO)
   include(CheckIPOSupported)
   check_ipo_supported(RESULT EL_BATON_IPO_SUPPORTED OUTPUT EL_BATON_IPO_ERROR LANGUAGES C CXX)
@@ -20,6 +21,13 @@ if(EL_BATON_ENABLE_IPO)
   else()
     message(WARNING "Release interprocedural optimization is unavailable: ${EL_BATON_IPO_ERROR}")
   endif()
+endif()
+
+if(EL_BATON_ENABLE_FUZZING AND
+   (NOT CMAKE_C_COMPILER_ID STREQUAL "Clang" OR
+    NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
+  message(FATAL_ERROR
+    "EL_BATON_ENABLE_FUZZING requires Clang for both C and C++ (libFuzzer).")
 endif()
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Concurrent Core Gui Network PrintSupport Sql Widgets WebChannel WebEngineWidgets Test)
@@ -157,12 +165,14 @@ target_compile_options(el_baton_build_options INTERFACE
     -Wnull-dereference
     -Wimplicit-fallthrough
     -Wnon-virtual-dtor
-    -Wuseless-cast
     -Wundef
     -Wshadow
     -Wformat=2
     -Wformat-security
     -fno-omit-frame-pointer
+  >
+  $<$<COMPILE_LANG_AND_ID:CXX,GNU>:
+    -Wuseless-cast
   >
   $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:
     /W4
@@ -300,6 +310,42 @@ target_link_libraries(el_baton_core PUBLIC
   ${HUNSPELL_TARGET}
   ${QSCINTILLA_TARGET}
 )
+
+if(EL_BATON_ENABLE_FUZZING)
+  add_library(el_baton_fuzz_instrumentation INTERFACE)
+  target_compile_options(el_baton_fuzz_instrumentation INTERFACE
+    -fsanitize=fuzzer-no-link,address,undefined
+    -fno-omit-frame-pointer
+  )
+  target_link_options(el_baton_fuzz_instrumentation INTERFACE
+    -fsanitize=fuzzer,address,undefined
+  )
+
+  # Instrument the native parser and the bundled C parser. The fuzzer runtime
+  # itself is linked only into fuzz executables, never the application.
+  target_link_libraries(el_baton_core PRIVATE el_baton_fuzz_instrumentation)
+  target_link_libraries(el_baton_cmark PRIVATE el_baton_fuzz_instrumentation)
+
+  function(el_baton_add_fuzzer target source)
+    add_executable(${target} EXCLUDE_FROM_ALL ${source})
+    target_link_libraries(${target} PRIVATE
+      el_baton_core
+      el_baton_fuzz_instrumentation
+    )
+  endfunction()
+
+  el_baton_add_fuzzer(markdown_pipeline_fuzzer
+    fuzz/markdown_pipeline_fuzzer.cpp)
+  el_baton_add_fuzzer(document_file_fuzzer
+    fuzz/document_file_fuzzer.cpp)
+  el_baton_add_fuzzer(enex_import_fuzzer
+    fuzz/enex_import_fuzzer.cpp)
+  add_custom_target(fuzzers DEPENDS
+    markdown_pipeline_fuzzer
+    document_file_fuzzer
+    enex_import_fuzzer
+  )
+endif()
 
 qt_add_executable(el-baton src/main.cpp)
 target_link_libraries(el-baton PRIVATE el_baton_core)
