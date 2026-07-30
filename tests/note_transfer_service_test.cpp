@@ -12,6 +12,7 @@ class NoteTransferServiceTest final : public QObject {
 private slots:
   void importsMarkdownWithTag();
   void importsEnexNotesAndResources();
+  void rejectsOversizedEnexInput();
 };
 
 void NoteTransferServiceTest::importsMarkdownWithTag() {
@@ -56,6 +57,22 @@ void NoteTransferServiceTest::importsEnexNotesAndResources() {
   QVERIFY(imported.has_value());
   QCOMPARE(imported->attachments(), QStringList({QStringLiteral("hello.txt")}));
   QVERIFY(imported->body().contains(QStringLiteral("Hello")));
+}
+
+void NoteTransferServiceTest::rejectsOversizedEnexInput() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  QFile source(directory.filePath(QStringLiteral("oversized.enex")));
+  QVERIFY(source.open(QIODevice::WriteOnly));
+  QVERIFY(source.resize(64 * 1024 * 1024 + 1));
+  source.close();
+
+  const auto result = qt_editor::NoteTransferService::importFiles(
+      {source.fileName()}, directory.filePath("workspace"));
+  QCOMPARE(result.notesImported, 0);
+  QCOMPARE(result.attachmentsImported, 0);
+  QCOMPARE(result.errors.size(), 1);
+  QVERIFY(result.errors.constFirst().contains(QStringLiteral("64 MiB")));
 }
 
 int main(int argc, char **argv) {

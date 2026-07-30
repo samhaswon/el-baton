@@ -15,6 +15,9 @@ private slots:
   void createsAndDuplicatesNotes();
   void persistsMetadataFlags();
   void readsInlineAndBlockMetadataLists();
+  void replacesCompleteBlockMetadataLists();
+  void rejectsSymbolicLinks();
+  void rejectsInvalidUtf8();
   void comparesCanonicalContentIndependentlyOfEditorState();
   void preparesCanonicalRevisionBeforeWritingIt();
 };
@@ -180,6 +183,80 @@ void DocumentFileTest::readsInlineAndBlockMetadataLists() {
   QCOMPARE(document->attachments(),
            QStringList({QStringLiteral("diagram one.svg"),
                         QStringLiteral("report.pdf")}));
+}
+
+void DocumentFileTest::replacesCompleteBlockMetadataLists() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString path =
+      writeFile(directory, QByteArrayLiteral("---\n"
+                                             "title: Lists\n"
+                                             "tags:\n"
+                                             "  - old-one\n"
+                                             "  - old-two\n"
+                                             "attachments:\n"
+                                             "  - old-one.pdf\n"
+                                             "  - old-two.pdf\n"
+                                             "---\n\n# Lists\n"));
+  QVERIFY(!path.isEmpty());
+  QString error;
+  auto document = qt_editor::DocumentFile::load(path, &error);
+  QVERIFY2(document.has_value(), qPrintable(error));
+
+  QVERIFY2(document->setTags({QStringLiteral("new-tag")}, &error),
+           qPrintable(error));
+  QVERIFY2(document->setAttachments({QStringLiteral("new.pdf")}, &error),
+           qPrintable(error));
+  QCOMPARE(document->tags(), QStringList({QStringLiteral("new-tag")}));
+  QCOMPARE(document->attachments(), QStringList({QStringLiteral("new.pdf")}));
+  const QByteArray replaced = readFile(path);
+  QVERIFY(!replaced.contains("old-one"));
+  QVERIFY(!replaced.contains("old-two"));
+
+  QVERIFY2(document->setTags({}, &error), qPrintable(error));
+  QVERIFY2(document->setAttachments({}, &error), qPrintable(error));
+  const QByteArray cleared = readFile(path);
+  QVERIFY(!cleared.contains("tags:"));
+  QVERIFY(!cleared.contains("attachments:"));
+  QVERIFY(!cleared.contains("\n  - "));
+}
+
+void DocumentFileTest::rejectsSymbolicLinks() {
+#ifdef Q_OS_UNIX
+  QTemporaryDir directory;
+  QTemporaryDir outsideDirectory;
+  QVERIFY(directory.isValid());
+  QVERIFY(outsideDirectory.isValid());
+  const QString outsidePath =
+      outsideDirectory.filePath(QStringLiteral("outside.md"));
+  QFile outside(outsidePath);
+  QVERIFY(outside.open(QIODevice::WriteOnly));
+  QCOMPARE(outside.write("# Outside\n"), 10);
+  outside.close();
+
+  const QString linkPath = directory.filePath(QStringLiteral("link.md"));
+  QVERIFY(QFile::link(outsidePath, linkPath));
+  QString error;
+  QVERIFY(!qt_editor::DocumentFile::load(linkPath, &error).has_value());
+  QVERIFY(error.contains(QStringLiteral("symbolic link")));
+  QCOMPARE(readFile(outsidePath), QByteArrayLiteral("# Outside\n"));
+#else
+  QSKIP("Symbolic-link behavior is covered on Unix platforms.");
+#endif
+}
+
+void DocumentFileTest::rejectsInvalidUtf8() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString path =
+      writeFile(directory, QByteArray::fromHex("23204e6f74650ac3280a"));
+  QVERIFY(!path.isEmpty());
+  const QByteArray original = readFile(path);
+
+  QString error;
+  QVERIFY(!qt_editor::DocumentFile::load(path, &error).has_value());
+  QVERIFY(error.contains(QStringLiteral("valid UTF-8")));
+  QCOMPARE(readFile(path), original);
 }
 
 void DocumentFileTest::comparesCanonicalContentIndependentlyOfEditorState() {

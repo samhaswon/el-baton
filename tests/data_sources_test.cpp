@@ -21,6 +21,8 @@ private slots:
   void buildsWorkspaceGraphAndAttachmentMetadata();
   void readsAndWritesWorkspaceConfiguration();
   void repairsLegacyStringContainers();
+  void preservesMalformedConfigurationFiles();
+  void rejectsSymlinkedWorkspaceNotes();
 };
 
 void DataSourcesTest::preservesUnrelatedReferenceSettings() {
@@ -72,7 +74,7 @@ void DataSourcesTest::discoversAndSearchesWorkspaceNotes() {
   };
   QVERIFY(write(
       QStringLiteral("notes/alpha.md"),
-      QByteArrayLiteral("---\ntitle: Alpha Note\ntags: ['Projects/Alpha', "
+      QByteArrayLiteral("---\ntitle: 'Alpha''s Note'\ntags: ['Projects/Alpha', "
                         "'Notebooks/Research']\npinned: true\nfavorited: "
                         "true\n---\n\n# Alpha\nchemistry")));
   QVERIFY(write(QStringLiteral("notes/nested/beta.txt"),
@@ -84,7 +86,8 @@ void DataSourcesTest::discoversAndSearchesWorkspaceNotes() {
   repository.setWorkspaceRoot(directory.path());
   repository.refresh();
   QCOMPARE(repository.notes().size(), 2);
-  QCOMPARE(repository.notes().constFirst().title, QStringLiteral("Alpha Note"));
+  QCOMPARE(repository.notes().constFirst().title,
+           QStringLiteral("Alpha's Note"));
   QVERIFY(repository.notes().constFirst().pinned);
   QVERIFY(repository.notes().constFirst().favorited);
   QCOMPARE(repository.notes().constFirst().tags,
@@ -105,12 +108,12 @@ void DataSourcesTest::discoversAndSearchesWorkspaceNotes() {
   QVERIFY(results.constFirst().snippets.constFirst().matchLength > 0);
   QCOMPARE(results.constFirst().snippets.constFirst().sourceMatchStart, 8);
   QCOMPARE(repository
-               .searchWithSnippets(QStringLiteral("Alpha Note"),
+               .searchWithSnippets(QStringLiteral("Alpha's Note"),
                                    qt_editor::SearchMode::Title)
                .size(),
            1);
   QCOMPARE(repository
-               .searchWithSnippets(QStringLiteral("Alpha Note"),
+               .searchWithSnippets(QStringLiteral("Alpha's Note"),
                                    qt_editor::SearchMode::Content)
                .size(),
            0);
@@ -200,6 +203,72 @@ void DataSourcesTest::repairsLegacyStringContainers() {
   QVERIFY(repaired.contains("externalServerUrl: http"));
   QVERIFY(!repaired.contains("- 104"));
   QVERIFY(!repaired.contains("- []"));
+}
+
+void DataSourcesTest::preservesMalformedConfigurationFiles() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  const QString globalPath =
+      directory.filePath(QStringLiteral(".el-baton.json"));
+  const QByteArray malformedGlobal = QByteArrayLiteral("{not json");
+  QFile global(globalPath);
+  QVERIFY(global.open(QIODevice::WriteOnly));
+  QCOMPARE(global.write(malformedGlobal), malformedGlobal.size());
+  global.close();
+
+  qt_editor::GlobalConfigStore config;
+  config.setWorkspaceRoot(directory.path());
+  config.setValue(QStringLiteral("autoupdate"), false);
+  QString error;
+  QVERIFY(!config.save(&error));
+  QVERIFY(error.contains(QStringLiteral("invalid configuration")));
+  QVERIFY(global.open(QIODevice::ReadOnly));
+  QCOMPARE(global.readAll(), malformedGlobal);
+  global.close();
+
+  const QString settingsPath =
+      directory.filePath(QStringLiteral("settings.json"));
+  const QByteArray malformedSettings = QByteArrayLiteral("[]");
+  QFile settingsFile(settingsPath);
+  QVERIFY(settingsFile.open(QIODevice::WriteOnly));
+  QCOMPARE(settingsFile.write(malformedSettings), malformedSettings.size());
+  settingsFile.close();
+
+  qt_editor::SettingsStore settings(settingsPath);
+  settings.setValue(QStringLiteral("window.panel"), QStringLiteral("info"));
+  error.clear();
+  QVERIFY(!settings.save(&error));
+  QVERIFY(error.contains(QStringLiteral("invalid settings")));
+  QVERIFY(settingsFile.open(QIODevice::ReadOnly));
+  QCOMPARE(settingsFile.readAll(), malformedSettings);
+}
+
+void DataSourcesTest::rejectsSymlinkedWorkspaceNotes() {
+#ifdef Q_OS_UNIX
+  QTemporaryDir directory;
+  QTemporaryDir outsideDirectory;
+  QVERIFY(directory.isValid());
+  QVERIFY(outsideDirectory.isValid());
+  QDir root(directory.path());
+  QVERIFY(root.mkpath(QStringLiteral("notes")));
+
+  const QString outsidePath =
+      outsideDirectory.filePath(QStringLiteral("outside.md"));
+  QFile outside(outsidePath);
+  QVERIFY(outside.open(QIODevice::WriteOnly));
+  QCOMPARE(outside.write("# Outside\n"), 10);
+  outside.close();
+  QVERIFY(QFile::link(outsidePath,
+                      root.filePath(QStringLiteral("notes/escaping.md"))));
+
+  qt_editor::WorkspaceRepository repository;
+  repository.setWorkspaceRoot(directory.path());
+  repository.refresh();
+  QVERIFY(repository.notes().isEmpty());
+#else
+  QSKIP("Symbolic-link behavior is covered on Unix platforms.");
+#endif
 }
 
 void DataSourcesTest::resolvesWorkspaceLinksSafely() {

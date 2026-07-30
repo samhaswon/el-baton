@@ -24,7 +24,7 @@ if(EL_BATON_ENABLE_IPO)
 endif()
 
 if(EL_BATON_ENABLE_FUZZING AND
-   (NOT CMAKE_C_COMPILER_ID STREQUAL "Clang" OR
+  (NOT CMAKE_C_COMPILER_ID STREQUAL "Clang" OR
     NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
   message(FATAL_ERROR
     "EL_BATON_ENABLE_FUZZING requires Clang for both C and C++ (libFuzzer).")
@@ -431,6 +431,14 @@ qt_generate_deploy_app_script(
   NO_UNSUPPORTED_PLATFORM_ERROR
 )
 install(SCRIPT "${EL_BATON_DEPLOY_SCRIPT}")
+if(UNIX AND NOT APPLE)
+  # Qt's deployment helper writes an absolute CPack staging prefix into the
+  # QtWebEngineProcess qt.conf. Replace it after deployment so an installed
+  # helper resolves /usr/resources and /usr/translations relative to /usr.
+  install(FILES resources/packaging/qt-linux.conf
+    DESTINATION "${CMAKE_INSTALL_LIBEXECDIR}"
+    RENAME qt.conf)
+endif()
 
 set(CPACK_PACKAGE_NAME "el-baton")
 set(CPACK_PACKAGE_VENDOR "El Baton")

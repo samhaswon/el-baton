@@ -21,6 +21,7 @@ private:
   QString workspaceRoot_;
   QString filePath_;
   QVariantMap values_;
+  QString loadError_;
 };
 
 } // namespace qt_editor

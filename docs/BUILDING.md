@@ -259,6 +259,11 @@ Linux jobs publish AppImage, DEB, and RPM artifacts for both architectures.
 The Windows x64 job publishes a deployed ZIP artifact, and the macOS ARM64 job
 publishes its deployed application bundle.
 
+Linux packages replace Qt's generated `QtWebEngineProcess` configuration with
+a relocatable `qt.conf`. The helper therefore resolves its resources and
+translations from the installed `/usr` prefix rather than CPack's temporary
+staging directory.
+
 The same matrix is reused for tag publication. Tags matching `*-nightly*`
 produce a GitHub prerelease through `.github/workflows/nightly.yml`; tags
 matching `v*` (excluding nightly tags) produce a normal GitHub release through

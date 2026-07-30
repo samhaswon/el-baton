@@ -5,10 +5,12 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonParseError>
 #include <QSaveFile>
 
 #include <yaml-cpp/yaml.h>
 
+#include <stdexcept>
 #include <string>
 
 namespace qt_editor {
@@ -233,9 +235,11 @@ void GlobalConfigStore::setWorkspaceRoot(const QString &workspaceRoot) {
 }
 
 bool GlobalConfigStore::reload(QString *errorMessage) {
+  loadError_.clear();
   values_ = defaults();
-  if (filePath_.isEmpty() || !QFileInfo::exists(filePath_))
+  if (filePath_.isEmpty() || !QFileInfo::exists(filePath_)) {
     return true;
+  }
   QFile file(filePath_);
   if (!file.open(QIODevice::ReadOnly)) {
     if (errorMessage != nullptr)
@@ -247,20 +251,39 @@ bool GlobalConfigStore::reload(QString *errorMessage) {
     QVariantMap parsed;
     if (QFileInfo(filePath_).suffix().compare(QStringLiteral("json"),
                                               Qt::CaseInsensitive) == 0) {
-      parsed = QJsonDocument::fromJson(content).object().toVariantMap();
+      QJsonParseError parseError;
+      const QJsonDocument document =
+          QJsonDocument::fromJson(content, &parseError);
+      if (parseError.error != QJsonParseError::NoError)
+        throw std::runtime_error(parseError.errorString().toStdString());
+      if (!document.isObject())
+        throw std::runtime_error("Configuration root must be an object.");
+      parsed = document.object().toVariantMap();
     } else {
-      parsed = fromYaml(YAML::Load(content.constData())).toMap();
+      const YAML::Node root = YAML::Load(content.constData());
+      if (!root.IsMap())
+        throw std::runtime_error("Configuration root must be a map.");
+      parsed = fromYaml(root).toMap();
     }
-    values_ = normalizeLegacyStringContainers(mergeMaps(values_, parsed));
+    values_ = normalizeLegacyStringContainers(mergeMaps(defaults(), parsed));
     return true;
   } catch (const std::exception &error) {
+    loadError_ = QString::fromUtf8(error.what());
     if (errorMessage != nullptr)
-      *errorMessage = QString::fromUtf8(error.what());
+      *errorMessage = loadError_;
     return false;
   }
 }
 
 bool GlobalConfigStore::save(QString *errorMessage) const {
+  if (!loadError_.isEmpty()) {
+    if (errorMessage != nullptr) {
+      *errorMessage =
+          QStringLiteral("Refusing to overwrite invalid configuration: %1")
+              .arg(loadError_);
+    }
+    return false;
+  }
   if (filePath_.isEmpty()) {
     if (errorMessage != nullptr)
       *errorMessage =

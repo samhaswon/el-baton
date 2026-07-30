@@ -101,19 +101,32 @@ jobs:
       - name: Build fuzzer
         run: cmake --build build/fuzz --target ${{ matrix.fuzzer }}_fuzzer --parallel
 
+      - name: Verify seed corpus
+        shell: bash
+        run: |
+          for seed in "fuzz/corpus/${{ matrix.corpus }}"/*; do
+            timeout --signal=TERM --kill-after=10s 60s \
+              env ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 \
+                LLVM_SYMBOLIZER_PATH="$(command -v llvm-symbolizer-18)" \
+                "build/fuzz/${{ matrix.fuzzer }}_fuzzer" \
+                  "${seed}" \
+                  -runs=1
+          done
+
       - name: Run fuzzer
         shell: bash
         run: |
           mkdir -p "build/fuzz/corpus/${{ matrix.corpus }}"
           mkdir -p "build/fuzz/artifacts/${{ matrix.fuzzer }}"
           cp -a "fuzz/corpus/${{ matrix.corpus }}/." "build/fuzz/corpus/${{ matrix.corpus }}/"
-          ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 \
-          LLVM_SYMBOLIZER_PATH="$(command -v llvm-symbolizer-18)" \
-          "build/fuzz/${{ matrix.fuzzer }}_fuzzer" \
-            "build/fuzz/corpus/${{ matrix.corpus }}" \
-            -max_total_time=300 \
-            -max_len=65536 \
-            -artifact_prefix="build/fuzz/artifacts/${{ matrix.fuzzer }}/"
+          timeout --signal=TERM --kill-after=10s 360s \
+            env ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 \
+              LLVM_SYMBOLIZER_PATH="$(command -v llvm-symbolizer-18)" \
+              "build/fuzz/${{ matrix.fuzzer }}_fuzzer" \
+                "build/fuzz/corpus/${{ matrix.corpus }}" \
+                -max_total_time=300 \
+                -max_len=65536 \
+                -artifact_prefix="build/fuzz/artifacts/${{ matrix.fuzzer }}/"
 
       - name: Upload failure artifacts
         if: failure()

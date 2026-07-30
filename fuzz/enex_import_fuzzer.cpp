@@ -1,7 +1,7 @@
 #include "note_transfer_service.h"
 
-#include <QCoreApplication>
 #include <QFile>
+#include <QGuiApplication>
 #include <QTemporaryDir>
 
 #include <cstddef>
@@ -14,10 +14,11 @@ constexpr size_t kMaximumInputBytes = 1024 * 1024;
 
 void ensureApplication() {
   static const bool initialized = [] {
+    qputenv("QT_QPA_PLATFORM", "offscreen");
     static int argc = 1;
     static char applicationName[] = "el-baton-fuzz";
     static char *argv[] = {applicationName, nullptr};
-    new QCoreApplication(argc, argv);
+    new QGuiApplication(argc, argv);
     return true;
   }();
   (void)initialized;

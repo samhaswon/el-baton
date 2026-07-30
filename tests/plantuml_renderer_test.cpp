@@ -8,6 +8,8 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 
+#include <algorithm>
+
 #include "plantuml_renderer.h"
 
 using qt_editor::PlantUmlRenderer;
@@ -68,6 +70,37 @@ private slots:
     QVERIFY(result.value(QStringLiteral("svg"))
                 .toString()
                 .contains(QStringLiteral("<svg")));
+  }
+
+  void reportsEveryRequestBeyondBatchLimit() {
+    PlantUmlRenderer renderer(QStringLiteral(QT_EDITOR_PLANTUML_JAR));
+    QSignalSpy spy(&renderer, &PlantUmlRenderer::resultsReady);
+    QJsonArray requests;
+    for (int index = 0; index < 65; ++index) {
+      requests.append(
+          QJsonObject{{QStringLiteral("id"), QString::number(index)},
+                      {QStringLiteral("source"), QString()}});
+    }
+    renderer.requestRenderBatch({{QStringLiteral("generation"), 8},
+                                 {QStringLiteral("requests"), requests}});
+    QCOMPARE(spy.size(), 1);
+    const QJsonArray results = spy.takeFirst()
+                                   .at(0)
+                                   .toJsonObject()
+                                   .value(QStringLiteral("results"))
+                                   .toArray();
+    QCOMPARE(results.size(), 65);
+    const auto omitted = std::find_if(
+        results.cbegin(), results.cend(), [](const QJsonValue &value) {
+          return value.toObject().value(QStringLiteral("id")).toString() ==
+                 QStringLiteral("64");
+        });
+    QVERIFY(omitted != results.cend());
+    QVERIFY(!omitted->toObject().value(QStringLiteral("ok")).toBool());
+    QVERIFY(omitted->toObject()
+                .value(QStringLiteral("error"))
+                .toString()
+                .contains(QStringLiteral("64-diagram limit")));
   }
 
   void remotePostOverridesSuccessfulLocalRender() {

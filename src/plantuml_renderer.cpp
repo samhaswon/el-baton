@@ -224,11 +224,20 @@ void PlantUmlRenderer::beginBatch(const QJsonObject &batchObject) {
   const QJsonArray requests =
       batchObject.value(QStringLiteral("requests")).toArray();
   batch.requests.reserve(std::min<qsizetype>(requests.size(), 64));
-  for (qsizetype index = 0; index < requests.size() && index < 64; ++index) {
+  for (qsizetype index = 0; index < requests.size(); ++index) {
     const QJsonObject request = requests.at(index).toObject();
-    batch.requests.append(
-        {request.value(QStringLiteral("id")).toString(),
-         normalizeSource(request.value(QStringLiteral("source")).toString())});
+    const QString id = request.value(QStringLiteral("id")).toString();
+    if (index < 64) {
+      batch.requests.append(
+          {id, normalizeSource(
+                   request.value(QStringLiteral("source")).toString())});
+    } else {
+      batch.results.append(QJsonObject{
+          {QStringLiteral("id"), id},
+          {QStringLiteral("ok"), false},
+          {QStringLiteral("error"),
+           QStringLiteral("PlantUML batch exceeds the 64-diagram limit")}});
+    }
   }
   batch.elapsed.start();
   currentBatch_ = std::move(batch);

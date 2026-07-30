@@ -243,6 +243,28 @@ jobs:
           cpack --config build/ci/CPackConfig.cmake -G DEB
           cpack --config build/ci/CPackConfig.cmake -G RPM
 
+          mapfile -d '' webengine_configs < <(
+            find build/ci/packages/_CPack_Packages \
+              -path '*/usr/libexec/qt.conf' \
+              -type f \
+              -print0
+          )
+          if (( ${#webengine_configs[@]} < 2 )); then
+            echo "Expected relocatable QtWebEngineProcess configuration in both Linux package staging trees." >&2
+            exit 1
+          fi
+          for config in "${webengine_configs[@]}"; do
+            grep --fixed-strings --line-regexp --quiet 'Prefix = ..' "${config}"
+            if grep --fixed-strings --quiet "${GITHUB_WORKSPACE}" "${config}"; then
+              echo "QtWebEngineProcess configuration contains a build path: ${config}" >&2
+              exit 1
+            fi
+            package_usr="$(dirname "$(dirname "${config}")")"
+            test -x "${package_usr}/libexec/QtWebEngineProcess"
+            test -f "${package_usr}/resources/icudtl.dat"
+            test -f "${package_usr}/resources/qtwebengine_resources.pak"
+          done
+
           appdir="${GITHUB_WORKSPACE}/build/ci/AppDir"
           cmake --install build/ci --prefix "${appdir}/usr"
 

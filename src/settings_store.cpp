@@ -1,7 +1,9 @@
 #include "settings_store.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
+#include <QJsonParseError>
 #include <QSaveFile>
 #include <QStandardPaths>
 
@@ -26,11 +28,22 @@ QJsonObject setNestedValue(QJsonObject object, const QStringList &parts,
 
 SettingsStore::SettingsStore(QString path) : path_(std::move(path)) {
   QFile file(path_);
-  if (!file.open(QIODevice::ReadOnly))
+  if (!QFileInfo::exists(path_))
     return;
-  const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
-  if (document.isObject())
+  if (!file.open(QIODevice::ReadOnly)) {
+    loadError_ = file.errorString();
+    return;
+  }
+  QJsonParseError parseError;
+  const QJsonDocument document =
+      QJsonDocument::fromJson(file.readAll(), &parseError);
+  if (parseError.error != QJsonParseError::NoError) {
+    loadError_ = parseError.errorString();
+  } else if (!document.isObject()) {
+    loadError_ = QStringLiteral("Settings root must be an object.");
+  } else {
     root_ = document.object();
+  }
 }
 
 QString SettingsStore::referencePath() {
@@ -61,6 +74,14 @@ void SettingsStore::setValue(const QString &dottedKey, const QVariant &value) {
 }
 
 bool SettingsStore::save(QString *errorMessage) const {
+  if (!loadError_.isEmpty()) {
+    if (errorMessage != nullptr) {
+      *errorMessage =
+          QStringLiteral("Refusing to overwrite invalid settings: %1")
+              .arg(loadError_);
+    }
+    return false;
+  }
   QSaveFile file(path_);
   if (!file.open(QIODevice::WriteOnly)) {
     if (errorMessage != nullptr)

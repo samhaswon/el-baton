@@ -20,6 +20,7 @@ public:
 private:
   QString path_;
   QJsonObject root_;
+  QString loadError_;
 };
 
 } // namespace qt_editor

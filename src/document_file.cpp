@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QSaveFile>
+#include <QStringDecoder>
 
 #include <utility>
 
@@ -55,6 +56,32 @@ QRegularExpression metadataLine(const QString &name) {
   return QRegularExpression(QStringLiteral("(^|\\n)%1:[ \\t]*([^\\r\\n]*)")
                                 .arg(QRegularExpression::escape(name)),
                             QRegularExpression::CaseInsensitiveOption);
+}
+
+struct MetadataSpan final {
+  qsizetype start = -1;
+  qsizetype length = 0;
+  QString linePrefix;
+
+  [[nodiscard]] bool isValid() const { return start >= 0; }
+};
+
+MetadataSpan metadataSpan(const QString &metadata, const QString &name) {
+  const QRegularExpressionMatch match = metadataLine(name).match(metadata);
+  if (!match.hasMatch())
+    return {};
+
+  qsizetype end = match.capturedEnd();
+  if (match.captured(2).trimmed().isEmpty()) {
+    static const QRegularExpression blockItems(
+        QStringLiteral("^(?:\\r?\\n[ \\t]*-[ \\t]+[^\\r\\n]*)+"));
+    const QRegularExpressionMatch items =
+        blockItems.match(metadata.sliced(end));
+    if (items.hasMatch())
+      end += items.capturedLength();
+  }
+  return {match.capturedStart(), end - match.capturedStart(),
+          match.captured(1)};
 }
 
 QString unquoteYamlValue(QString value) {
@@ -151,6 +178,13 @@ QString metadataWithTitle(QString metadata, const QString &title) {
 bool writeDocument(const QString &path, const QString &metadata,
                    const QString &gutter, const QString &body,
                    QString *errorMessage) {
+  const QFileInfo target(path);
+  if (target.isSymLink()) {
+    setError(errorMessage,
+             QStringLiteral("Refusing to write through symbolic link: %1")
+                 .arg(target.absoluteFilePath()));
+    return false;
+  }
   QSaveFile file(path);
   if (!file.open(QIODevice::WriteOnly)) {
     setError(errorMessage, file.errorString());
@@ -169,16 +203,28 @@ bool writeDocument(const QString &path, const QString &metadata,
 
 std::optional<DocumentFile> DocumentFile::load(const QString &path,
                                                QString *errorMessage) {
+  const QFileInfo target(path);
+  if (target.isSymLink()) {
+    setError(errorMessage, QStringLiteral("Refusing to open symbolic link: %1")
+                               .arg(target.absoluteFilePath()));
+    return std::nullopt;
+  }
   QFile file(path);
   if (!file.open(QIODevice::ReadOnly)) {
     setError(errorMessage, file.errorString());
     return std::nullopt;
   }
+  QStringDecoder decoder(QStringDecoder::Utf8);
+  const QString content = decoder.decode(file.readAll());
+  if (decoder.hasError()) {
+    setError(errorMessage, QStringLiteral("The document is not valid UTF-8: %1")
+                               .arg(target.absoluteFilePath()));
+    return std::nullopt;
+  }
 
   DocumentFile document;
   document.path_ = QFileInfo(file).absoluteFilePath();
-  auto [metadataPrefix, body] =
-      splitMetadata(QString::fromUtf8(file.readAll()));
+  auto [metadataPrefix, body] = splitMetadata(content);
   document.metadataPrefix_ = std::move(metadataPrefix);
   if (!document.metadataPrefix_.isEmpty() &&
       body.startsWith(QLatin1Char('\n'))) {
@@ -330,8 +376,7 @@ bool DocumentFile::setTags(const QStringList &tags, QString *errorMessage) {
     metadata = newMetadata(QFileInfo(path_).completeBaseName());
     gutter = QStringLiteral("\n");
   }
-  const QRegularExpression line = metadataLine(QStringLiteral("tags"));
-  const QRegularExpressionMatch match = line.match(metadata);
+  const MetadataSpan span = metadataSpan(metadata, QStringLiteral("tags"));
   QStringList normalized;
   for (const QString &tag : tags) {
     const QString trimmed = tag.trimmed();
@@ -340,17 +385,16 @@ bool DocumentFile::setTags(const QStringList &tags, QString *errorMessage) {
       normalized.append(trimmed);
   }
   if (normalized.isEmpty()) {
-    if (match.hasMatch())
-      metadata.remove(match.capturedStart(), match.capturedLength());
+    if (span.isValid())
+      metadata.remove(span.start, span.length);
   } else {
     QStringList encoded;
     for (const QString &tag : normalized)
       encoded.append(quotedYamlString(tag));
     const QString value =
         QStringLiteral("tags: [%1]").arg(encoded.join(QStringLiteral(", ")));
-    if (match.hasMatch()) {
-      metadata.replace(match.capturedStart(), match.capturedLength(),
-                       match.captured(1) + value);
+    if (span.isValid()) {
+      metadata.replace(span.start, span.length, span.linePrefix + value);
     } else {
       const qsizetype closing = metadata.lastIndexOf(QRegularExpression(
           QStringLiteral("(?:^|\\n)(?:---|\\.\\.)[ \\t]*\\r?\\n?$")));
@@ -373,8 +417,8 @@ bool DocumentFile::setAttachments(const QStringList &attachments,
     metadata = newMetadata(QFileInfo(path_).completeBaseName());
     gutter = QStringLiteral("\n");
   }
-  const QRegularExpression line = metadataLine(QStringLiteral("attachments"));
-  const QRegularExpressionMatch match = line.match(metadata);
+  const MetadataSpan span =
+      metadataSpan(metadata, QStringLiteral("attachments"));
   QStringList normalized;
   for (const QString &attachment : attachments) {
     const QString fileName = QFileInfo(attachment.trimmed()).fileName();
@@ -384,17 +428,16 @@ bool DocumentFile::setAttachments(const QStringList &attachments,
     }
   }
   if (normalized.isEmpty()) {
-    if (match.hasMatch())
-      metadata.remove(match.capturedStart(), match.capturedLength());
+    if (span.isValid())
+      metadata.remove(span.start, span.length);
   } else {
     QStringList encoded;
     for (const QString &attachment : normalized)
       encoded.append(quotedYamlString(attachment));
     const QString value = QStringLiteral("attachments: [%1]")
                               .arg(encoded.join(QStringLiteral(", ")));
-    if (match.hasMatch()) {
-      metadata.replace(match.capturedStart(), match.capturedLength(),
-                       match.captured(1) + value);
+    if (span.isValid()) {
+      metadata.replace(span.start, span.length, span.linePrefix + value);
     } else {
       const qsizetype closing = metadata.lastIndexOf(QRegularExpression(
           QStringLiteral("(?:^|\\n)(?:---|\\.\\.)[ \\t]*\\r?\\n?$")));

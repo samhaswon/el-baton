@@ -31,6 +31,17 @@ QString targetWithoutFragment(const QString &target) {
   return (fragment < 0 ? target : target.first(fragment)).trimmed();
 }
 
+bool pathIsWithin(const QString &candidate, const QString &root) {
+  if (candidate.isEmpty() || root.isEmpty())
+    return false;
+  const QString normalizedCandidate = QDir::cleanPath(candidate);
+  QString normalizedRoot = QDir::cleanPath(root);
+  if (!normalizedRoot.endsWith(QDir::separator()))
+    normalizedRoot += QDir::separator();
+  return normalizedCandidate == QDir::cleanPath(root) ||
+         normalizedCandidate.startsWith(normalizedRoot);
+}
+
 } // namespace
 
 void WorkspaceRepository::setWorkspaceRoot(const QString &path) {
@@ -62,11 +73,18 @@ bool WorkspaceRepository::isSupportedNote(const QString &path) {
 QString WorkspaceRepository::readTitle(const QString &path,
                                        const QString &content) {
   static const QRegularExpression metadataTitle(
-      QStringLiteral("(?:^|\\n)title:[ \\t]*['\"]?([^'\"\\r\\n]+)"),
+      QStringLiteral("(?:^|\\n)title:[ "
+                     "\\t]*(?:'((?:''|[^'])*)'|\"([^\"]*)\"|([^\\r\\n]+))"),
       QRegularExpression::CaseInsensitiveOption);
   const QRegularExpressionMatch metadata = metadataTitle.match(content);
-  if (metadata.hasMatch())
-    return metadata.captured(1).trimmed();
+  if (metadata.hasMatch()) {
+    QString title = !metadata.captured(1).isNull() ? metadata.captured(1)
+                    : !metadata.captured(2).isNull()
+                        ? metadata.captured(2)
+                        : metadata.captured(3).trimmed();
+    title.replace(QStringLiteral("''"), QStringLiteral("'"));
+    return title;
+  }
   static const QRegularExpression heading(
       QStringLiteral("(?:^|\\n)#[ \\t]+([^\\r\\n]+)"));
   const QRegularExpressionMatch markdownHeading = heading.match(content);
@@ -84,6 +102,9 @@ void WorkspaceRepository::refresh() {
   const QString notesPath = root.exists(QStringLiteral("notes"))
                                 ? root.filePath(QStringLiteral("notes"))
                                 : workspaceRoot_;
+  const QString canonicalNotesPath = QFileInfo(notesPath).canonicalFilePath();
+  if (canonicalNotesPath.isEmpty())
+    return;
   QDirIterator iterator(notesPath, QDir::Files | QDir::Readable,
                         QDirIterator::Subdirectories);
   const QDir notesDirectory(notesPath);
@@ -91,6 +112,12 @@ void WorkspaceRepository::refresh() {
     const QString path = iterator.next();
     if (!isSupportedNote(path))
       continue;
+    const QFileInfo candidate(path);
+    const QString canonicalPath = candidate.canonicalFilePath();
+    if (candidate.isSymLink() ||
+        !pathIsWithin(canonicalPath, canonicalNotesPath)) {
+      continue;
+    }
     QFile file(path);
     const QString source = file.open(QIODevice::ReadOnly)
                                ? QString::fromUtf8(file.readAll())

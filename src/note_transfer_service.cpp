@@ -14,6 +14,8 @@
 namespace qt_editor {
 namespace {
 
+constexpr qint64 kMaximumEnexBytes = 64 * 1024 * 1024;
+
 QString yamlQuote(QString value) {
   value.replace(QLatin1Char('\''), QStringLiteral("''"));
   return QLatin1Char('\'') + value + QLatin1Char('\'');
@@ -90,6 +92,13 @@ void importEnex(const QString &sourcePath, const QString &workspaceRoot,
   if (!source.open(QIODevice::ReadOnly)) {
     result.errors.append(
         QStringLiteral("%1: %2").arg(sourcePath, source.errorString()));
+    return;
+  }
+  if (source.size() > kMaximumEnexBytes) {
+    result.errors.append(
+        QStringLiteral("%1: ENEX input exceeds the %2 MiB import limit.")
+            .arg(sourcePath)
+            .arg(kMaximumEnexBytes / (1024 * 1024)));
     return;
   }
   const QString notesPath =
