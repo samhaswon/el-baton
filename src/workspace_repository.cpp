@@ -34,12 +34,21 @@ QString targetWithoutFragment(const QString &target) {
 bool pathIsWithin(const QString &candidate, const QString &root) {
   if (candidate.isEmpty() || root.isEmpty())
     return false;
-  const QString normalizedCandidate = QDir::cleanPath(candidate);
+  QString normalizedCandidate = QDir::cleanPath(candidate);
   QString normalizedRoot = QDir::cleanPath(root);
-  if (!normalizedRoot.endsWith(QDir::separator()))
-    normalizedRoot += QDir::separator();
-  return normalizedCandidate == QDir::cleanPath(root) ||
-         normalizedCandidate.startsWith(normalizedRoot);
+  normalizedCandidate.replace(QLatin1Char('\\'), QLatin1Char('/'));
+  normalizedRoot.replace(QLatin1Char('\\'), QLatin1Char('/'));
+  if (!normalizedRoot.endsWith(QLatin1Char('/')))
+    normalizedRoot += QLatin1Char('/');
+#ifdef Q_OS_WIN
+  constexpr Qt::CaseSensitivity pathCaseSensitivity = Qt::CaseInsensitive;
+#else
+  constexpr Qt::CaseSensitivity pathCaseSensitivity = Qt::CaseSensitive;
+#endif
+  const QString rootWithoutSeparator = normalizedRoot.chopped(1);
+  return normalizedCandidate.compare(rootWithoutSeparator,
+                                     pathCaseSensitivity) == 0 ||
+         normalizedCandidate.startsWith(normalizedRoot, pathCaseSensitivity);
 }
 
 } // namespace
