@@ -23,7 +23,8 @@ int main(int argc, char *argv[]) {
   QCoreApplication::setOrganizationName(QStringLiteral("El Baton"));
   QCoreApplication::setOrganizationDomain(QStringLiteral("el-baton.app"));
   QCoreApplication::setApplicationName(QStringLiteral("El Baton"));
-  QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0"));
+  QCoreApplication::setApplicationVersion(
+      QStringLiteral(QT_EDITOR_APPLICATION_VERSION));
 
   QApplication application(argc, argv);
   application.setStyle(QStyleFactory::create(QStringLiteral("Fusion")));

@@ -79,6 +79,55 @@ GCC/Clang, or `/GL` and the corresponding link step for MSVC). Configure with
 `-DEL_BATON_ENABLE_IPO=OFF` to disable LTO for a toolchain that passes the probe
 but has a downstream linker or packaging issue.
 
+The numeric CMake project version remains `0.0.0`. Nightly builds add a
+validated prerelease tag without changing CMake's numeric `project(VERSION)`
+value:
+
+```bash
+cmake -S . -B build/nightly \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DEL_BATON_VERSION_TAG=0.0.0-nightly29
+```
+
+`EL_BATON_VERSION_SUFFIX=nightly29` is equivalent for local builds. The
+application and portable artifact names use `0.0.0-nightly29`; Debian records
+`0.0.0~nightly29`, and RPM records `0.0.0-0.nightly29`, so package managers
+sort the nightly before the stable `0.0.0` release. Nightly CI passes the Git
+tag explicitly and rejects tags that do not match this format.
+
+To publish a nightly, make sure the numeric portion of the tag matches
+`project(el_baton VERSION ...)` in `CMakeLists.txt`, then push the tag:
+
+```bash
+git tag 0.0.0-nightly29
+git push origin 0.0.0-nightly29
+```
+
+This triggers `.github/workflows/nightly.yml`, builds every supported package,
+and publishes them in a GitHub prerelease named `0.0.0-nightly29`. Increment
+the nightly number for subsequent builds:
+
+```text
+0.0.0-nightly30
+0.0.0-nightly31
+```
+
+When advancing the application version, update the numeric CMake project
+version first and restart the nightly sequence if desired. For example:
+
+```cmake
+project(el_baton VERSION 0.1.0 LANGUAGES C CXX)
+```
+
+```bash
+git tag 0.1.0-nightly1
+git push origin 0.1.0-nightly1
+```
+
+A tag whose numeric portion differs from the CMake project version, or whose
+suffix does not match `nightly<number>`, fails during CMake configuration
+instead of producing inconsistently versioned packages.
+
 Qt 6.10.3's bundled Chromium currently triggers AddressSanitizer's
 `new_delete_type_mismatch` check during QtWebEngine startup in Mojo code. Debug
 GUI executables narrowly disable that one check by default; unit-test

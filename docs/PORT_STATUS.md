@@ -100,3 +100,6 @@ stub being mistaken for finished work.
 5. Improve startup time.
 6. Lock down exposed WebEngine navigation/chrome actions, including refresh,
    after the desired behavior and complete affected surface are specified.
+7. Reduce executable and packaged binary size after the functionality and
+   feature-parity work is complete. This may include auditing deployed Qt
+   modules, plugins, translations, resources, and release linker settings.

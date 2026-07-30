@@ -4,6 +4,37 @@ project(el_baton VERSION 0.0.0 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
 
+set(EL_BATON_VERSION_TAG "" CACHE STRING
+  "Complete prerelease version, for example 0.0.0-nightly29")
+set(EL_BATON_VERSION_SUFFIX "" CACHE STRING
+  "Prerelease suffix, for example nightly29")
+if(EL_BATON_VERSION_TAG AND EL_BATON_VERSION_SUFFIX)
+  message(FATAL_ERROR
+    "Set only one of EL_BATON_VERSION_TAG or EL_BATON_VERSION_SUFFIX.")
+endif()
+
+set(EL_BATON_VERSION "${PROJECT_VERSION}")
+set(EL_BATON_PRERELEASE_SUFFIX "")
+if(EL_BATON_VERSION_TAG)
+  string(REPLACE "." "\\." EL_BATON_VERSION_PATTERN "${PROJECT_VERSION}")
+  if(NOT EL_BATON_VERSION_TAG MATCHES
+      "^${EL_BATON_VERSION_PATTERN}-(nightly[0-9]+)$")
+    message(FATAL_ERROR
+      "EL_BATON_VERSION_TAG must match ${PROJECT_VERSION}-nightly<number>.")
+  endif()
+  set(EL_BATON_VERSION "${EL_BATON_VERSION_TAG}")
+  set(EL_BATON_PRERELEASE_SUFFIX "${CMAKE_MATCH_1}")
+elseif(EL_BATON_VERSION_SUFFIX)
+  if(NOT EL_BATON_VERSION_SUFFIX MATCHES "^nightly[0-9]+$")
+    message(FATAL_ERROR
+      "EL_BATON_VERSION_SUFFIX must match nightly<number>.")
+  endif()
+  set(EL_BATON_PRERELEASE_SUFFIX "${EL_BATON_VERSION_SUFFIX}")
+  set(EL_BATON_VERSION
+    "${PROJECT_VERSION}-${EL_BATON_PRERELEASE_SUFFIX}")
+endif()
+message(STATUS "El Baton version: ${EL_BATON_VERSION}")
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -348,6 +379,8 @@ endif()
 
 qt_add_executable(el-baton src/main.cpp)
 target_link_libraries(el-baton PRIVATE el_baton_core)
+target_compile_definitions(el-baton PRIVATE
+  QT_EDITOR_APPLICATION_VERSION="${EL_BATON_VERSION}")
 el_baton_enable_webengine_asan_workaround(el-baton)
 set_target_properties(el-baton PROPERTIES
   OUTPUT_NAME "el-baton"
@@ -446,7 +479,7 @@ set(CPACK_PACKAGE_CONTACT "Samuel Howard")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Markdown-based knowledge and note editor")
 set(CPACK_PACKAGE_DESCRIPTION
   "El Baton is a native Qt Markdown knowledge and note editor.")
-set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VERSION "${EL_BATON_VERSION}")
 set(CPACK_PACKAGE_FILE_NAME
   "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
 set(CPACK_PACKAGE_DIRECTORY "${CMAKE_BINARY_DIR}/packages")
@@ -454,11 +487,23 @@ set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 set(CPACK_DEBIAN_PACKAGE_SECTION "editors")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
+if(EL_BATON_PRERELEASE_SUFFIX)
+  set(CPACK_DEBIAN_PACKAGE_VERSION
+    "${PROJECT_VERSION}~${EL_BATON_PRERELEASE_SUFFIX}")
+else()
+  set(CPACK_DEBIAN_PACKAGE_VERSION "${PROJECT_VERSION}")
+endif()
 set(CPACK_DEBIAN_PACKAGE_DEPENDS
   "libc6, libstdc++6, libhunspell-1.7-0, libminizip1t64, libyaml-cpp0.8, zlib1g")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 set(CPACK_RPM_PACKAGE_LICENSE "AGPL-3.0-or-later")
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Editors")
+set(CPACK_RPM_PACKAGE_VERSION "${PROJECT_VERSION}")
+if(EL_BATON_PRERELEASE_SUFFIX)
+  set(CPACK_RPM_PACKAGE_RELEASE "0.${EL_BATON_PRERELEASE_SUFFIX}")
+else()
+  set(CPACK_RPM_PACKAGE_RELEASE "1")
+endif()
 include(CPack)
 
 include(CTest)

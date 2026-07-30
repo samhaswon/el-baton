@@ -2,6 +2,12 @@ name: Native CI
 
 on:
   workflow_call:
+    inputs:
+      version_tag:
+        description: "Optional prerelease version, such as 0.0.0-nightly29"
+        required: false
+        type: string
+        default: ""
   pull_request:
   push:
     branches:
@@ -19,6 +25,8 @@ concurrency:
 env:
   QT_VERSION: 6.10.2
   EL_BATON_CI_DEPS_ROOT: ${{ github.workspace }}/.ci-deps
+  EL_BATON_VERSION_TAG: ${{ inputs.version_tag }}
+  EL_BATON_BUILD_VERSION: ${{ inputs.version_tag || '0.0.0' }}
 
 jobs:
   build-and-test:
@@ -164,6 +172,7 @@ jobs:
             "-DQSCINTILLA_LIBRARY=${QSCINTILLA_LIBRARY}" \
             "-DKF6SyntaxHighlighting_DIR=${KF6SyntaxHighlighting_DIR}" \
             "-DPLANTUML_JAR=${PLANTUML_JAR}" \
+            "-DEL_BATON_VERSION_TAG=${EL_BATON_VERSION_TAG}" \
             -DBUILD_TESTING=ON
 
       - name: Configure
@@ -179,6 +188,7 @@ jobs:
             "-DQSCINTILLA_LIBRARY=$env:QSCINTILLA_LIBRARY" `
             "-DKF6SyntaxHighlighting_DIR=$env:KF6SyntaxHighlighting_DIR" `
             "-DPLANTUML_JAR=$env:PLANTUML_JAR" `
+            "-DEL_BATON_VERSION_TAG=$env:EL_BATON_VERSION_TAG" `
             -DBUILD_TESTING=ON
 
       - name: Build
@@ -281,7 +291,7 @@ jobs:
 
           mkdir -p build/ci/packages
           APPIMAGE_EXTRACT_AND_RUN=1 \
-          OUTPUT="${GITHUB_WORKSPACE}/build/ci/packages/el-baton-0.1.0-linux-${{ matrix.arch }}.AppImage" \
+          OUTPUT="${GITHUB_WORKSPACE}/build/ci/packages/el-baton-${EL_BATON_BUILD_VERSION}-linux-${{ matrix.arch }}.AppImage" \
             "${tool}" \
               --appdir "${appdir}" \
               --desktop-file "${appdir}/usr/share/applications/el-baton.desktop" \
@@ -297,7 +307,7 @@ jobs:
           cmake --install build/ci --prefix "$stage" --config Release
           New-Item -ItemType Directory -Force build/ci/packages | Out-Null
           Compress-Archive -Path (Join-Path $stage "*") `
-            -DestinationPath build/ci/packages/el-baton-0.1.0-windows-${{ matrix.arch }}.zip
+            -DestinationPath "build/ci/packages/el-baton-$env:EL_BATON_BUILD_VERSION-windows-${{ matrix.arch }}.zip"
 
       - name: Build macOS deployment
         if: matrix.platform == 'macos'
@@ -308,7 +318,7 @@ jobs:
           cmake --install build/ci --prefix build/ci/stage
           mkdir -p build/ci/packages
           tar -C build/ci/stage -czf \
-            build/ci/packages/el-baton-0.1.0-macos-arm64.tar.gz .
+            "build/ci/packages/el-baton-${EL_BATON_BUILD_VERSION}-macos-arm64.tar.gz" .
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6
