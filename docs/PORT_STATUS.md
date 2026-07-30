@@ -30,7 +30,7 @@ stub being mistaken for finished work.
 | Note, web, attachment, and local file links | Working | `file://` navigation is restricted to the configured workspace to prevent path traversal. |
 | Search | Working | Results include contextual note previews with highlighted matches and are populated incrementally. |
 | Info and attachment metadata | Working | Heading entries navigate to source positions; file size/timestamps/text counts/link counts and referenced attachment MIME/size/timestamps are exposed with open actions. |
-| Import/export | Partial | Markdown and ENEX imports run natively, including ENEX resources. ENEX source files are capped at 64 MiB; resource streaming and background import remain to be implemented. The active note exports to canonical Markdown, self-contained HTML, or a paginated print-CSS PDF with rendered diagrams; multi-note archives and the remaining platform import formats still need parity work. |
+| Import/export | Partial | Markdown and ENEX imports run natively off the UI thread. ENEX source files are capped at 64 MiB and resources are streamed through bounded temporary files with a 32 MiB decoded-resource limit. The active note exports to canonical Markdown, self-contained HTML, or a paginated print-CSS PDF with rendered diagrams; HTML/PDF capture waits for the exact saved preview generation. Multi-note archives and the remaining platform import formats still need parity work. |
 | Automatic note renaming | Not ported | The setting is shown as unavailable. |
 
 ## Source editor
@@ -88,18 +88,15 @@ stub being mistaken for finished work.
 
 ## Near-term priorities
 
-1. Stream ENEX attachments to bounded temporary files and move conversion off
-   the UI thread. The current 64 MiB source-file ceiling bounds memory exposure
-   but does not make large imports responsive.
-2. Finish multi-note export archives and the lower-use import formats retained
+1. Finish multi-note export archives and the lower-use import formats retained
    in the Electron dumper.
-3. Continue side-by-side visual and interaction testing against the reference
+2. Continue side-by-side visual and interaction testing against the reference
    app, especially preview spacing, syntax highlighting, and scroll behavior.
-4. Add packaging and platform integrations only after the core workflows are at
+3. Add packaging and platform integrations only after the core workflows are at
    parity and the Electron reference is no longer needed for comparison.
-5. Improve startup time.
-6. Lock down exposed WebEngine navigation/chrome actions, including refresh,
+4. Improve startup time.
+5. Lock down exposed WebEngine navigation/chrome actions, including refresh,
    after the desired behavior and complete affected surface are specified.
-7. Reduce executable and packaged binary size after the functionality and
+6. Reduce executable and packaged binary size after the functionality and
    feature-parity work is complete. This may include auditing deployed Qt
    modules, plugins, translations, resources, and release linker settings.

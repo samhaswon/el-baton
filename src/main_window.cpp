@@ -770,6 +770,8 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget *parent)
           &MainWindow::updateWindowTitle);
   connect(bridge_, &PreviewBridge::browserMetricsChanged, this,
           &MainWindow::updateStatus);
+  connect(bridge_, &PreviewBridge::renderApplied, this,
+          &MainWindow::finishPreviewCapture);
   connect(bridge_, &PreviewBridge::plantUmlRenderRequested, plantUmlRenderer_,
           &PlantUmlRenderer::requestRenderBatch);
   connect(plantUmlRenderer_, &PlantUmlRenderer::resultsReady, bridge_,
@@ -3180,21 +3182,36 @@ void MainWindow::importNotes() {
                      "*.mdown *.markdown *.markdn *.mdtxt *.mdtext *.txt)"));
   if (paths.isEmpty())
     return;
-  const ImportResult result =
-      NoteTransferService::importFiles(paths, workspace_.workspaceRoot());
-  workspace_.refresh();
-  refreshWorkspaceViews();
-  QString summary = QStringLiteral("Imported %1 notes and %2 attachments.")
-                        .arg(result.notesImported)
-                        .arg(result.attachmentsImported);
-  if (!result.errors.isEmpty()) {
-    summary +=
-        QStringLiteral("\n\n%1").arg(result.errors.join(QLatin1Char('\n')));
-    QMessageBox::warning(this, QStringLiteral("Import completed with errors"),
-                         summary);
-  } else {
-    QMessageBox::information(this, QStringLiteral("Import complete"), summary);
-  }
+  importInProgress_ = true;
+  importAction_->setEnabled(false);
+  statusBar()->showMessage(QStringLiteral("Importing notes…"));
+  auto *watcher = new QFutureWatcher<ImportResult>(this);
+  connect(
+      watcher, &QFutureWatcher<ImportResult>::finished, this, [this, watcher] {
+        const ImportResult result = watcher->result();
+        watcher->deleteLater();
+        importInProgress_ = false;
+        workspace_.refresh();
+        refreshWorkspaceViews();
+        updateDocumentActions();
+        QString summary =
+            QStringLiteral("Imported %1 notes and %2 attachments.")
+                .arg(result.notesImported)
+                .arg(result.attachmentsImported);
+        if (!result.errors.isEmpty()) {
+          summary += QStringLiteral("\n\n%1").arg(
+              result.errors.join(QLatin1Char('\n')));
+          QMessageBox::warning(
+              this, QStringLiteral("Import completed with errors"), summary);
+        } else {
+          QMessageBox::information(this, QStringLiteral("Import complete"),
+                                   summary);
+        }
+      });
+  watcher->setFuture(
+      QtConcurrent::run([paths, workspaceRoot = workspace_.workspaceRoot()] {
+        return NoteTransferService::importFiles(paths, workspaceRoot);
+      }));
 }
 
 void MainWindow::exportMarkdown() {
@@ -3226,21 +3243,20 @@ void MainWindow::exportHtml() {
   const QString sourcePath = currentPath_;
   const QString title = QFileInfo(currentPath_).completeBaseName();
   const QPointer<MainWindow> guard(this);
-  preview_->page()->runJavaScript(
-      QStringLiteral("document.getElementById('preview')?.innerHTML || ''"),
-      [guard, destination, sourcePath, title](const QVariant &value) {
-        if (guard.isNull())
-          return;
-        const QString html = selfContainedPreviewHtml(
-            value.toString(), title, sourcePath, guard->workspace_);
-        QString error;
-        if (!writeExportFile(destination, html.toUtf8(), &error)) {
-          QMessageBox::critical(guard, QStringLiteral("Export failed"), error);
-        } else {
-          guard->statusBar()->showMessage(
-              QStringLiteral("Exported %1").arg(destination), 3000);
-        }
-      });
+  captureCurrentPreviewHtml([guard, destination, sourcePath,
+                             title](const QString &fragment) {
+    if (guard.isNull())
+      return;
+    const QString html = selfContainedPreviewHtml(fragment, title, sourcePath,
+                                                  guard->workspace_);
+    QString error;
+    if (!writeExportFile(destination, html.toUtf8(), &error)) {
+      QMessageBox::critical(guard, QStringLiteral("Export failed"), error);
+    } else {
+      guard->statusBar()->showMessage(
+          QStringLiteral("Exported %1").arg(destination), 3000);
+    }
+  });
 }
 
 void MainWindow::exportPdf() {
@@ -3256,59 +3272,57 @@ void MainWindow::exportPdf() {
   const QString sourcePath = currentPath_;
   const QString title = QFileInfo(currentPath_).completeBaseName();
   const QPointer<MainWindow> guard(this);
-  preview_->page()->runJavaScript(
-      QStringLiteral("document.getElementById('preview')?.innerHTML || ''"),
-      [guard, destination, sourcePath, title](const QVariant &value) {
-        if (guard.isNull())
-          return;
-        const QString html = selfContainedPreviewHtml(
-            value.toString(), title, sourcePath, guard->workspace_, true);
+  captureCurrentPreviewHtml([guard, destination, sourcePath,
+                             title](const QString &fragment) {
+    if (guard.isNull())
+      return;
+    const QString html = selfContainedPreviewHtml(fragment, title, sourcePath,
+                                                  guard->workspace_, true);
 
-        QTemporaryFile temporary(
-            QDir(QDir::tempPath())
-                .filePath(QStringLiteral("el-baton-print-XXXXXX.html")));
-        temporary.setAutoRemove(false);
-        const QByteArray encodedHtml = html.toUtf8();
-        if (!temporary.open() ||
-            temporary.write(encodedHtml) != encodedHtml.size()) {
-          QMessageBox::critical(
-              guard, QStringLiteral("Export failed"),
-              QStringLiteral("Unable to create the temporary print document."));
-          return;
-        }
-        const QString temporaryPath = temporary.fileName();
-        temporary.close();
+    QTemporaryFile temporary(
+        QDir(QDir::tempPath())
+            .filePath(QStringLiteral("el-baton-print-XXXXXX.html")));
+    temporary.setAutoRemove(false);
+    const QByteArray encodedHtml = html.toUtf8();
+    if (!temporary.open() ||
+        temporary.write(encodedHtml) != encodedHtml.size()) {
+      QMessageBox::critical(
+          guard, QStringLiteral("Export failed"),
+          QStringLiteral("Unable to create the temporary print document."));
+      return;
+    }
+    const QString temporaryPath = temporary.fileName();
+    temporary.close();
 
-        auto *profile = new QWebEngineProfile(guard);
-        auto *page = new QWebEnginePage(profile, guard);
-        page->settings()->setAttribute(
-            QWebEngineSettings::PrintElementBackgrounds, true);
-        page->settings()->setAttribute(
-            QWebEngineSettings::PreferCSSMarginsForPrinting, true);
-        QObject::connect(guard, &QObject::destroyed, page,
-                         [temporaryPath] { QFile::remove(temporaryPath); });
-        QObject::connect(
-            page, &QWebEnginePage::loadFinished, guard,
-            [guard, page, profile, temporaryPath, destination](bool loaded) {
-              const auto cleanup = [page, profile, temporaryPath] {
-                QFile::remove(temporaryPath);
-                page->deleteLater();
-                profile->deleteLater();
-              };
-              if (guard.isNull()) {
-                cleanup();
-                return;
-              }
-              if (!loaded) {
-                cleanup();
-                QMessageBox::critical(
-                    guard, QStringLiteral("Export failed"),
-                    QStringLiteral(
-                        "Unable to load the temporary print document."));
-                return;
-              }
-              page->runJavaScript(
-                  QStringLiteral(R"JS(
+    auto *profile = new QWebEngineProfile(guard);
+    auto *page = new QWebEnginePage(profile, guard);
+    page->settings()->setAttribute(QWebEngineSettings::PrintElementBackgrounds,
+                                   true);
+    page->settings()->setAttribute(
+        QWebEngineSettings::PreferCSSMarginsForPrinting, true);
+    QObject::connect(guard, &QObject::destroyed, page,
+                     [temporaryPath] { QFile::remove(temporaryPath); });
+    QObject::connect(
+        page, &QWebEnginePage::loadFinished, guard,
+        [guard, page, profile, temporaryPath, destination](bool loaded) {
+          const auto cleanup = [page, profile, temporaryPath] {
+            QFile::remove(temporaryPath);
+            page->deleteLater();
+            profile->deleteLater();
+          };
+          if (guard.isNull()) {
+            cleanup();
+            return;
+          }
+          if (!loaded) {
+            cleanup();
+            QMessageBox::critical(
+                guard, QStringLiteral("Export failed"),
+                QStringLiteral("Unable to load the temporary print document."));
+            return;
+          }
+          page->runJavaScript(
+              QStringLiteral(R"JS(
         (async () => {
           document.querySelectorAll('details').forEach(node => { node.open = true; });
           if (window.mermaid) {
@@ -3339,39 +3353,82 @@ void MainWindow::exportPdf() {
           return document.documentElement.scrollHeight;
         })()
       )JS"),
-                  [guard, page, profile, temporaryPath,
-                   destination](const QVariant &) {
-                    if (guard.isNull()) {
-                      QFile::remove(temporaryPath);
-                      page->deleteLater();
-                      profile->deleteLater();
-                      return;
-                    }
-                    page->printToPdf([guard, page, profile, temporaryPath,
-                                      destination](const QByteArray &pdf) {
-                      QFile::remove(temporaryPath);
-                      page->deleteLater();
-                      profile->deleteLater();
-                      if (guard.isNull())
-                        return;
-                      QString error;
-                      if (pdf.isEmpty() ||
-                          !writeExportFile(destination, pdf, &error)) {
-                        QMessageBox::critical(
-                            guard, QStringLiteral("Export failed"),
-                            error.isEmpty()
-                                ? QStringLiteral(
-                                      "Qt WebEngine did not produce a PDF.")
-                                : error);
-                      } else {
-                        guard->statusBar()->showMessage(
-                            QStringLiteral("Exported %1").arg(destination),
-                            3000);
-                      }
-                    });
-                  });
-            });
-        page->load(QUrl::fromLocalFile(temporaryPath));
+              [guard, page, profile, temporaryPath,
+               destination](const QVariant &) {
+                if (guard.isNull()) {
+                  QFile::remove(temporaryPath);
+                  page->deleteLater();
+                  profile->deleteLater();
+                  return;
+                }
+                page->printToPdf([guard, page, profile, temporaryPath,
+                                  destination](const QByteArray &pdf) {
+                  QFile::remove(temporaryPath);
+                  page->deleteLater();
+                  profile->deleteLater();
+                  if (guard.isNull())
+                    return;
+                  QString error;
+                  if (pdf.isEmpty() ||
+                      !writeExportFile(destination, pdf, &error)) {
+                    QMessageBox::critical(
+                        guard, QStringLiteral("Export failed"),
+                        error.isEmpty()
+                            ? QStringLiteral(
+                                  "Qt WebEngine did not produce a PDF.")
+                            : error);
+                  } else {
+                    guard->statusBar()->showMessage(
+                        QStringLiteral("Exported %1").arg(destination), 3000);
+                  }
+                });
+              });
+        });
+    page->load(QUrl::fromLocalFile(temporaryPath));
+  });
+}
+
+void MainWindow::captureCurrentPreviewHtml(
+    std::function<void(QString)> callback) {
+  if (pendingPreviewCapture_.has_value() || !previewReady_)
+    return;
+  renderTimer_.stop();
+  forceFullPreviewRender_ = true;
+  renderDocument();
+  pendingPreviewCapture_ =
+      PendingPreviewCapture{generation_, std::move(callback)};
+  editor_->setEnabled(false);
+  exportHtmlAction_->setEnabled(false);
+  exportPdfAction_->setEnabled(false);
+  QTimer::singleShot(30000, this, [this, generation = generation_] {
+    if (!pendingPreviewCapture_.has_value() ||
+        pendingPreviewCapture_->generation != generation)
+      return;
+    pendingPreviewCapture_.reset();
+    editor_->setEnabled(true);
+    updateDocumentActions();
+    QMessageBox::critical(
+        this, QStringLiteral("Export failed"),
+        QStringLiteral("The preview did not finish rendering in time."));
+  });
+}
+
+void MainWindow::finishPreviewCapture(qint64 generation) {
+  if (!pendingPreviewCapture_.has_value() ||
+      generation != static_cast<qint64>(pendingPreviewCapture_->generation))
+    return;
+  auto callback = std::move(pendingPreviewCapture_->callback);
+  pendingPreviewCapture_->generation = 0;
+  const QPointer<MainWindow> guard(this);
+  preview_->page()->runJavaScript(
+      QStringLiteral("document.getElementById('preview')?.innerHTML || ''"),
+      [guard, callback = std::move(callback)](const QVariant &value) mutable {
+        if (guard.isNull())
+          return;
+        guard->pendingPreviewCapture_.reset();
+        guard->editor_->setEnabled(true);
+        guard->updateDocumentActions();
+        callback(value.toString());
       });
 }
 
@@ -4258,13 +4315,16 @@ void MainWindow::updateDocumentActions() {
   if (duplicateAction_ != nullptr)
     duplicateAction_->setEnabled(hasDocument);
   if (importAction_ != nullptr)
-    importAction_->setEnabled(!workspace_.workspaceRoot().isEmpty());
+    importAction_->setEnabled(!importInProgress_ &&
+                              !workspace_.workspaceRoot().isEmpty());
   if (exportMarkdownAction_ != nullptr)
     exportMarkdownAction_->setEnabled(hasDocument);
   if (exportHtmlAction_ != nullptr)
-    exportHtmlAction_->setEnabled(hasDocument);
+    exportHtmlAction_->setEnabled(hasDocument &&
+                                  !pendingPreviewCapture_.has_value());
   if (exportPdfAction_ != nullptr)
-    exportPdfAction_->setEnabled(hasDocument);
+    exportPdfAction_->setEnabled(hasDocument &&
+                                 !pendingPreviewCapture_.has_value());
   if (editAction_ != nullptr)
     editAction_->setEnabled(hasDocument);
   if (splitAction_ != nullptr)

@@ -12,6 +12,7 @@ class NoteTransferServiceTest final : public QObject {
 private slots:
   void importsMarkdownWithTag();
   void importsEnexNotesAndResources();
+  void rejectsMalformedEnexResourceData();
   void rejectsOversizedEnexInput();
 };
 
@@ -57,6 +58,29 @@ void NoteTransferServiceTest::importsEnexNotesAndResources() {
   QVERIFY(imported.has_value());
   QCOMPARE(imported->attachments(), QStringList({QStringLiteral("hello.txt")}));
   QVERIFY(imported->body().contains(QStringLiteral("Hello")));
+}
+
+void NoteTransferServiceTest::rejectsMalformedEnexResourceData() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  QFile source(directory.filePath(QStringLiteral("malformed.enex")));
+  QVERIFY(source.open(QIODevice::WriteOnly));
+  source.write("<?xml version='1.0'?><en-export><note><title>Malformed</title>"
+               "<content><![CDATA[<en-note><p>Body</p></en-note>]]></content>"
+               "<resource><data encoding='base64'>aGVsbG8===</data>"
+               "<mime>text/plain</mime><resource-attributes>"
+               "<file-name>unsafe.txt</file-name></resource-attributes>"
+               "</resource></note></en-export>");
+  source.close();
+
+  const auto result = qt_editor::NoteTransferService::importFiles(
+      {source.fileName()}, directory.filePath("workspace"));
+  QCOMPARE(result.notesImported, 1);
+  QCOMPARE(result.attachmentsImported, 0);
+  QCOMPARE(result.errors.size(), 1);
+  QVERIFY(result.errors.constFirst().contains(QStringLiteral("Base64")));
+  QVERIFY(!QFileInfo::exists(
+      directory.filePath(QStringLiteral("workspace/attachments/unsafe.txt"))));
 }
 
 void NoteTransferServiceTest::rejectsOversizedEnexInput() {

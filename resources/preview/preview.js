@@ -11,8 +11,19 @@
     frameTimes: [], renderTimes: [], activeUntil: 0, samplingFrames: false, lastFrameReportAt: 0,
     metrics: {}, diagnosticsEnabled: false, documentBaseUrl: '', mermaidCache: new Map(), hiddenMermaidNodes: new Map(),
     plantUmlCache: new Map(), plantUmlNodes: new Map(), plantUmlRequest: 0,
-    katexMarkupCache: new Map(), katexRequest: 0, katexPending: new Map()
+    katexMarkupCache: new Map(), katexRequest: 0, katexPending: new Map(),
+    reportedGeneration: 0
   };
+
+  function reportAppliedIfReady() {
+    if (!state.bridge || state.generation <= state.reportedGeneration) return;
+    const pendingDynamic = root.querySelector(
+      '.qt-katex:not([data-rendered]), .qt-mermaid:not([data-rendered]), .qt-plantuml:not([data-rendered])'
+    );
+    if (pendingDynamic) return;
+    state.reportedGeneration = state.generation;
+    state.bridge.reportRenderApplied(state.generation);
+  }
 
   const katexWorker = new Worker('katex_worker.js');
   katexWorker.onmessage = event => {
@@ -35,11 +46,13 @@
       else if (currentGeneration && node?.isConnected) {
         node.className += ' qt-render-error';
         node.textContent = `[KaTeX: ${result.error}]`;
+        node.dataset.rendered = '1';
       }
     }
     state.metrics.katexWorkerMs = performance.now() - started;
     invalidateGeometry();
     reportWhenStable();
+    reportAppliedIfReady();
   };
 
   function decodePayload(value) {
@@ -129,13 +142,13 @@
     });
     node.querySelectorAll('.qt-mermaid').forEach(diagram => {
       const source = mermaidSource(diagram).trim();
-      if (!source) { diagram.hidden = true; return; }
+      if (!source) { diagram.hidden = true; diagram.dataset.rendered = '1'; return; }
       const cached = state.mermaidCache.get(mermaidKey(source, update));
       if (cached) { diagram.innerHTML = cached; diagram.dataset.rendered = '1'; }
     });
     node.querySelectorAll('.qt-plantuml').forEach(diagram => {
       const source = plantUmlSource(diagram).trim();
-      if (!source) { diagram.hidden = true; return; }
+      if (!source) { diagram.hidden = true; diagram.dataset.rendered = '1'; return; }
       const cached = state.plantUmlCache.get(plantUmlKey(source, update));
       if (cached?.ok) installPlantUmlSvg(diagram, cached.svg);
       else if (cached) {
@@ -149,8 +162,13 @@
     return node;
   }
 
-  async function renderDynamic(changedNodes, update) {
-    const mathNodes = changedNodes.flatMap(node => [...node.querySelectorAll('.qt-katex:not([data-rendered])')]);
+  async function renderDynamic(_changedNodes, update) {
+    // Include unresolved nodes retained by an incremental patch. Their
+    // previous asynchronous request may belong to an obsolete generation.
+    const mathNodes = [...root.querySelectorAll('.qt-katex:not([data-rendered])')];
+    if (update.katexEnabled === false) {
+      mathNodes.forEach(node => { node.dataset.rendered = '1'; });
+    }
     if (update.katexEnabled !== false && mathNodes.length) {
       const requestId = ++state.katexRequest;
       const expressions = mathNodes.map((node, index) => ({
@@ -161,7 +179,7 @@
       katexWorker.postMessage({ requestId, expressions, config: update.katexConfig || {} });
     }
 
-    const plantUmlDiagrams = changedNodes.flatMap(node => [...node.querySelectorAll('.qt-plantuml:not([data-rendered])')])
+    const plantUmlDiagrams = [...root.querySelectorAll('.qt-plantuml:not([data-rendered])')]
       .filter(node => plantUmlSource(node).trim());
     if (plantUmlDiagrams.length) {
       const requests = plantUmlDiagrams.map(node => {
@@ -173,9 +191,13 @@
       state.bridge.requestPlantUmlRender({ generation: update.generation, requests });
     }
 
-    const diagrams = changedNodes.flatMap(node => [...node.querySelectorAll('.qt-mermaid:not([data-rendered])')])
+    const diagrams = [...root.querySelectorAll('.qt-mermaid:not([data-rendered])')]
       .filter(node => mermaidSource(node).trim());
-    if (update.mermaidEnabled === false || !diagrams.length) return;
+    if (update.mermaidEnabled === false) {
+      diagrams.forEach(node => { node.dataset.rendered = '1'; });
+      return;
+    }
+    if (!diagrams.length) return;
     const started = performance.now();
     if (update.hiddenMermaidPage) {
       const requests = diagrams.map((node, index) => {
@@ -207,6 +229,7 @@
       } catch (error) {
         // Reference behavior keeps malformed diagrams out of visible layout.
         node.hidden = true;
+        node.dataset.rendered = '1';
       }
     }
     state.metrics.mermaidMs = performance.now() - started;
@@ -263,6 +286,7 @@
     await renderDynamic(changedNodes, update);
     if (update.generation === state.generation) state.renderTimes.push(performance.now());
     reportWhenStable();
+    reportAppliedIfReady();
   }
 
   function invalidateGeometry() { state.geometryDirty = true; }
@@ -338,11 +362,13 @@
         installMermaidSvg(node, result.svg);
       } else {
         node.hidden = true;
+        node.dataset.rendered = '1';
       }
     }
     state.metrics.mermaidMs = batch.mermaidMs || 0;
     invalidateGeometry();
     reportWhenStable();
+    reportAppliedIfReady();
   }
 
   function applyPlantUmlResults(batch) {
@@ -366,6 +392,7 @@
     state.metrics.plantUmlMs = batch.plantUmlMs || 0;
     invalidateGeometry();
     reportWhenStable();
+    reportAppliedIfReady();
   }
 
   function reportWhenStable() {

@@ -148,4 +148,9 @@ void PreviewBridge::requestDetailsToggle(qsizetype detailsIndex, bool open) {
     emit detailsToggleRequested(detailsIndex, open);
 }
 
+void PreviewBridge::reportRenderApplied(qint64 generation) {
+  if (generation >= 0)
+    emit renderApplied(generation);
+}
+
 } // namespace qt_editor

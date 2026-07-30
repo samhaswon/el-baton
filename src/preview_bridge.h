@@ -41,6 +41,7 @@ signals:
   void internalLinkRequested(const QString &kind, const QString &target);
   void taskToggleRequested(qsizetype taskIndex, bool checked);
   void detailsToggleRequested(qsizetype detailsIndex, bool open);
+  void renderApplied(qint64 generation);
   void clientReady(const QString &role);
 
 public slots:
@@ -58,6 +59,9 @@ public slots:
   // Requests source mutations by renderer-assigned semantic indices.
   void requestTaskToggle(qsizetype taskIndex, bool checked);
   void requestDetailsToggle(qsizetype detailsIndex, bool open);
+  // Acknowledges that the visible page has applied a generation, including
+  // all enabled dynamic renderers.
+  void reportRenderApplied(qint64 generation);
   // Requests one semantic batch of Mermaid sources for the optional hidden
   // page.
   void requestMermaidRender(const QJsonObject &batch);

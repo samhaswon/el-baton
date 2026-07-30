@@ -8,13 +8,17 @@
 #include <QFileInfo>
 #include <QMimeDatabase>
 #include <QSaveFile>
+#include <QTemporaryFile>
 #include <QTextDocument>
 #include <QXmlStreamReader>
+
+#include <utility>
 
 namespace qt_editor {
 namespace {
 
 constexpr qint64 kMaximumEnexBytes = 64 * 1024 * 1024;
+constexpr qint64 kMaximumEnexResourceBytes = 32 * 1024 * 1024;
 
 QString yamlQuote(QString value) {
   value.replace(QLatin1Char('\''), QStringLiteral("''"));
@@ -47,17 +51,139 @@ QString htmlToMarkdown(const QString &html) {
 struct EnexResource final {
   QString name;
   QString mime;
-  QByteArray content;
+  QString temporaryPath;
+  QString error;
 };
 
-EnexResource readResource(QXmlStreamReader &xml) {
+int base64Value(char character) {
+  if (character >= 'A' && character <= 'Z')
+    return character - 'A';
+  if (character >= 'a' && character <= 'z')
+    return character - 'a' + 26;
+  if (character >= '0' && character <= '9')
+    return character - '0' + 52;
+  if (character == '+')
+    return 62;
+  if (character == '/')
+    return 63;
+  return -1;
+}
+
+class Base64ResourceWriter final {
+public:
+  explicit Base64ResourceWriter(QIODevice *destination)
+      : destination_(destination) {}
+
+  bool append(QStringView characters) {
+    for (const QChar character : characters) {
+      if (character.isSpace())
+        continue;
+      if (finished_) {
+        error_ = QStringLiteral("Unexpected data after Base64 padding.");
+        return false;
+      }
+      quartet_.append(character.toLatin1());
+      if (quartet_.size() == 4 && !flushQuartet())
+        return false;
+    }
+    return true;
+  }
+
+  bool finish() {
+    if (!error_.isEmpty())
+      return false;
+    if (!quartet_.isEmpty()) {
+      error_ = QStringLiteral("Truncated Base64 resource data.");
+      return false;
+    }
+    return true;
+  }
+
+  [[nodiscard]] QString error() const { return error_; }
+
+private:
+  bool flushQuartet() {
+    const int first = base64Value(quartet_[0]);
+    const int second = base64Value(quartet_[1]);
+    const bool thirdPadding = quartet_[2] == '=';
+    const bool fourthPadding = quartet_[3] == '=';
+    const int third = thirdPadding ? 0 : base64Value(quartet_[2]);
+    const int fourth = fourthPadding ? 0 : base64Value(quartet_[3]);
+    if (first < 0 || second < 0 || third < 0 || fourth < 0 ||
+        (thirdPadding && !fourthPadding)) {
+      error_ = QStringLiteral("Invalid Base64 resource data.");
+      return false;
+    }
+    QByteArray decoded;
+    decoded.reserve(3);
+    decoded.append(static_cast<char>((first << 2) | (second >> 4)));
+    if (!thirdPadding)
+      decoded.append(static_cast<char>(((second & 0x0f) << 4) | (third >> 2)));
+    if (!fourthPadding)
+      decoded.append(static_cast<char>(((third & 0x03) << 6) | fourth));
+    if (bytesWritten_ + decoded.size() > kMaximumEnexResourceBytes) {
+      error_ = QStringLiteral("Resource exceeds the 32 MiB import limit.");
+      return false;
+    }
+    if (destination_->write(decoded) != decoded.size()) {
+      error_ = destination_->errorString();
+      return false;
+    }
+    bytesWritten_ += decoded.size();
+    finished_ = thirdPadding || fourthPadding;
+    quartet_.clear();
+    return true;
+  }
+
+  QIODevice *destination_;
+  QByteArray quartet_;
+  qint64 bytesWritten_ = 0;
+  bool finished_ = false;
+  QString error_;
+};
+
+bool readResourceData(QXmlStreamReader &xml, QIODevice *destination,
+                      QString *error) {
+  Base64ResourceWriter writer(destination);
+  while (!xml.atEnd()) {
+    xml.readNext();
+    if (xml.isCharacters() && !writer.append(xml.text())) {
+      *error = writer.error();
+      while (!xml.atEnd()) {
+        xml.readNext();
+        if (xml.isEndElement() && xml.name() == QStringLiteral("data"))
+          break;
+      }
+      return false;
+    }
+    if (xml.isEndElement() && xml.name() == QStringLiteral("data"))
+      return writer.finish() ? true : (*error = writer.error(), false);
+    if (xml.isStartElement()) {
+      *error = QStringLiteral("Unexpected element inside resource data.");
+      xml.skipCurrentElement();
+      return false;
+    }
+  }
+  *error = QStringLiteral("Unexpected end of Base64 resource data.");
+  return false;
+}
+
+EnexResource readResource(QXmlStreamReader &xml,
+                          const QString &attachmentsPath) {
   EnexResource resource;
+  QTemporaryFile temporary(
+      QDir(attachmentsPath).filePath(QStringLiteral(".enex-resource-XXXXXX")));
+  temporary.setAutoRemove(false);
+  if (!temporary.open()) {
+    resource.error = temporary.errorString();
+    xml.skipCurrentElement();
+    return resource;
+  }
+  resource.temporaryPath = temporary.fileName();
   while (xml.readNextStartElement()) {
     if (xml.name() == QStringLiteral("data")) {
-      resource.content = QByteArray::fromBase64(
-          xml.readElementText(QXmlStreamReader::IncludeChildElements)
-              .simplified()
-              .toLatin1());
+      if (!readResourceData(xml, &temporary, &resource.error))
+        break;
     } else if (xml.name() == QStringLiteral("mime")) {
       resource.mime = xml.readElementText().trimmed();
     } else if (xml.name() == QStringLiteral("resource-attributes")) {
@@ -70,6 +196,11 @@ EnexResource readResource(QXmlStreamReader &xml) {
     } else {
       xml.skipCurrentElement();
     }
+  }
+  temporary.close();
+  if (!resource.error.isEmpty()) {
+    QFile::remove(resource.temporaryPath);
+    resource.temporaryPath.clear();
   }
   return resource;
 }
@@ -130,15 +261,26 @@ void importEnex(const QString &sourcePath, const QString &workspaceRoot,
         modified = xml.readElementText().trimmed();
       else if (xml.name() == QStringLiteral("tag"))
         tags.append(xml.readElementText().trimmed());
-      else if (xml.name() == QStringLiteral("resource"))
-        resources.append(readResource(xml));
-      else
+      else if (xml.name() == QStringLiteral("resource")) {
+        EnexResource resource = readResource(xml, attachmentsPath);
+        if (!resource.error.isEmpty()) {
+          result.errors.append(
+              QStringLiteral("%1: %2").arg(sourcePath, resource.error));
+          continue;
+        }
+        resources.append(std::move(resource));
+      } else
         xml.skipCurrentElement();
+    }
+    if (xml.hasError()) {
+      for (const EnexResource &resource : std::as_const(resources))
+        QFile::remove(resource.temporaryPath);
+      break;
     }
     tags.append(importTag(sourcePath));
     QStringList attachmentNames;
     for (int index = 0; index < resources.size(); ++index) {
-      EnexResource &resource = resources[index];
+      const EnexResource &resource = resources[index];
       QString name = QFileInfo(resource.name).fileName();
       if (name.isEmpty()) {
         const QString suffix =
@@ -150,9 +292,11 @@ void importEnex(const QString &sourcePath, const QString &workspaceRoot,
       }
       const QString destination =
           NoteTransferService::uniquePath(attachmentsPath, name);
-      QString error;
-      if (!writeBytes(destination, resource.content, &error)) {
-        result.errors.append(QStringLiteral("%1: %2").arg(destination, error));
+      if (!QFile::rename(resource.temporaryPath, destination)) {
+        result.errors.append(
+            QStringLiteral("%1: Unable to store imported resource.")
+                .arg(destination));
+        QFile::remove(resource.temporaryPath);
         continue;
       }
       attachmentNames.append(QFileInfo(destination).fileName());

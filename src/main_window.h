@@ -15,6 +15,9 @@
 #include <QSet>
 #include <QTimer>
 
+#include <functional>
+#include <optional>
+
 class QAction;
 class QLabel;
 class QListWidget;
@@ -120,6 +123,8 @@ private:
   void startRenderWrite();
   void finishRenderWrite();
   void publishRenderResult(const RenderResult &result, bool replaceAll);
+  void captureCurrentPreviewHtml(std::function<void(QString)> callback);
+  void finishPreviewCapture(qint64 generation);
   [[nodiscard]] bool saveActiveDocument(bool reportSuccess);
   [[nodiscard]] bool maybeSave();
   void updateWindowTitle();
@@ -268,6 +273,12 @@ private:
   double processCpuPercent_ = 0;
   double processMemoryMiB_ = 0;
   bool previewReady_ = false;
+  bool importInProgress_ = false;
+  struct PendingPreviewCapture final {
+    quint64 generation = 0;
+    std::function<void(QString)> callback;
+  };
+  std::optional<PendingPreviewCapture> pendingPreviewCapture_;
   bool forceFullPreviewRender_ = false;
   bool applyingEditorTransform_ = false;
   bool updatingViewModeActions_ = false;
