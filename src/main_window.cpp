@@ -2521,10 +2521,51 @@ void MainWindow::refreshWorkspaceViews() {
 void MainWindow::selectCurrentNoteInExplorer() {
   if (noteTree_ == nullptr || currentPath_.isEmpty())
     return;
-  QTreeWidgetItem *item = explorerItemsByPath_.value(
-      QFileInfo(currentPath_).absoluteFilePath(), nullptr);
-  if (item == nullptr || noteTree_->currentItem() == item)
+  const QString currentAbsolutePath =
+      QFileInfo(currentPath_).absoluteFilePath();
+  QTreeWidgetItem *currentItem = noteTree_->currentItem();
+  if (currentItem != nullptr &&
+      QFileInfo(currentItem->data(0, Qt::UserRole).toString())
+              .absoluteFilePath() == currentAbsolutePath) {
+    // A note can appear in All Notes, Favorites, Untagged, and one or more
+    // tag/notebook branches. Keep the occurrence the user actually selected
+    // instead of replacing it with the first path-indexed occurrence.
     return;
+  }
+  const QString currentBranch =
+      currentItem != nullptr && currentItem->parent() != nullptr
+          ? currentItem->parent()->data(0, Qt::UserRole + 1).toString()
+          : QString();
+  QTreeWidgetItem *sameBranchItem = nullptr;
+  QTreeWidgetItem *visibleItem = nullptr;
+  const QList<QTreeWidgetItem *> candidates = noteTree_->findItems(
+      QStringLiteral("*"), Qt::MatchWildcard | Qt::MatchRecursive);
+  for (QTreeWidgetItem *candidate : candidates) {
+    const QString candidatePath = candidate->data(0, Qt::UserRole).toString();
+    if (candidatePath.isEmpty() ||
+        QFileInfo(candidatePath).absoluteFilePath() != currentAbsolutePath)
+      continue;
+    bool visible = !candidate->isHidden();
+    for (QTreeWidgetItem *ancestor = candidate->parent();
+         visible && ancestor != nullptr; ancestor = ancestor->parent()) {
+      visible = !ancestor->isHidden() && ancestor->isExpanded();
+    }
+    if (visible && !currentBranch.isEmpty() && candidate->parent() != nullptr &&
+        candidate->parent()->data(0, Qt::UserRole + 1).toString() ==
+            currentBranch) {
+      sameBranchItem = candidate;
+      break;
+    }
+    if (visible && visibleItem == nullptr)
+      visibleItem = candidate;
+  }
+
+  QTreeWidgetItem *item =
+      sameBranchItem != nullptr ? sameBranchItem : visibleItem;
+  if (item == nullptr) {
+    noteTree_->setCurrentItem(nullptr);
+    return;
+  }
   noteTree_->setCurrentItem(item);
   noteTree_->scrollToItem(item);
 }
