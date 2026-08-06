@@ -43,7 +43,25 @@ set(CMAKE_AUTORCC ON)
 
 option(EL_BATON_ENABLE_IPO "Enable interprocedural optimization in Release builds" ON)
 option(EL_BATON_ENABLE_FUZZING "Build Clang/libFuzzer targets" OFF)
-if(EL_BATON_ENABLE_IPO)
+set(EL_BATON_DEPLOY_WEBENGINE_LOCALES "en-US" CACHE STRING
+  "Semicolon-separated Qt WebEngine locales included in packages")
+option(EL_BATON_DEPLOY_WEBENGINE_DEVTOOLS
+  "Include Chromium DevTools resources in packages" OFF)
+if(NOT EL_BATON_DEPLOY_WEBENGINE_LOCALES)
+  message(FATAL_ERROR
+    "EL_BATON_DEPLOY_WEBENGINE_LOCALES must retain at least one locale.")
+endif()
+foreach(EL_BATON_WEBENGINE_LOCALE IN LISTS EL_BATON_DEPLOY_WEBENGINE_LOCALES)
+  if(NOT EL_BATON_WEBENGINE_LOCALE MATCHES "^[A-Za-z0-9_-]+$")
+    message(FATAL_ERROR
+      "Invalid Qt WebEngine deployment locale: ${EL_BATON_WEBENGINE_LOCALE}")
+  endif()
+endforeach()
+if(EL_BATON_ENABLE_IPO AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  message(WARNING
+    "GCC interprocedural optimization is disabled because it miscompiles "
+    "Qt application startup; Release builds still use -O3.")
+elseif(EL_BATON_ENABLE_IPO)
   include(CheckIPOSupported)
   check_ipo_supported(RESULT EL_BATON_IPO_SUPPORTED OUTPUT EL_BATON_IPO_ERROR LANGUAGES C CXX)
   if(EL_BATON_IPO_SUPPORTED)
@@ -502,9 +520,22 @@ endif()
 qt_generate_deploy_app_script(
   TARGET el-baton
   OUTPUT_SCRIPT EL_BATON_DEPLOY_SCRIPT
+  NO_TRANSLATIONS
+  EXCLUDE_PLUGIN_TYPES qmltooling
   NO_UNSUPPORTED_PLATFORM_ERROR
 )
 install(SCRIPT "${EL_BATON_DEPLOY_SCRIPT}")
+
+# Qt's WebEngine deployment hook installs every Chromium locale and its
+# developer-tools resource bundle. El Baton currently ships an English UI and
+# disables DevTools, so retain only the explicitly selected runtime locales and
+# omit the unused developer payload.
+configure_file(
+  cmake/PruneDeployment.cmake.in
+  "${CMAKE_CURRENT_BINARY_DIR}/PruneDeployment.cmake"
+  @ONLY
+)
+install(SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/PruneDeployment.cmake")
 if(UNIX AND NOT APPLE)
   # Qt's deployment helper writes an absolute CPack staging prefix into the
   # QtWebEngineProcess qt.conf. Replace it after deployment so an installed
@@ -526,6 +557,7 @@ set(CPACK_PACKAGE_FILE_NAME
   "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
 set(CPACK_PACKAGE_DIRECTORY "${CMAKE_BINARY_DIR}/packages")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_STRIP_FILES TRUE)
 if(WIN32)
   set(CPACK_PACKAGE_FILE_NAME
     "el-baton-${CPACK_PACKAGE_VERSION}-windows-x64-setup")
@@ -574,6 +606,12 @@ include(CPack)
 
 include(CTest)
 if(BUILD_TESTING)
+  add_test(NAME deployment_pruning_tests
+    COMMAND "${CMAKE_COMMAND}"
+      -DPRUNE_SCRIPT=${CMAKE_CURRENT_BINARY_DIR}/PruneDeployment.cmake
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/deployment-pruning-test
+      -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/deployment_pruning_test.cmake)
+
   add_executable(application_paths_tests tests/application_paths_test.cpp)
   target_link_libraries(application_paths_tests PRIVATE el_baton_core Qt6::Test)
   add_test(NAME application_paths_tests COMMAND application_paths_tests)

@@ -74,10 +74,12 @@ The native targets compile with the project's strict warning set, including
 
 CMake's Release configuration supplies `-O3` for GCC/Clang or `/O2` for MSVC;
 the project also requests `/Qpar` for MSVC. Interprocedural optimization is
-enabled after a compiler capability check, which supplies LTO (`-flto` for
-GCC/Clang, or `/GL` and the corresponding link step for MSVC). Configure with
-`-DEL_BATON_ENABLE_IPO=OFF` to disable LTO for a toolchain that passes the probe
-but has a downstream linker or packaging issue.
+enabled after a compiler capability check for Clang and MSVC, supplying
+`-flto` or `/GL` and the corresponding link step. GCC LTO is deliberately
+disabled: a packaged Release smoke test reproduces a Qt application-startup
+miscompile even though the compiler capability probe succeeds. Configure with
+`-DEL_BATON_ENABLE_IPO=OFF` to disable LTO for another toolchain that passes
+the probe but has a downstream linker or packaging issue.
 
 The numeric CMake project version remains `0.0.0`. Nightly builds add a
 validated prerelease tag without changing CMake's numeric `project(VERSION)`
@@ -326,6 +328,16 @@ Linux packages replace Qt's generated `QtWebEngineProcess` configuration with
 a relocatable `qt.conf`. The helper therefore resolves its resources and
 translations from the installed `/usr` prefix rather than CPack's temporary
 staging directory.
+
+Release deployment strips application targets and excludes Qt translation
+catalogs, QML debugging/tooling plugins, and Chromium DevTools resources that
+the application does not expose. Because the application UI is currently
+English-only, packages retain only the `en-US` WebEngine locale by default.
+Distributors can select additional Chromium locales with a semicolon-separated
+CMake list, for example
+`-DEL_BATON_DEPLOY_WEBENGINE_LOCALES="en-US;fr;de"`. DevTools resources can be
+restored for a diagnostic package with
+`-DEL_BATON_DEPLOY_WEBENGINE_DEVTOOLS=ON`.
 
 The same matrix is reused for tag publication. Tags matching `*-nightly*`
 produce a GitHub prerelease through `.github/workflows/nightly.yml`; tags

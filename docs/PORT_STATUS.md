@@ -80,12 +80,12 @@ stub being mistaken for finished work.
 | Area | Status | Notes |
 | --- | --- | --- |
 | Diagnostics | Working | Debug defaults on, Release defaults off; command-line overrides and separate UI/render counters are available. |
-| Release optimization | Working | GCC/Clang use `-O3` and LTO; MSVC uses `/O2 /Qpar` and `/GL` when the capability probe succeeds. |
+| Release optimization | Working | GCC/Clang use `-O3`; Clang uses LTO, and MSVC uses `/O2 /Qpar` plus `/GL` when the capability probe succeeds. GCC LTO is deliberately disabled because packaged-startup smoke testing found a reproducible Qt initialization miscompile. |
 | C/C++ formatting | Working | Native application and test sources have been normalized with `clang-format`; contributor and build documentation records the format/check commands and excludes vendored code. |
 | Native unit tests | Working | CTest covers rendering, serialization, watching, spellcheck, diagrams, generated assets, and paths. Data-integrity and scalability regressions additionally assert strict UTF-8 rejection, unchanged-note/attachment reuse, graph invalidation, and watcher detection when file size and timestamps are unchanged. Scroll-sync tests cover ownership, stale generations, rate-limit coalescing, queued end events, and runtime mode/frame-rate changes. WebEngine policy tests cover navigation, reload, request types, schemes, and symlink confinement. |
 | Code scanning | Working | CodeQL analyzes workflow and JavaScript/TypeScript sources plus a manual native C/C++ build on Ubuntu. |
 | Build CI | Working | Clean Release builds and CTest run on Ubuntu x64/ARM64, Windows x64, and macOS ARM64. Linux publishes AppImage, DEB, and RPM artifacts for both architectures; Windows publishes a deployed x64 ZIP and a smoke-tested NSIS installer. Intel macOS is intentionally excluded, while Windows ARM64 is unavailable because the official Qt packages omit Qt WebEngine. |
-| Packaging and signing | Partial | CI publishes tagged releases and nightly prereleases with ZIP/tar bundles, a Windows NSIS installer, AppImage, DEB, RPM, and SHA-256 manifests. Windows installation/uninstallation is covered by a silent CI smoke test. Self-signed development artifacts are acceptable for the initial native releases; public-trust signing and macOS notarization remain later work. |
+| Packaging and signing | Partial | CI publishes tagged releases and nightly prereleases with ZIP/tar bundles, a Windows NSIS installer, AppImage, DEB, RPM, and SHA-256 manifests. Release installs are stripped, omit unused QML tooling and Chromium DevTools payloads, and retain only selected WebEngine locales. Windows installation/uninstallation is covered by a silent CI smoke test. Self-signed development artifacts are acceptable for the initial native releases; public-trust signing and macOS notarization remain later work. |
 | Updater and notifications | Working | Channel-aware stable/nightly checks run at startup, daily, and on demand. Available releases are reported with a link that opens the official HTTPS GitHub release page in the user's browser; the native port intentionally does not perform in-place updates. Background failures remain silent. |
 | Battery-aware behavior | Working | The toolbar uses the reference AC/battery icons with native power-source detection on Linux, Windows, and macOS. Manual and automatic activation drive preview render delay, spellcheck/autocomplete policy, and a coalescing bidirectional scroll-sync frame-rate cap. |
 
@@ -102,6 +102,8 @@ stub being mistaken for finished work.
 5. Continue adversarial WebEngine testing against the packaged application,
    including external/local images, link handoff, copy actions, and denied
    reload/navigation paths.
-6. Reduce executable and packaged binary size after the functionality and
-   feature-parity work is complete. This may include auditing deployed Qt
-   modules, plugins, translations, resources, and release linker settings.
+6. Continue reducing packaged binary size. The first deployment audit removed
+   unused translations, WebEngine locales, QML tooling, and Chromium DevTools
+   assets while enabling install-time stripping. Qt WebEngine and the local
+   PlantUML JAR are now the largest remaining payloads and require explicit
+   functionality or portability tradeoffs before further reduction.

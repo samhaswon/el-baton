@@ -273,10 +273,18 @@ jobs:
             test -x "${package_usr}/libexec/QtWebEngineProcess"
             test -f "${package_usr}/resources/icudtl.dat"
             test -f "${package_usr}/resources/qtwebengine_resources.pak"
+            test ! -f "${package_usr}/resources/qtwebengine_devtools_resources.pak"
+            test -f "${package_usr}/translations/qtwebengine_locales/en-US.pak"
+            if find "${package_usr}/translations/qtwebengine_locales" \
+                -type f -name '*.pak' ! -name 'en-US.pak' -print -quit | grep -q .; then
+              echo "Linux package retained an unselected WebEngine locale." >&2
+              exit 1
+            fi
           done
 
           appdir="${GITHUB_WORKSPACE}/build/ci/AppDir"
-          cmake --install build/ci --prefix "${appdir}/usr"
+          cmake --install build/ci --prefix "${appdir}/usr" --strip
+          du -sh "${appdir}/usr"
 
           tool="${RUNNER_TEMP}/linuxdeploy-${{ matrix.package_arch }}.AppImage"
           url="https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-${{ matrix.package_arch }}.AppImage"
@@ -305,6 +313,19 @@ jobs:
           $env:PATH = "$env:EL_BATON_CI_RUNTIME_PATH;$env:VCPKG_INSTALLATION_ROOT\installed\${{ matrix.vcpkg_triplet }}\bin;$env:QT_ROOT_DIR\bin;$env:PATH"
           $stage = Join-Path $env:GITHUB_WORKSPACE "build/ci/stage"
           cmake --install build/ci --prefix "$stage" --config Release
+          $webEngineLocales = Get-ChildItem $stage -Recurse -File -Filter "*.pak" |
+            Where-Object { $_.Directory.Name -eq "qtwebengine_locales" }
+          if ($webEngineLocales.Count -ne 1 -or
+              $webEngineLocales[0].Name -ne "en-US.pak") {
+            throw "Windows deployment did not retain exactly the selected WebEngine locale."
+          }
+          if (Get-ChildItem $stage -Recurse -File `
+              -Filter "qtwebengine_devtools_resources*.pak") {
+            throw "Windows deployment retained Chromium DevTools resources."
+          }
+          $stageBytes = (Get-ChildItem $stage -Recurse -File |
+            Measure-Object -Property Length -Sum).Sum
+          Write-Host ("Deployed payload: {0:N1} MiB" -f ($stageBytes / 1MB))
           New-Item -ItemType Directory -Force build/ci/packages | Out-Null
           Compress-Archive -Path (Join-Path $stage "*") `
             -DestinationPath "build/ci/packages/el-baton-$env:EL_BATON_BUILD_VERSION-windows-${{ matrix.arch }}.zip"
@@ -357,7 +378,15 @@ jobs:
         env:
           DYLD_LIBRARY_PATH: ${{ env.EL_BATON_CI_LIBRARY_PATH }}
         run: |
-          cmake --install build/ci --prefix build/ci/stage
+          cmake --install build/ci --prefix build/ci/stage --strip
+          test -f build/ci/stage/el-baton.app/Contents/Resources/qtwebengine_locales/en-US.pak
+          test ! -f build/ci/stage/el-baton.app/Contents/Resources/qtwebengine_devtools_resources.pak
+          if find build/ci/stage -path '*/qtwebengine_locales/*.pak' \
+              ! -name 'en-US.pak' -print -quit | grep -q .; then
+            echo "macOS package retained an unselected WebEngine locale." >&2
+            exit 1
+          fi
+          du -sh build/ci/stage
           mkdir -p build/ci/packages
           tar -C build/ci/stage -czf \
             "build/ci/packages/el-baton-${EL_BATON_BUILD_VERSION}-macos-arm64.tar.gz" .
