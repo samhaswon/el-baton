@@ -508,7 +508,7 @@
     const copy = event.target.closest('.copy');
     if (copy) {
       const code = copy.parentElement?.querySelector('pre code');
-      if (code) navigator.clipboard.writeText(code.textContent || '');
+      if (code) state.bridge?.requestClipboardWrite(code.textContent || '');
       return;
     }
     const anchor = event.target.closest('a[href]');

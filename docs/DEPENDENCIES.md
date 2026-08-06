@@ -254,8 +254,10 @@ and update handoff is restricted to the official HTTPS GitHub release page.
 Background failures are intentionally silent. Signed in-place installation can
 follow after packaging and signing are settled.
 
-Qt dialogs provide the current update result notifications. Add native
-portal/OS notification integration only where those dialogs prove insufficient.
+Qt dialogs provide the current update result notifications and open the release
+page in the user's browser. This notification-and-handoff behavior is the
+intended updater scope; the native application does not need to install updates
+itself.
 - Use UPower over Qt DBus on Linux and native power APIs on Windows/macOS.
   Battery-aware rendering must tolerate an unavailable power service.
 
@@ -269,6 +271,8 @@ also need their normal Qt deployment tools and signing/notarization flows.
 Do not choose the updater before deciding the produced artifacts and signing
 model. The existing AppImage/deb/rpm/snap, NSIS/portable/zip, and dmg/pkg/zip
 matrix should be restored incrementally rather than treated as one milestone.
+Self-signed development and pre-release artifacts are acceptable initially;
+public trust and notarization can follow when the release process stabilizes.
 
 ## Test-port implications
 

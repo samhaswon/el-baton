@@ -12,6 +12,7 @@
 #include "reference_icons.h"
 #include "sync_controller.h"
 #include "update_checker.h"
+#include "webengine_security.h"
 #include "workspace_graph_view.h"
 #include "workspace_watcher.h"
 
@@ -89,8 +90,6 @@
 #include <QWebEnginePage>
 #include <QWebEngineProfile>
 #include <QWebEngineSettings>
-#include <QWebEngineUrlRequestInfo>
-#include <QWebEngineUrlRequestInterceptor>
 #include <QWebEngineView>
 #include <QWindow>
 #include <Qsci/qsciscintilla.h>
@@ -351,43 +350,6 @@ protected:
   }
 };
 
-class WorkspaceRequestInterceptor final
-    : public QWebEngineUrlRequestInterceptor {
-public:
-  explicit WorkspaceRequestInterceptor(std::function<QString()> workspaceRoot,
-                                       QObject *parent = nullptr)
-      : QWebEngineUrlRequestInterceptor(parent),
-        workspaceRoot_(std::move(workspaceRoot)) {}
-
-  void interceptRequest(QWebEngineUrlRequestInfo &info) override {
-    const QUrl url = info.requestUrl();
-    if (url.scheme() != QStringLiteral("file"))
-      return;
-    const QString candidate = QFileInfo(url.toLocalFile()).canonicalFilePath();
-    if (candidate.isEmpty()) {
-      info.block(true);
-      return;
-    }
-    const QString webRoot = QFileInfo(webDirectory()).canonicalFilePath();
-    if (isInside(webRoot, candidate))
-      return;
-    const QString workspace = QFileInfo(workspaceRoot_()).canonicalFilePath();
-    if (!isInside(workspace, candidate))
-      info.block(true);
-  }
-
-private:
-  static bool isInside(const QString &parent, const QString &child) {
-    if (parent.isEmpty() || child.isEmpty())
-      return false;
-    const QString prefix =
-        parent.endsWith(QLatin1Char('/')) ? parent : parent + QLatin1Char('/');
-    return child == parent || child.startsWith(prefix);
-  }
-
-  std::function<QString()> workspaceRoot_;
-};
-
 QLabel *panelHeading(const QString &text, QWidget *parent) {
   auto *heading = new QLabel(text, parent);
   heading->setObjectName(QStringLiteral("paneHeading"));
@@ -629,7 +591,13 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget *parent)
   createMenus();
   documentSplitter_ = new QSplitter(Qt::Horizontal, this);
   editor_ = new QsciScintilla(documentSplitter_);
-  preview_ = new QWebEngineView(documentSplitter_);
+  previewProfile_ = new QWebEngineProfile(QCoreApplication::instance());
+  hardenWebEngineProfile(previewProfile_);
+  const QUrl previewUrl =
+      QUrl::fromLocalFile(webAssetPath(QStringLiteral("preview.html")));
+  auto *previewPage = new RestrictedWebEnginePage(previewProfile_, previewUrl);
+  preview_ = new QWebEngineView(previewPage, documentSplitter_);
+  previewPage->setParent(preview_);
   documentSplitter_->addWidget(editor_);
   documentSplitter_->addWidget(preview_);
   documentSplitter_->setSizes(splitViewSizes_);
@@ -1041,6 +1009,11 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget *parent)
 MainWindow::~MainWindow() {
   if (renderWatcher_.isRunning())
     renderWatcher_.future().waitForFinished();
+  if (previewProfile_ != nullptr) {
+    previewProfile_->setUrlRequestInterceptor(nullptr);
+    previewProfile_->deleteLater();
+    previewProfile_ = nullptr;
+  }
   delete pipeline_;
 }
 
@@ -2076,7 +2049,12 @@ QWidget *MainWindow::createHelpPanel() {
       QStringLiteral("background:#262626;color:#aaa;border-bottom:1px solid "
                      "#000;padding:9px 12px;"));
   layout->addWidget(header);
-  auto *content = new QWebEngineView(panel);
+  const QUrl helpUrl =
+      QUrl::fromLocalFile(webAssetPath(QStringLiteral("preview.html")));
+  auto *helpPage = new RestrictedWebEnginePage(previewProfile_, helpUrl);
+  auto *content = new QWebEngineView(helpPage, panel);
+  helpPage->setParent(content);
+  content->setContextMenuPolicy(Qt::NoContextMenu);
   auto *helpBridge = new PreviewBridge(content);
   auto helpPipeline = std::make_shared<MarkdownPipeline>();
   auto *channel = new QWebChannel(content->page());
@@ -3394,23 +3372,29 @@ void MainWindow::configureEditor() {
 
 void MainWindow::configurePreview() {
   auto *interceptor = new WorkspaceRequestInterceptor(
-      [this] { return workspace_.workspaceRoot(); }, this);
-  preview_->page()->profile()->setUrlRequestInterceptor(interceptor);
+      webDirectory(), [this] { return workspace_.workspaceRoot(); }, this);
+  previewProfile_->setUrlRequestInterceptor(interceptor);
+  const QUrl previewUrl =
+      QUrl::fromLocalFile(webAssetPath(QStringLiteral("preview.html")));
+  preview_->setContextMenuPolicy(Qt::NoContextMenu);
   auto *channel = new QWebChannel(preview_->page());
   channel->registerObject("previewBridge", bridge_);
   preview_->page()->setWebChannel(channel);
-  preview_->setUrl(
-      QUrl::fromLocalFile(webAssetPath(QStringLiteral("preview.html"))));
+  preview_->setUrl(previewUrl);
   if (options_.hiddenMermaidPage) {
-    hiddenMermaidView_ = new QWebEngineView(this);
+    const QUrl mermaidUrl = QUrl::fromLocalFile(
+        webAssetPath(QStringLiteral("mermaid_renderer.html")));
+    hiddenMermaidPage_ =
+        new RestrictedWebEnginePage(previewProfile_, mermaidUrl);
+    hiddenMermaidView_ = new QWebEngineView(hiddenMermaidPage_, this);
+    hiddenMermaidPage_->setParent(hiddenMermaidView_);
     hiddenMermaidView_->resize(1280, 800);
     hiddenMermaidView_->hide();
-    hiddenMermaidPage_ = hiddenMermaidView_->page();
+    hiddenMermaidView_->setContextMenuPolicy(Qt::NoContextMenu);
     auto *hiddenChannel = new QWebChannel(hiddenMermaidPage_);
     hiddenChannel->registerObject("previewBridge", bridge_);
     hiddenMermaidPage_->setWebChannel(hiddenChannel);
-    hiddenMermaidPage_->setUrl(QUrl::fromLocalFile(
-        webAssetPath(QStringLiteral("mermaid_renderer.html"))));
+    hiddenMermaidPage_->setUrl(mermaidUrl);
   }
 }
 

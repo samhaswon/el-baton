@@ -63,6 +63,9 @@ public slots:
   // Requests source mutations by renderer-assigned semantic indices.
   void requestTaskToggle(qsizetype taskIndex, bool checked);
   void requestDetailsToggle(qsizetype detailsIndex, bool open);
+  // Copies bounded, user-selected preview text without granting Chromium
+  // general clipboard access.
+  void requestClipboardWrite(const QString &text);
   // Acknowledges that the visible page has applied a generation, including
   // all enabled dynamic renderers.
   void reportRenderApplied(qint64 generation);

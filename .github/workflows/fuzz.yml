@@ -35,6 +35,8 @@ jobs:
             corpus: workspace
           - fuzzer: update_checker
             corpus: update
+          - fuzzer: webengine_security
+            corpus: webengine
 
     steps:
       - name: Checkout

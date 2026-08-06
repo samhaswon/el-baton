@@ -302,6 +302,7 @@ set(EL_BATON_SOURCES
   src/spell_checker.cpp
   src/sync_controller.cpp
   src/update_checker.cpp
+  src/webengine_security.cpp
   src/workspace_repository.cpp
   src/workspace_graph_view.cpp
   src/workspace_watcher.cpp
@@ -402,12 +403,15 @@ if(EL_BATON_ENABLE_FUZZING)
     fuzz/workspace_repository_fuzzer.cpp)
   el_baton_add_fuzzer(update_checker_fuzzer
     fuzz/update_checker_fuzzer.cpp)
+  el_baton_add_fuzzer(webengine_security_fuzzer
+    fuzz/webengine_security_fuzzer.cpp)
   add_custom_target(fuzzers DEPENDS
     markdown_pipeline_fuzzer
     document_file_fuzzer
     enex_import_fuzzer
     workspace_repository_fuzzer
     update_checker_fuzzer
+    webengine_security_fuzzer
   )
 endif()
 
@@ -608,6 +612,23 @@ if(BUILD_TESTING)
   add_executable(update_checker_tests tests/update_checker_test.cpp)
   target_link_libraries(update_checker_tests PRIVATE el_baton_core Qt6::Test)
   add_test(NAME update_checker_tests COMMAND update_checker_tests)
+
+  add_executable(webengine_security_tests tests/webengine_security_test.cpp)
+  target_link_libraries(webengine_security_tests PRIVATE el_baton_core Qt6::Test)
+  add_test(NAME webengine_security_tests COMMAND webengine_security_tests)
+
+  add_executable(webengine_lifecycle_tests
+    tests/webengine_lifecycle_test.cpp)
+  target_link_libraries(webengine_lifecycle_tests PRIVATE
+    el_baton_core
+    Qt6::Test
+  )
+  el_baton_enable_webengine_asan_workaround(webengine_lifecycle_tests)
+  add_test(NAME webengine_lifecycle_tests COMMAND webengine_lifecycle_tests)
+  set_tests_properties(webengine_lifecycle_tests PROPERTIES
+    ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0;QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu"
+    TIMEOUT 20
+  )
 
   add_executable(cheatsheet_content_tests tests/cheatsheet_content_test.cpp)
   target_compile_definitions(cheatsheet_content_tests PRIVATE

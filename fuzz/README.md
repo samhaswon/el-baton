@@ -31,6 +31,9 @@ ASAN_OPTIONS=detect_leaks=0 \
 ASAN_OPTIONS=detect_leaks=0 \
   build/fuzz/update_checker_fuzzer fuzz/corpus/update \
   -max_total_time=60 -print_funcs=0
+ASAN_OPTIONS=detect_leaks=0 \
+  build/fuzz/webengine_security_fuzzer fuzz/corpus/webengine \
+  -max_total_time=60 -print_funcs=0
 ```
 
 Use longer, separately persisted corpus-growing jobs in nightly CI. On a crash,

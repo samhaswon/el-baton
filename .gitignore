@@ -59,6 +59,8 @@ fuzz/corpus/**
 !fuzz/corpus/workspace/basic.md
 !fuzz/corpus/update/
 !fuzz/corpus/update/releases.json
+!fuzz/corpus/webengine/
+!fuzz/corpus/webengine/https-image.url
 fuzz/artifacts/
 reference/src/renderer/template/generated/*
 !reference/src/renderer/template/generated/fonts/

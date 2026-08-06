@@ -73,6 +73,7 @@ stub being mistaken for finished work.
 | Cheatsheet | Working | Content is generated from the reference TypeScript source and rendered through the native preview pipeline. |
 | YAML scalar/container fidelity | Working | Strings and spellcheck word collections round-trip as their intended types rather than byte arrays. |
 | Persistent diagram cache | Working | Versioned Mermaid and PlantUML results share a compressed SQLite LRU cache bounded by the configured entry and byte limits. |
+| Embedded WebEngine confinement | Working | Preview, cheatsheet, and hidden Mermaid pages use an off-the-record profile with in-memory cache/cookies/permissions. Main-frame reload/navigation, popups, downloads, file pickers, browser dialogs, privileged permissions, and the default Chromium context menu are disabled. Requests are limited to packaged app assets, workspace media, data media, and HTTPS images; external links still open through the native bridge in the user's browser. |
 
 ## Platform and release work
 
@@ -81,11 +82,11 @@ stub being mistaken for finished work.
 | Diagnostics | Working | Debug defaults on, Release defaults off; command-line overrides and separate UI/render counters are available. |
 | Release optimization | Working | GCC/Clang use `-O3` and LTO; MSVC uses `/O2 /Qpar` and `/GL` when the capability probe succeeds. |
 | C/C++ formatting | Working | Native application and test sources have been normalized with `clang-format`; contributor and build documentation records the format/check commands and excludes vendored code. |
-| Native unit tests | Working | CTest covers rendering, serialization, watching, spellcheck, diagrams, generated assets, and paths. Data-integrity and scalability regressions additionally assert strict UTF-8 rejection, unchanged-note/attachment reuse, graph invalidation, and watcher detection when file size and timestamps are unchanged. |
+| Native unit tests | Working | CTest covers rendering, serialization, watching, spellcheck, diagrams, generated assets, and paths. Data-integrity and scalability regressions additionally assert strict UTF-8 rejection, unchanged-note/attachment reuse, graph invalidation, and watcher detection when file size and timestamps are unchanged. Scroll-sync tests cover ownership, stale generations, rate-limit coalescing, queued end events, and runtime mode/frame-rate changes. WebEngine policy tests cover navigation, reload, request types, schemes, and symlink confinement. |
 | Code scanning | Working | CodeQL analyzes workflow and JavaScript/TypeScript sources plus a manual native C/C++ build on Ubuntu. |
 | Build CI | Working | Clean Release builds and CTest run on Ubuntu x64/ARM64, Windows x64, and macOS ARM64. Linux publishes AppImage, DEB, and RPM artifacts for both architectures; Windows publishes a deployed x64 ZIP. Intel macOS is intentionally excluded, while Windows ARM64 is unavailable because the official Qt packages omit Qt WebEngine. |
-| Packaging and signing | Partial | CI publishes tagged releases and nightly prereleases with unsigned ZIP/tar bundles, AppImage, DEB, RPM, and SHA-256 manifests. Platform installers, signing, and macOS notarization remain to be implemented. |
-| Updater and notifications | Partial | Channel-aware stable/nightly checks run at startup, daily, and on demand. Available releases are reported with Qt dialogs and handed off to the official HTTPS GitHub release page. Background failures remain silent; signed in-place installation and native desktop notification integration are deferred until packaging and signing are settled. |
+| Packaging and signing | Partial | CI publishes tagged releases and nightly prereleases with ZIP/tar bundles, AppImage, DEB, RPM, and SHA-256 manifests. Self-signed development artifacts are acceptable for the initial native releases; platform installers, public-trust signing, and macOS notarization remain later work. |
+| Updater and notifications | Working | Channel-aware stable/nightly checks run at startup, daily, and on demand. Available releases are reported with a link that opens the official HTTPS GitHub release page in the user's browser; the native port intentionally does not perform in-place updates. Background failures remain silent. |
 | Battery-aware behavior | Working | The toolbar uses the reference AC/battery icons with native power-source detection on Linux, Windows, and macOS. Manual and automatic activation drive preview render delay, spellcheck/autocomplete policy, and a coalescing bidirectional scroll-sync frame-rate cap. |
 
 ## Near-term priorities
@@ -96,9 +97,11 @@ stub being mistaken for finished work.
    app, especially preview spacing, syntax highlighting, and scroll behavior.
 3. Add packaging and platform integrations only after the core workflows are at
    parity and the Electron reference is no longer needed for comparison.
-4. Improve startup time.
-5. Lock down exposed WebEngine navigation/chrome actions, including refresh,
-   after the desired behavior and complete affected surface are specified.
+4. Profile and improve startup time using Release builds so sanitizer startup
+   overhead is not mistaken for application work.
+5. Continue adversarial WebEngine testing against the packaged application,
+   including external/local images, link handoff, copy actions, and denied
+   reload/navigation paths.
 6. Reduce executable and packaged binary size after the functionality and
    feature-parity work is complete. This may include auditing deployed Qt
    modules, plugins, translations, resources, and release linker settings.

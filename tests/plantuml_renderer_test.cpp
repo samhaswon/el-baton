@@ -60,7 +60,10 @@ private slots:
               {QStringLiteral("id"), QStringLiteral("diagram")},
               {QStringLiteral("source"),
                QStringLiteral("class Alice\nclass Bob\nAlice --> Bob")}}}}});
-    QVERIFY2(spy.wait(15000), "Local PlantUML renderer did not respond");
+    if (spy.isEmpty()) {
+      QVERIFY2(spy.wait(15000), "Local PlantUML renderer did not respond");
+    }
+    QCOMPARE(spy.size(), 1);
     const QJsonObject batch = spy.takeFirst().at(0).toJsonObject();
     QCOMPARE(batch.value(QStringLiteral("generation")).toInt(), 7);
     const QJsonObject result =

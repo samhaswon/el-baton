@@ -31,6 +31,7 @@ class QCheckBox;
 class QTreeWidgetItem;
 class QWebEngineView;
 class QWebEnginePage;
+class QWebEngineProfile;
 class QsciScintilla;
 class QCloseEvent;
 class QEvent;
@@ -156,6 +157,7 @@ private:
   BenchmarkOptions options_;
   QsciScintilla *editor_ = nullptr;
   QWebEngineView *preview_ = nullptr;
+  QWebEngineProfile *previewProfile_ = nullptr;
   QSplitter *documentSplitter_ = nullptr;
   QWebEnginePage *hiddenMermaidPage_ = nullptr;
   QWebEngineView *hiddenMermaidView_ = nullptr;

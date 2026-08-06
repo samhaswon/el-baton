@@ -64,6 +64,9 @@ private slots:
   void coalescesDuplicateTargets();
   void changesModeAtRuntime();
   void limitsBothDirectionsAndKeepsLatestPosition();
+  void dropsQueuedPreviewUpdateFromStaleGeneration();
+  void releasesPreviewOwnershipAfterQueuedEnd();
+  void modeAndFrameRateChangesHandleQueuedSourceTargets();
 };
 
 void SyncControllerTest::generationFilteringAndRemovedBlocks() {
@@ -248,6 +251,74 @@ void SyncControllerTest::limitsBothDirectionsAndKeepsLatestPosition() {
   bridge.reportPreviewScroll(previewPosition(1, "body", 0.9));
   QVERIFY(editor.firstVisibleLine() < 20);
   QTRY_VERIFY_WITH_TIMEOUT(editor.firstVisibleLine() > 60, 300);
+}
+
+void SyncControllerTest::dropsQueuedPreviewUpdateFromStaleGeneration() {
+  QsciScintilla editor;
+  prepareEditor(editor);
+  PreviewBridge bridge;
+  SyncController controller(&editor, &bridge, SyncMode::Semantic);
+  controller.setBlocks({block("body", 0, 880)}, 4);
+  controller.setTargetFps(5);
+
+  QTest::qWait(210);
+  bridge.reportPreviewScroll(previewPosition(4, "body", 0.1));
+  const int acceptedLine = editor.firstVisibleLine();
+  bridge.reportPreviewScroll(previewPosition(4, "body", 0.9));
+  controller.setBlocks({block("body", 0, 880)}, 5);
+  const quint64 droppedBeforeFlush = controller.metrics().dropped;
+
+  QTest::qWait(250);
+  QCOMPARE(editor.firstVisibleLine(), acceptedLine);
+  QVERIFY(controller.metrics().dropped > droppedBeforeFlush);
+}
+
+void SyncControllerTest::releasesPreviewOwnershipAfterQueuedEnd() {
+  QsciScintilla editor;
+  prepareEditor(editor);
+  PreviewBridge bridge;
+  SyncController controller(&editor, &bridge, SyncMode::Semantic);
+  controller.setBlocks({block("body", 0, 880)}, 8);
+  controller.setTargetFps(5);
+
+  QTest::qWait(210);
+  bridge.reportPreviewScroll(previewPosition(8, "body", 0.1));
+  bridge.reportPreviewScroll(previewPosition(8, "body", 0.9));
+  bridge.reportPreviewScroll(
+      {{"owner", "preview"}, {"generation", 8}, {"phase", "end"}});
+
+  QTRY_VERIFY_WITH_TIMEOUT(editor.firstVisibleLine() > 60, 300);
+  QTRY_COMPARE_WITH_TIMEOUT(controller.owner(), SyncController::Owner::None,
+                            300);
+}
+
+void SyncControllerTest::modeAndFrameRateChangesHandleQueuedSourceTargets() {
+  QsciScintilla editor;
+  prepareEditor(editor);
+  PreviewBridge bridge;
+  SyncController controller(&editor, &bridge, SyncMode::Semantic);
+  controller.setBlocks({block("body", 0, 880)}, 3);
+  controller.setTargetFps(5);
+  QSignalSpy published(&bridge, &PreviewBridge::sourceScrollPublished);
+
+  QTest::qWait(210);
+  editor.verticalScrollBar()->setValue(10);
+  QCOMPARE(published.count(), 1);
+  editor.verticalScrollBar()->setValue(20);
+  editor.verticalScrollBar()->setValue(30);
+  controller.setTargetFps(60);
+  QCOMPARE(published.count(), 2);
+  QVERIFY(published.last().at(0).toJsonObject().value("progress").toDouble() >
+          0.3);
+
+  controller.setTargetFps(5);
+  QTest::qWait(210);
+  editor.verticalScrollBar()->setValue(40);
+  editor.verticalScrollBar()->setValue(50);
+  const int countBeforeDisable = published.count();
+  controller.setMode(SyncMode::Disabled);
+  QTest::qWait(250);
+  QCOMPARE(published.count(), countBeforeDisable);
 }
 
 QTEST_MAIN(SyncControllerTest)

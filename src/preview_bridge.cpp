@@ -1,8 +1,10 @@
 #include "preview_bridge.h"
 #include "persistent_diagram_cache.h"
 
+#include <QClipboard>
 #include <QDesktopServices>
 #include <QDir>
+#include <QGuiApplication>
 #include <QJsonArray>
 #include <QStandardPaths>
 #include <QUrl>
@@ -155,6 +157,15 @@ void PreviewBridge::requestTaskToggle(qsizetype taskIndex, bool checked) {
 void PreviewBridge::requestDetailsToggle(qsizetype detailsIndex, bool open) {
   if (detailsIndex >= 0)
     emit detailsToggleRequested(detailsIndex, open);
+}
+
+void PreviewBridge::requestClipboardWrite(const QString &text) {
+  constexpr qsizetype kMaximumClipboardCharacters = 1024 * 1024;
+  if (text.size() > kMaximumClipboardCharacters)
+    return;
+  if (QClipboard *clipboard = QGuiApplication::clipboard();
+      clipboard != nullptr)
+    clipboard->setText(text);
 }
 
 void PreviewBridge::reportRenderApplied(qint64 generation) {
