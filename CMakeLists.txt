@@ -661,7 +661,8 @@ if(BUILD_TESTING)
 
   add_executable(plantuml_renderer_tests tests/plantuml_renderer_test.cpp)
   target_link_libraries(plantuml_renderer_tests PRIVATE el_baton_core Qt6::Test)
-  add_test(NAME plantuml_renderer_tests COMMAND plantuml_renderer_tests)
+  add_test(NAME plantuml_renderer_tests COMMAND plantuml_renderer_tests
+    -o "${CMAKE_BINARY_DIR}/Testing/Temporary/plantuml_renderer_tests.txt,txt")
 
   add_executable(persistent_diagram_cache_tests tests/persistent_diagram_cache_test.cpp)
   target_link_libraries(persistent_diagram_cache_tests PRIVATE el_baton_core Qt6::Test)

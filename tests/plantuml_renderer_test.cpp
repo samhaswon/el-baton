@@ -5,8 +5,10 @@
 #include <QJsonArray>
 #include <QRegularExpression>
 #include <QSignalSpy>
+#include <QStandardPaths>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QTemporaryDir>
 
 #include <algorithm>
 
@@ -14,10 +16,32 @@
 
 using qt_editor::PlantUmlRenderer;
 
+namespace {
+// A cold JVM and JAR scan can exceed the production default on busy Windows
+// runners. Tests use a wider deadline so they assert rendering, not host cache
+// warmth; production configuration remains unchanged.
+constexpr int kColdJavaTimeoutMs = 30000;
+constexpr int kSignalWaitMs = kColdJavaTimeoutMs + 5000;
+} // namespace
+
 class PlantUmlRendererTest final : public QObject {
   Q_OBJECT
 
 private slots:
+  void initTestCase() {
+    QVERIFY(cacheDirectory_.isValid());
+    // Keep tests out of the user's diagram cache and make direct CI reruns
+    // equivalent to the original CTest invocation.
+    const QByteArray cachePath = cacheDirectory_.path().toUtf8();
+    qputenv("APPDATA", cachePath);
+    qputenv("HOME", cachePath);
+    qputenv("LOCALAPPDATA", cachePath);
+    qputenv("XDG_CACHE_HOME", cachePath);
+    QStandardPaths::setTestModeEnabled(true);
+    PlantUmlRenderer renderer(QStringLiteral(QT_EDITOR_PLANTUML_JAR));
+    QVERIFY(renderer.clearCache());
+  }
+
   void normalizesWrappers() {
     QCOMPARE(
         PlantUmlRenderer::normalizeSource(QStringLiteral("Alice -> Bob\n")),
@@ -52,6 +76,7 @@ private slots:
     const QString jar = QStringLiteral(QT_EDITOR_PLANTUML_JAR);
     QVERIFY2(QFileInfo(jar).isFile(), qPrintable(jar));
     PlantUmlRenderer renderer(jar);
+    renderer.configure(kColdJavaTimeoutMs, 100, 8 * 1024 * 1024, QString());
     QSignalSpy spy(&renderer, &PlantUmlRenderer::resultsReady);
     renderer.requestRenderBatch(
         {{QStringLiteral("generation"), 7},
@@ -61,7 +86,8 @@ private slots:
               {QStringLiteral("source"),
                QStringLiteral("class Alice\nclass Bob\nAlice --> Bob")}}}}});
     if (spy.isEmpty()) {
-      QVERIFY2(spy.wait(15000), "Local PlantUML renderer did not respond");
+      QVERIFY2(spy.wait(kSignalWaitMs),
+               "Local PlantUML renderer did not respond");
     }
     QCOMPARE(spy.size(), 1);
     const QJsonObject batch = spy.takeFirst().at(0).toJsonObject();
@@ -137,7 +163,7 @@ private slots:
     });
 
     PlantUmlRenderer renderer(QStringLiteral(QT_EDITOR_PLANTUML_JAR));
-    renderer.configure(5000, 100, 8 * 1024 * 1024,
+    renderer.configure(kColdJavaTimeoutMs, 100, 8 * 1024 * 1024,
                        QStringLiteral("http://127.0.0.1:%1/plantuml")
                            .arg(server.serverPort()));
     QSignalSpy spy(&renderer, &PlantUmlRenderer::resultsReady);
@@ -148,7 +174,8 @@ private slots:
               QJsonObject{{QStringLiteral("id"), QStringLiteral("remote")},
                           {QStringLiteral("source"),
                            QStringLiteral("Alice -> Bob : hello")}}}}});
-    QVERIFY2(spy.wait(15000), "Remote PlantUML renderer did not respond");
+    QVERIFY2(spy.wait(kSignalWaitMs),
+             "Remote PlantUML renderer did not respond");
     const QJsonObject result = spy.takeFirst()
                                    .at(0)
                                    .toJsonObject()
@@ -197,7 +224,7 @@ private slots:
     });
 
     PlantUmlRenderer renderer(QStringLiteral(QT_EDITOR_PLANTUML_JAR));
-    renderer.configure(5000, 100, 8 * 1024 * 1024,
+    renderer.configure(kColdJavaTimeoutMs, 100, 8 * 1024 * 1024,
                        QStringLiteral("http://127.0.0.1:%1/plantuml")
                            .arg(server.serverPort()));
     QSignalSpy spy(&renderer, &PlantUmlRenderer::resultsReady);
@@ -207,7 +234,7 @@ private slots:
           QJsonArray{QJsonObject{
               {QStringLiteral("id"), QStringLiteral("fallback")},
               {QStringLiteral("source"), QStringLiteral("Alice -> Bob")}}}}});
-    QVERIFY2(spy.wait(15000), "Encoded GET fallback did not respond");
+    QVERIFY2(spy.wait(kSignalWaitMs), "Encoded GET fallback did not respond");
     const QJsonObject result = spy.takeFirst()
                                    .at(0)
                                    .toJsonObject()
@@ -228,6 +255,9 @@ private slots:
                 .match(requestLines.at(1))
                 .hasMatch());
   }
+
+private:
+  QTemporaryDir cacheDirectory_;
 };
 
 QTEST_GUILESS_MAIN(PlantUmlRendererTest)

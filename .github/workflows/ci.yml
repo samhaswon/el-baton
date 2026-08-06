@@ -379,11 +379,18 @@ jobs:
           DYLD_LIBRARY_PATH: ${{ env.EL_BATON_CI_LIBRARY_PATH }}
         run: |
           cmake --install build/ci --prefix build/ci/stage --strip
-          test -f build/ci/stage/el-baton.app/Contents/Resources/qtwebengine_locales/en-US.pak
-          test ! -f build/ci/stage/el-baton.app/Contents/Resources/qtwebengine_devtools_resources.pak
-          if find build/ci/stage -path '*/qtwebengine_locales/*.pak' \
-              ! -name 'en-US.pak' -print -quit | grep -q .; then
-            echo "macOS package retained an unselected WebEngine locale." >&2
+          locale_manifest="$(find build/ci/stage \
+            -path '*/qtwebengine_locales/*.pak' -type f -print)"
+          if [[ "${locale_manifest}" != */qtwebengine_locales/en-US.pak ]] ||
+              [[ "${locale_manifest}" == *$'\n'* ]]; then
+            echo "macOS package did not retain exactly the selected WebEngine locale." >&2
+            printf '%s\n' "${locale_manifest}" >&2
+            exit 1
+          fi
+          if find build/ci/stage -type f \
+              -name 'qtwebengine_devtools_resources*.pak' \
+              -print -quit | grep -q .; then
+            echo "macOS package retained Chromium DevTools resources." >&2
             exit 1
           fi
           du -sh build/ci/stage
