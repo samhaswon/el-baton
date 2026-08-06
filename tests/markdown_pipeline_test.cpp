@@ -1,5 +1,6 @@
 #include <QtTest>
 
+#include <QFile>
 #include <QHash>
 #include <QRegularExpression>
 
@@ -470,6 +471,28 @@ private slots:
     QVERIFY(html.contains(QStringLiteral(
         "href=\"@file/file%3A%2F%2F%2Fworkspace%2Fsupport.txt\"")));
     QVERIFY(html.contains(QStringLiteral("class=\"copy-wrapper\"")));
+  }
+
+  void keepsLooseTaskLabelsBesideTheirCheckboxes() {
+    MarkdownPipeline pipeline;
+    const RenderResult result = pipeline.render(
+        QStringLiteral("- [ ] First paragraph\n\n"
+                       "  A second paragraph in the same task.\n"),
+        1);
+    const QString html = combinedHtml(result);
+
+    QVERIFY2(html.contains(QStringLiteral(
+                 "<li class=\"task-list-item\"><input type=\"checkbox\" "
+                 "data-nth=\"0\"> \n<p>First paragraph</p>")),
+             qPrintable(html));
+
+    QFile previewStylesheet(QStringLiteral(QT_EDITOR_WEB_DIR "/preview.css"));
+    QVERIFY2(previewStylesheet.open(QIODevice::ReadOnly | QIODevice::Text),
+             qPrintable(previewStylesheet.errorString()));
+    const QByteArray css = previewStylesheet.readAll();
+    QVERIFY(css.contains(
+        ".preview .task-list-item > input[type=\"checkbox\"] + p { "
+        "display: inline; }"));
   }
 
   void rendersNestedTableOfContentsLikeReference() {

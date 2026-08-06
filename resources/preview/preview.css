@@ -3,6 +3,7 @@ html, body { min-height: 100%; }
 body { margin: 0; background: var(--qt-surface); color: var(--qt-text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 #preview-shell { box-sizing: border-box; min-height: 100vh; }
 #preview { min-height: 1px; }
+.preview .task-list-item > input[type="checkbox"] + p { display: inline; }
 .render-block { display: flow-root; margin: 0 0 16px; overflow-wrap: anywhere; }
 .render-block:last-child { margin-bottom: 0; }
 .render-block[data-kind="heading"] { margin-top: 24px; }
