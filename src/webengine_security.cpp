@@ -3,7 +3,6 @@
 #include <QAction>
 #include <QFileInfo>
 #include <QWebEngineDownloadRequest>
-#include <QWebEnginePermission>
 #include <QWebEngineProfile>
 #include <QWebEngineSettings>
 
@@ -121,8 +120,18 @@ RestrictedWebEnginePage::RestrictedWebEnginePage(QWebEngineProfile *profile,
   pageSettings->setAttribute(QWebEngineSettings::AllowRunningInsecureContent,
                              false);
 
-  connect(this, &QWebEnginePage::permissionRequested, this,
-          [](const QWebEnginePermission &permission) { permission.deny(); });
+  // Qt 6.10.2's MSVC binaries do not export the shared-data specialization
+  // instantiated by a typed connection to permissionRequested(). WebEngine
+  // emits this compatibility signal for the same request immediately after
+  // permissionRequested(), so use it consistently until the supported Windows
+  // Qt package no longer has that ABI issue.
+  QT_WARNING_PUSH
+  QT_WARNING_DISABLE_DEPRECATED
+  connect(this, &QWebEnginePage::featurePermissionRequested, this,
+          [this](const QUrl &origin, Feature feature) {
+            setFeaturePermission(origin, feature, PermissionDeniedByUser);
+          });
+  QT_WARNING_POP
 
   for (const WebAction action :
        {Back, Forward, Reload, ReloadAndBypassCache, OpenLinkInThisWindow,
