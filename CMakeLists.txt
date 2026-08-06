@@ -419,6 +419,9 @@ qt_add_executable(el-baton src/main.cpp)
 target_link_libraries(el-baton PRIVATE el_baton_core)
 target_compile_definitions(el-baton PRIVATE
   QT_EDITOR_APPLICATION_VERSION="${EL_BATON_VERSION}")
+if(WIN32)
+  target_sources(el-baton PRIVATE resources/packaging/el-baton.rc)
+endif()
 el_baton_enable_webengine_asan_workaround(el-baton)
 set_target_properties(el-baton PROPERTIES
   OUTPUT_NAME "el-baton"
@@ -517,11 +520,36 @@ set(CPACK_PACKAGE_CONTACT "Samuel Howard")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Markdown-based knowledge and note editor")
 set(CPACK_PACKAGE_DESCRIPTION
   "El Baton is a native Qt Markdown knowledge and note editor.")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/samhaswon/el-baton")
 set(CPACK_PACKAGE_VERSION "${EL_BATON_VERSION}")
 set(CPACK_PACKAGE_FILE_NAME
   "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
 set(CPACK_PACKAGE_DIRECTORY "${CMAKE_BINARY_DIR}/packages")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+if(WIN32)
+  set(CPACK_PACKAGE_FILE_NAME
+    "el-baton-${CPACK_PACKAGE_VERSION}-windows-x64-setup")
+  set(CPACK_PACKAGE_INSTALL_DIRECTORY "El Baton")
+  set(CPACK_PACKAGE_INSTALL_REGISTRY_KEY "El Baton")
+  set(CPACK_PACKAGE_EXECUTABLES "el-baton" "El Baton")
+  set(CPACK_CREATE_DESKTOP_LINKS "el-baton")
+  set(CPACK_NSIS_DISPLAY_NAME "El Baton")
+  set(CPACK_NSIS_PACKAGE_NAME "El Baton")
+  set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\el-baton.exe")
+  set(CPACK_NSIS_MUI_ICON
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/icon/icon.ico")
+  set(CPACK_NSIS_MUI_UNIICON
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/icon/icon.ico")
+  set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+  set(CPACK_NSIS_MODIFY_PATH OFF)
+  set(CPACK_NSIS_MANIFEST_DPI_AWARE ON)
+  set(CPACK_NSIS_HELP_LINK
+    "https://github.com/samhaswon/el-baton/issues")
+  set(CPACK_NSIS_URL_INFO_ABOUT
+    "https://github.com/samhaswon/el-baton")
+  set(CPACK_NSIS_CONTACT "Samuel Howard")
+  set(CPACK_NSIS_UNINSTALL_NAME "Uninstall El Baton")
+endif()
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 set(CPACK_DEBIAN_PACKAGE_SECTION "editors")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)

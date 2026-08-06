@@ -314,8 +314,13 @@ after CodeQL initialization, with tests and IPO disabled so analysis focuses on
 the application sources and avoids LTO artifacts.
 
 Linux jobs publish AppImage, DEB, and RPM artifacts for both architectures.
-The Windows x64 job publishes a deployed ZIP artifact, and the macOS ARM64 job
-publishes its deployed application bundle.
+The Windows x64 job publishes both a portable deployed ZIP and a versioned NSIS
+installer. The installer creates Start Menu and desktop shortcuts,
+registers an uninstaller, and offers to remove an existing El Baton installation
+before upgrading. CI performs a silent install/uninstall smoke test and verifies
+that the installed tree includes the executable, preview assets, and
+`QtWebEngineProcess.exe`. The macOS ARM64 job publishes its deployed application
+bundle.
 
 Linux packages replace Qt's generated `QtWebEngineProcess` configuration with
 a relocatable `qt.conf`. The helper therefore resolves its resources and

@@ -137,7 +137,7 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          choco install graphviz --no-progress -y
+          choco install graphviz nsis --no-progress -y
           "$env:ProgramFiles\Graphviz\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           vcpkg install --triplet ${{ matrix.vcpkg_triplet }}
 
@@ -309,6 +309,48 @@ jobs:
           Compress-Archive -Path (Join-Path $stage "*") `
             -DestinationPath "build/ci/packages/el-baton-$env:EL_BATON_BUILD_VERSION-windows-${{ matrix.arch }}.zip"
 
+          cpack --config build/ci/CPackConfig.cmake -G NSIS -C Release
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+          $installer = Join-Path $env:GITHUB_WORKSPACE `
+            "build/ci/packages/el-baton-$env:EL_BATON_BUILD_VERSION-windows-${{ matrix.arch }}-setup.exe"
+          if (-not (Test-Path $installer -PathType Leaf)) {
+            throw "CPack did not produce the expected NSIS installer: $installer"
+          }
+
+          $smokeRoot = Join-Path $env:RUNNER_TEMP "el-baton-installer-smoke"
+          $install = Start-Process -FilePath $installer `
+            -ArgumentList "/S", "/D=$smokeRoot" -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "NSIS smoke installation failed with exit code $($install.ExitCode)"
+          }
+          foreach ($requiredPath in @(
+            (Join-Path $smokeRoot "bin/el-baton.exe"),
+            (Join-Path $smokeRoot "bin/web/preview.html")
+          )) {
+            if (-not (Test-Path $requiredPath -PathType Leaf)) {
+              throw "NSIS installer omitted required file: $requiredPath"
+            }
+          }
+          $webEngineHelper = Get-ChildItem $smokeRoot -Recurse `
+            -Filter QtWebEngineProcess.exe | Select-Object -First 1
+          if ($null -eq $webEngineHelper) {
+            throw "NSIS installer omitted QtWebEngineProcess.exe"
+          }
+
+          $uninstaller = Get-ChildItem $smokeRoot -Filter "*ninstall*.exe" |
+            Select-Object -First 1
+          if ($null -eq $uninstaller) {
+            throw "NSIS installer omitted its uninstaller"
+          }
+          $uninstall = Start-Process -FilePath $uninstaller.FullName `
+            -ArgumentList "/S" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) {
+            throw "NSIS smoke uninstall failed with exit code $($uninstall.ExitCode)"
+          }
+
       - name: Build macOS deployment
         if: matrix.platform == 'macos'
         shell: bash
@@ -330,6 +372,7 @@ jobs:
             build/ci/packages/*.rpm
             build/ci/packages/*.tar.gz
             build/ci/packages/*.zip
+            build/ci/packages/*.exe
           if-no-files-found: error
 
       - name: Upload build logs on failure
