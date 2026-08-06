@@ -259,18 +259,19 @@ void SyncControllerTest::dropsQueuedPreviewUpdateFromStaleGeneration() {
   PreviewBridge bridge;
   SyncController controller(&editor, &bridge, SyncMode::Semantic);
   controller.setBlocks({block("body", 0, 880)}, 4);
-  controller.setTargetFps(5);
 
-  QTest::qWait(210);
   bridge.reportPreviewScroll(previewPosition(4, "body", 0.1));
   const int acceptedLine = editor.firstVisibleLine();
+  controller.setTargetFps(5);
   bridge.reportPreviewScroll(previewPosition(4, "body", 0.9));
-  controller.setBlocks({block("body", 0, 880)}, 5);
   const quint64 droppedBeforeFlush = controller.metrics().dropped;
+  controller.setBlocks({block("body", 0, 880)}, 5);
 
+  QCOMPARE(editor.firstVisibleLine(), acceptedLine);
+  QCOMPARE(controller.metrics().dropped, droppedBeforeFlush + 1);
   QTest::qWait(250);
   QCOMPARE(editor.firstVisibleLine(), acceptedLine);
-  QVERIFY(controller.metrics().dropped > droppedBeforeFlush);
+  QCOMPARE(controller.metrics().dropped, droppedBeforeFlush + 1);
 }
 
 void SyncControllerTest::releasesPreviewOwnershipAfterQueuedEnd() {

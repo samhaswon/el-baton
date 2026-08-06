@@ -66,6 +66,21 @@ void SyncController::setBlocks(QVector<RenderedBlock> blocks,
     publishMetrics();
     return;
   }
+  quint64 discarded = 0;
+  if (generation > generation_) {
+    if (previewSyncPending_.has_value() &&
+        previewSyncPending_->value("generation").toVariant().toULongLong() !=
+            generation) {
+      previewSyncPending_.reset();
+      ++discarded;
+    }
+    if (previewEndPending_.has_value()) {
+      previewEndPending_.reset();
+      ++discarded;
+    }
+    if (!previewSyncPending_.has_value())
+      previewRateTimer_.stop();
+  }
   std::stable_sort(blocks.begin(), blocks.end(),
                    [](const RenderedBlock &a, const RenderedBlock &b) {
                      return a.range.start < b.range.start;
@@ -74,6 +89,9 @@ void SyncController::setBlocks(QVector<RenderedBlock> blocks,
   generation_ = generation;
   lastPublishedBlock_.clear();
   lastPublishedProgress_ = -1.0;
+  metrics_.dropped += discarded;
+  if (discarded > 0)
+    publishMetrics();
 }
 
 void SyncController::setMode(SyncMode mode) {
@@ -98,6 +116,8 @@ void SyncController::setTargetFps(int framesPerSecond) {
   syncIntervalMs_ = interval;
   sourceRateTimer_.stop();
   previewRateTimer_.stop();
+  sourceRateClock_.restart();
+  previewRateClock_.restart();
   if (syncIntervalMs_ == 0) {
     flushSourceScroll();
     flushPreviewScroll();
