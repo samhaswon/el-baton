@@ -73,7 +73,7 @@ stub being mistaken for finished work.
 | Cheatsheet | Working | Content is generated from the reference TypeScript source and rendered through the native preview pipeline. |
 | YAML scalar/container fidelity | Working | Strings and spellcheck word collections round-trip as their intended types rather than byte arrays. |
 | Persistent diagram cache | Working | Versioned Mermaid and PlantUML results share a compressed SQLite LRU cache bounded by the configured entry and byte limits. |
-| Embedded WebEngine confinement | Working | Preview, cheatsheet, and hidden Mermaid pages use an off-the-record profile with in-memory cache/cookies/permissions. Main-frame reload/navigation, popups, downloads, file pickers, browser dialogs, privileged permissions, and the default Chromium context menu are disabled. Requests are limited to packaged app assets, workspace media, data media, and HTTPS images; external links still open through the native bridge in the user's browser. |
+| Embedded WebEngine confinement | Working | Preview, cheatsheet, and hidden Mermaid pages use an off-the-record profile with in-memory cache/cookies/permissions. Main-frame reload/navigation, popups, downloads, file pickers, browser dialogs, privileged permissions, and the default Chromium context menu are disabled. Requests are limited to packaged app assets, workspace media, data media, and HTTPS images; external links still open through the native bridge in the user's browser. Qt 6.10.2/MSVC permission denial uses the compatibility feature signal to avoid a missing `QWebEnginePermission` import-library symbol. |
 
 ## Platform and release work
 

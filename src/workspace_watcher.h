@@ -89,6 +89,7 @@ private:
   WorkspaceSnapshot snapshot_;
   WorkspaceSnapshot canonicalStates_;
   QSet<QString> dirtyFiles_;
+  QSet<QString> dirtyDirectories_;
   WorkspaceWatcherMetrics metrics_;
   bool active_ = false;
 };

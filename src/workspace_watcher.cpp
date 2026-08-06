@@ -28,6 +28,29 @@ QStringList sortedKeys(const QSet<QString> &paths) {
   return result;
 }
 
+QSet<QString> snapshotFilesInDirectory(const WorkspaceSnapshot &snapshot,
+                                       const QString &directory) {
+  QSet<QString> files;
+  for (auto iterator = snapshot.cbegin(); iterator != snapshot.cend();
+       ++iterator) {
+    if (QFileInfo(iterator.key()).absolutePath() == directory)
+      files.insert(iterator.key());
+  }
+  return files;
+}
+
+QSet<QString> diskFilesInDirectory(const QString &directory) {
+  QSet<QString> files;
+  const QFileInfoList entries = QDir(directory).entryInfoList(
+      QDir::Files | QDir::Readable | QDir::NoDotAndDotDot);
+  for (const QFileInfo &entry : entries) {
+    const QString path = entry.absoluteFilePath();
+    if (isSupportedNote(path))
+      files.insert(path);
+  }
+  return files;
+}
+
 WatchedFileState readFileState(const QString &path) {
   const QFileInfo info(path);
   QFile file(path);
@@ -47,7 +70,10 @@ WorkspaceWatcher::WorkspaceWatcher(QObject *parent) : QObject(parent) {
   scanTimer_.setInterval(175);
   connect(&scanTimer_, &QTimer::timeout, this, &WorkspaceWatcher::scan);
   connect(&fileSystemWatcher_, &QFileSystemWatcher::directoryChanged, this,
-          [this](const QString &) { scheduleScan(); });
+          [this](const QString &path) {
+            dirtyDirectories_.insert(QFileInfo(path).absoluteFilePath());
+            scheduleScan();
+          });
   connect(&fileSystemWatcher_, &QFileSystemWatcher::fileChanged, this,
           [this](const QString &path) {
             dirtyFiles_.insert(QFileInfo(path).absoluteFilePath());
@@ -90,6 +116,7 @@ void WorkspaceWatcher::stop() {
   snapshot_.clear();
   canonicalStates_.clear();
   dirtyFiles_.clear();
+  dirtyDirectories_.clear();
   metrics_ = {};
 }
 
@@ -101,6 +128,7 @@ void WorkspaceWatcher::acknowledgeWrite(const QString &path,
   if (!isSupportedNote(absolutePath))
     return;
   acceptDiskState(absolutePath, content);
+  dirtyFiles_.insert(absolutePath);
   if (!fileSystemWatcher_.files().contains(absolutePath))
     fileSystemWatcher_.addPath(absolutePath);
   scheduleScan();
@@ -266,7 +294,31 @@ void WorkspaceWatcher::scan() {
   if (!active_)
     return;
   QStringList directories;
-  const QSet<QString> dirtyFiles = std::exchange(dirtyFiles_, {});
+  QSet<QString> dirtyFiles = std::exchange(dirtyFiles_, {});
+  const QSet<QString> dirtyDirectories = std::exchange(dirtyDirectories_, {});
+  for (const QString &directory : dirtyDirectories) {
+    const QSet<QString> previousFiles =
+        snapshotFilesInDirectory(snapshot_, directory);
+    if (previousFiles != diskFilesInDirectory(directory))
+      continue;
+
+    bool requiresContentAudit = true;
+    for (const QString &path : previousFiles) {
+      const QFileInfo info(path);
+      const WatchedFileState &previous = snapshot_.value(path);
+      if (dirtyFiles.contains(path) || previous.size != info.size() ||
+          previous.modifiedMs != info.lastModified().toMSecsSinceEpoch()) {
+        requiresContentAudit = false;
+        break;
+      }
+    }
+    if (requiresContentAudit) {
+      // Windows can report an edit only as a directory change. If neither the
+      // note set nor cheap metadata identifies the target, hashes are the only
+      // reliable way to detect same-size, timestamp-preserving replacements.
+      dirtyFiles.unite(previousFiles);
+    }
+  }
   const WorkspaceSnapshot current =
       takeSnapshot(&snapshot_, dirtyFiles, &directories);
   const QVector<WorkspaceChange> detected =

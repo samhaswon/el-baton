@@ -24,6 +24,7 @@ private slots:
   void reusesHashesForUnchangedNotes();
   void detectsSameMetadataExternalChanges();
   void suppressesAcknowledgedAppWrites();
+  void acknowledgedWriteDoesNotRehashSiblings();
   void suppressesAcknowledgedAppRenames();
   void reportsExternalWriteRacingAppAcknowledgement();
   void retainsCanonicalHashAcrossLaterWatcherStates();
@@ -196,6 +197,32 @@ void WorkspaceWatcherTest::suppressesAcknowledgedAppWrites() {
   QCOMPARE(changes.size(), 1);
   QCOMPARE(changes.constFirst().kind, WorkspaceChangeKind::Modified);
   QCOMPARE(changes.constFirst().path, path);
+}
+
+void WorkspaceWatcherTest::acknowledgedWriteDoesNotRehashSiblings() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  QDir root(directory.path());
+  QVERIFY(root.mkpath(QStringLiteral("notes")));
+  const QString changedPath = root.filePath(QStringLiteral("notes/changed.md"));
+  QVERIFY(writeFile(changedPath, QByteArrayLiteral("# Before\n")));
+  QVERIFY(writeFile(root.filePath(QStringLiteral("notes/unchanged.md")),
+                    QByteArrayLiteral("# Unchanged\n")));
+
+  WorkspaceWatcher watcher;
+  watcher.setWorkspaceRoot(directory.path());
+  QSignalSpy changesSpy(&watcher, &WorkspaceWatcher::changesDetected);
+  watcher.start();
+  QCOMPARE(watcher.metrics().filesHashed, quint64{2});
+
+  const QByteArray content = QByteArrayLiteral("# App write\n");
+  QVERIFY(writeFile(changedPath, content));
+  watcher.acknowledgeWrite(changedPath, content);
+  QTest::qWait(350);
+
+  QCOMPARE(changesSpy.size(), 0);
+  QCOMPARE(watcher.metrics().filesHashed, quint64{3});
+  QVERIFY(watcher.metrics().fileStatesReused >= 1);
 }
 
 void WorkspaceWatcherTest::suppressesAcknowledgedAppRenames() {

@@ -134,6 +134,15 @@ GUI executables narrowly disable that one check by default; unit-test
 executables retain it. An explicit `ASAN_OPTIONS` overrides the application
 default when investigating or after upgrading QtWebEngine.
 
+CI currently uses Qt 6.10.2. Its Windows MSVC WebEngine import library does not
+export the private shared-data destructor instantiated when application code
+connects directly to `QWebEnginePage::permissionRequested`. The confined
+preview therefore denies permission requests through Qt 6's deprecated
+`featurePermissionRequested` compatibility signal, which WebEngine emits for
+the same request. This workaround deliberately avoids referencing
+`QWebEnginePermission` from application objects. Re-test the current signal on
+Windows and remove the compatibility path when upgrading the CI Qt package.
+
 ## C++ formatting
 
 Native C and C++ sources use `clang-format`. Format the primary application and
