@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDateTime>
+#include <QHash>
 #include <QString>
 #include <QVector>
 
@@ -69,10 +70,19 @@ struct WorkspaceGraph final {
   QVector<WorkspaceGraphEdge> edges;
 };
 
+struct WorkspaceRefreshMetrics final {
+  qsizetype notesRead = 0;
+  qsizetype notesReused = 0;
+  qsizetype attachmentsRead = 0;
+  qsizetype attachmentsReused = 0;
+  bool graphRebuilt = false;
+};
+
 class WorkspaceRepository final {
 public:
   void setWorkspaceRoot(const QString &path);
   void inferFromDocument(const QString &filePath);
+  void invalidatePath(const QString &path);
   void refresh();
 
   [[nodiscard]] const QString &workspaceRoot() const { return workspaceRoot_; }
@@ -92,19 +102,40 @@ public:
   [[nodiscard]] QVector<AttachmentSummary>
   attachmentsForNote(const QString &notePath) const;
   [[nodiscard]] const WorkspaceGraph &graph() const { return graph_; }
+  [[nodiscard]] const WorkspaceRefreshMetrics &lastRefreshMetrics() const {
+    return lastRefreshMetrics_;
+  }
 
 private:
+  struct CachedNote final {
+    qint64 size = 0;
+    qint64 modifiedMs = 0;
+    qint64 metadataChangedMs = 0;
+    NoteSummary summary;
+  };
+
+  struct CachedAttachment final {
+    qint64 size = 0;
+    qint64 modifiedMs = 0;
+    qint64 metadataChangedMs = 0;
+    AttachmentSummary summary;
+  };
+
   [[nodiscard]] static bool isSupportedNote(const QString &path);
   [[nodiscard]] static QString readTitle(const QString &path,
                                          const QString &content);
   [[nodiscard]] QStringList linkTargets(const QString &content) const;
-  [[nodiscard]] QVector<AttachmentSummary> scanAttachments() const;
+  [[nodiscard]] QVector<AttachmentSummary> scanAttachments(bool *changed);
   [[nodiscard]] WorkspaceGraph buildGraph() const;
 
   QString workspaceRoot_;
   QVector<NoteSummary> notes_;
   QVector<AttachmentSummary> attachments_;
   WorkspaceGraph graph_;
+  QHash<QString, CachedNote> noteCache_;
+  QHash<QString, CachedAttachment> attachmentCache_;
+  WorkspaceRefreshMetrics lastRefreshMetrics_;
+  bool graphInitialized_ = false;
 };
 
 } // namespace qt_editor

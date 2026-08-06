@@ -4,7 +4,6 @@
 
 #include <QDir>
 #include <QDirIterator>
-#include <QFile>
 #include <QFileInfo>
 #include <QHash>
 #include <QLocale>
@@ -14,6 +13,7 @@
 #include <QUrl>
 
 #include <algorithm>
+#include <utility>
 
 namespace qt_editor {
 namespace {
@@ -54,7 +54,16 @@ bool pathIsWithin(const QString &candidate, const QString &root) {
 } // namespace
 
 void WorkspaceRepository::setWorkspaceRoot(const QString &path) {
-  workspaceRoot_ = QFileInfo(path).absoluteFilePath();
+  const QString normalized = QFileInfo(path).absoluteFilePath();
+  if (workspaceRoot_ == normalized)
+    return;
+  workspaceRoot_ = normalized;
+  noteCache_.clear();
+  attachmentCache_.clear();
+  notes_.clear();
+  attachments_.clear();
+  graph_ = {};
+  graphInitialized_ = false;
 }
 
 void WorkspaceRepository::inferFromDocument(const QString &filePath) {
@@ -69,6 +78,20 @@ void WorkspaceRepository::inferFromDocument(const QString &filePath) {
     directory.cdUp();
   }
   setWorkspaceRoot(QFileInfo(filePath).absolutePath());
+}
+
+void WorkspaceRepository::invalidatePath(const QString &path) {
+  const QFileInfo info(path);
+  const QString absolutePath = info.absoluteFilePath();
+  const QString canonicalPath = info.canonicalFilePath();
+  const bool removedNote = noteCache_.remove(absolutePath) > 0;
+  bool removedAttachment = attachmentCache_.remove(absolutePath) > 0;
+  if (!canonicalPath.isEmpty() && canonicalPath != absolutePath) {
+    removedAttachment =
+        attachmentCache_.remove(canonicalPath) > 0 || removedAttachment;
+  }
+  if (removedNote || removedAttachment)
+    graphInitialized_ = false;
 }
 
 bool WorkspaceRepository::isSupportedNote(const QString &path) {
@@ -102,21 +125,31 @@ QString WorkspaceRepository::readTitle(const QString &path,
 }
 
 void WorkspaceRepository::refresh() {
+  lastRefreshMetrics_ = {};
   notes_.clear();
   attachments_.clear();
-  graph_ = {};
-  if (workspaceRoot_.isEmpty())
+  if (workspaceRoot_.isEmpty()) {
+    graph_ = {};
+    graphInitialized_ = false;
     return;
+  }
   const QDir root(workspaceRoot_);
   const QString notesPath = root.exists(QStringLiteral("notes"))
                                 ? root.filePath(QStringLiteral("notes"))
                                 : workspaceRoot_;
   const QString canonicalNotesPath = QFileInfo(notesPath).canonicalFilePath();
-  if (canonicalNotesPath.isEmpty())
+  if (canonicalNotesPath.isEmpty()) {
+    noteCache_.clear();
+    attachmentCache_.clear();
+    graph_ = {};
+    graphInitialized_ = false;
     return;
+  }
+  bool graphChanged = false;
   QDirIterator iterator(notesPath, QDir::Files | QDir::Readable,
                         QDirIterator::Subdirectories);
   const QDir notesDirectory(notesPath);
+  QSet<QString> discoveredPaths;
   while (iterator.hasNext()) {
     const QString path = iterator.next();
     if (!isSupportedNote(path))
@@ -127,20 +160,53 @@ void WorkspaceRepository::refresh() {
         !pathIsWithin(canonicalPath, canonicalNotesPath)) {
       continue;
     }
-    QFile file(path);
-    const QString source = file.open(QIODevice::ReadOnly)
-                               ? QString::fromUtf8(file.readAll())
-                               : QString();
-    const std::optional<DocumentFile> document = DocumentFile::load(path);
-    const QString userContent =
-        document.has_value() ? document->body() : source;
-    notes_.append(
-        {path, readTitle(path, source), notesDirectory.relativeFilePath(path),
-         userContent, document.has_value() ? document->tags() : QStringList(),
-         document.has_value() ? document->attachments() : QStringList(),
-         document.has_value() && document->metadataFlag(NoteFlag::Favorited),
-         document.has_value() && document->metadataFlag(NoteFlag::Pinned),
-         document.has_value() && document->metadataFlag(NoteFlag::Deleted)});
+    discoveredPaths.insert(path);
+    const qint64 modifiedMs = candidate.lastModified().toMSecsSinceEpoch();
+    const qint64 metadataChangedMs =
+        candidate.metadataChangeTime().toMSecsSinceEpoch();
+    const auto cached = noteCache_.constFind(path);
+    if (cached != noteCache_.cend() && cached->size == candidate.size() &&
+        cached->modifiedMs == modifiedMs &&
+        cached->metadataChangedMs == metadataChangedMs) {
+      notes_.append(cached->summary);
+      ++lastRefreshMetrics_.notesReused;
+      continue;
+    }
+
+    QString errorMessage;
+    const std::optional<DocumentFile> document =
+        DocumentFile::load(path, &errorMessage);
+    if (!document.has_value()) {
+      graphChanged = noteCache_.remove(path) > 0 || graphChanged;
+      qWarning("Skipping workspace note %s: %s", qPrintable(path),
+               qPrintable(errorMessage));
+      continue;
+    }
+    ++lastRefreshMetrics_.notesRead;
+    graphChanged = true;
+    const QString source = document->metadataPrefix() + document->body();
+    NoteSummary summary{
+        path,
+        readTitle(path, source),
+        notesDirectory.relativeFilePath(path),
+        document->body(),
+        document->tags(),
+        document->attachments(),
+        document->metadataFlag(NoteFlag::Favorited),
+        document->metadataFlag(NoteFlag::Pinned),
+        document->metadataFlag(NoteFlag::Deleted),
+    };
+    notes_.append(summary);
+    noteCache_.insert(path, {candidate.size(), modifiedMs, metadataChangedMs,
+                             std::move(summary)});
+  }
+  for (auto cached = noteCache_.begin(); cached != noteCache_.end();) {
+    if (!discoveredPaths.contains(cached.key())) {
+      cached = noteCache_.erase(cached);
+      graphChanged = true;
+    } else {
+      ++cached;
+    }
   }
   std::sort(notes_.begin(), notes_.end(),
             [](const NoteSummary &left, const NoteSummary &right) {
@@ -148,8 +214,14 @@ void WorkspaceRepository::refresh() {
                 return left.pinned;
               return QString::localeAwareCompare(left.title, right.title) < 0;
             });
-  attachments_ = scanAttachments();
-  graph_ = buildGraph();
+  bool attachmentsChanged = false;
+  attachments_ = scanAttachments(&attachmentsChanged);
+  graphChanged = graphChanged || attachmentsChanged;
+  if (graphChanged || !graphInitialized_) {
+    graph_ = buildGraph();
+    graphInitialized_ = true;
+    lastRefreshMetrics_.graphRebuilt = true;
+  }
 }
 
 QVector<NoteSummary> WorkspaceRepository::search(const QString &query) const {
@@ -383,30 +455,46 @@ QStringList WorkspaceRepository::linkTargets(const QString &content) const {
   return targets;
 }
 
-QVector<AttachmentSummary> WorkspaceRepository::scanAttachments() const {
+QVector<AttachmentSummary> WorkspaceRepository::scanAttachments(bool *changed) {
   QVector<AttachmentSummary> result;
-  if (workspaceRoot_.isEmpty())
+  *changed = false;
+  const auto clearCache = [this, changed] {
+    if (!attachmentCache_.isEmpty()) {
+      attachmentCache_.clear();
+      *changed = true;
+    }
+  };
+  if (workspaceRoot_.isEmpty()) {
+    clearCache();
     return result;
+  }
   const QDir directory(
       QDir(workspaceRoot_).filePath(QStringLiteral("attachments")));
-  if (!directory.exists())
+  if (!directory.exists()) {
+    clearCache();
     return result;
+  }
   const QString rootCanonical =
       QFileInfo(directory.absolutePath()).canonicalFilePath();
-  if (rootCanonical.isEmpty())
+  if (rootCanonical.isEmpty()) {
+    clearCache();
     return result;
+  }
   const QString workspaceCanonical =
       QFileInfo(workspaceRoot_).canonicalFilePath();
   const QString workspacePrefix = workspaceCanonical.endsWith(QLatin1Char('/'))
                                       ? workspaceCanonical
                                       : workspaceCanonical + QLatin1Char('/');
   if (workspaceCanonical.isEmpty() ||
-      !rootCanonical.startsWith(workspacePrefix))
+      !rootCanonical.startsWith(workspacePrefix)) {
+    clearCache();
     return result;
+  }
   const QString rootPrefix = rootCanonical.endsWith(QLatin1Char('/'))
                                  ? rootCanonical
                                  : rootCanonical + QLatin1Char('/');
   QMimeDatabase mimeDatabase;
+  QSet<QString> discoveredPaths;
   QDirIterator iterator(directory.absolutePath(), QDir::Files | QDir::Readable,
                         QDirIterator::Subdirectories);
   while (iterator.hasNext()) {
@@ -414,10 +502,42 @@ QVector<AttachmentSummary> WorkspaceRepository::scanAttachments() const {
     const QString canonical = info.canonicalFilePath();
     if (canonical.isEmpty() || !canonical.startsWith(rootPrefix))
       continue;
-    result.append({canonical,
-                   directory.relativeFilePath(info.absoluteFilePath()),
-                   info.fileName(), mimeDatabase.mimeTypeForFile(info).name(),
-                   info.size(), info.birthTime(), info.lastModified()});
+    const QString cachePath = info.absoluteFilePath();
+    discoveredPaths.insert(cachePath);
+    const qint64 modifiedMs = info.lastModified().toMSecsSinceEpoch();
+    const qint64 metadataChangedMs =
+        info.metadataChangeTime().toMSecsSinceEpoch();
+    const auto cached = attachmentCache_.constFind(cachePath);
+    if (cached != attachmentCache_.cend() && cached->size == info.size() &&
+        cached->modifiedMs == modifiedMs &&
+        cached->metadataChangedMs == metadataChangedMs) {
+      result.append(cached->summary);
+      ++lastRefreshMetrics_.attachmentsReused;
+      continue;
+    }
+    AttachmentSummary summary{
+        canonical,
+        directory.relativeFilePath(info.absoluteFilePath()),
+        info.fileName(),
+        mimeDatabase.mimeTypeForFile(info).name(),
+        info.size(),
+        info.birthTime(),
+        info.lastModified(),
+    };
+    result.append(summary);
+    attachmentCache_.insert(cachePath, {info.size(), modifiedMs,
+                                        metadataChangedMs, std::move(summary)});
+    ++lastRefreshMetrics_.attachmentsRead;
+    *changed = true;
+  }
+  for (auto cached = attachmentCache_.begin();
+       cached != attachmentCache_.end();) {
+    if (!discoveredPaths.contains(cached.key())) {
+      cached = attachmentCache_.erase(cached);
+      *changed = true;
+    } else {
+      ++cached;
+    }
   }
   std::sort(result.begin(), result.end(),
             [](const AttachmentSummary &left, const AttachmentSummary &right) {

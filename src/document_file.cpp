@@ -288,6 +288,25 @@ DocumentFile DocumentFile::withBody(const QString &body, bool updateModified,
   return next;
 }
 
+QString DocumentFile::title() const {
+  const QRegularExpressionMatch match =
+      metadataLine(QStringLiteral("title")).match(metadataPrefix_);
+  if (!match.hasMatch())
+    return QFileInfo(path_).completeBaseName();
+  const QString title = unquoteYamlValue(match.captured(2));
+  return title.isEmpty() ? QFileInfo(path_).completeBaseName() : title;
+}
+
+DocumentFile DocumentFile::withPathAndTitle(const QString &path,
+                                            const QString &title) const {
+  DocumentFile next = *this;
+  next.path_ = QFileInfo(path).absoluteFilePath();
+  next.metadataPrefix_ = metadataWithTitle(next.metadataPrefix_, title);
+  if (next.bodyGutterPrefix_.isEmpty())
+    next.bodyGutterPrefix_ = QStringLiteral("\n");
+  return next;
+}
+
 bool DocumentFile::writeToDisk(QString *errorMessage) const {
   return writeDocument(path_, metadataPrefix_, bodyGutterPrefix_, body_,
                        errorMessage);

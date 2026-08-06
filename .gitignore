@@ -55,6 +55,10 @@ fuzz/corpus/**
 !fuzz/corpus/enex/basic.enex
 !fuzz/corpus/markdown/
 !fuzz/corpus/markdown/basic.md
+!fuzz/corpus/workspace/
+!fuzz/corpus/workspace/basic.md
+!fuzz/corpus/update/
+!fuzz/corpus/update/releases.json
 fuzz/artifacts/
 reference/src/renderer/template/generated/*
 !reference/src/renderer/template/generated/fonts/

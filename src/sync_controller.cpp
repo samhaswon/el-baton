@@ -36,7 +36,11 @@ SyncController::SyncController(QsciScintilla *editor, PreviewBridge *bridge,
   Q_ASSERT(bridge_);
   ownerReleaseTimer_.setSingleShot(true);
   ownerReleaseTimer_.setInterval(kOwnershipIdleMs);
+  sourceRateTimer_.setSingleShot(true);
+  previewRateTimer_.setSingleShot(true);
   metricsClock_.start();
+  sourceRateClock_.start();
+  previewRateClock_.start();
 
   connect(editor_->verticalScrollBar(), &QScrollBar::valueChanged, this,
           &SyncController::sourceScrolled);
@@ -46,6 +50,10 @@ SyncController::SyncController(QsciScintilla *editor, PreviewBridge *bridge,
           &SyncController::previewScrolled);
   connect(&ownerReleaseTimer_, &QTimer::timeout, this,
           &SyncController::releaseOwner);
+  connect(&sourceRateTimer_, &QTimer::timeout, this,
+          &SyncController::flushSourceScroll);
+  connect(&previewRateTimer_, &QTimer::timeout, this,
+          &SyncController::flushPreviewScroll);
   rebuildLineOffsets();
 }
 
@@ -68,6 +76,39 @@ void SyncController::setBlocks(QVector<RenderedBlock> blocks,
   lastPublishedProgress_ = -1.0;
 }
 
+void SyncController::setMode(SyncMode mode) {
+  if (mode_ == mode)
+    return;
+  mode_ = mode;
+  releaseOwner();
+  lastPublishedBlock_.clear();
+  lastPublishedProgress_ = -1.0;
+  sourceRateTimer_.stop();
+  previewRateTimer_.stop();
+  sourceSyncPending_ = false;
+  previewSyncPending_.reset();
+  previewEndPending_.reset();
+}
+
+void SyncController::setTargetFps(int framesPerSecond) {
+  const int clamped = std::clamp(framesPerSecond, 1, 60);
+  const int interval = clamped >= 60 ? 0 : 1000 / clamped;
+  if (syncIntervalMs_ == interval)
+    return;
+  syncIntervalMs_ = interval;
+  sourceRateTimer_.stop();
+  previewRateTimer_.stop();
+  if (syncIntervalMs_ == 0) {
+    flushSourceScroll();
+    flushPreviewScroll();
+    return;
+  }
+  if (sourceSyncPending_)
+    sourceRateTimer_.start(syncIntervalMs_);
+  if (previewSyncPending_.has_value())
+    previewRateTimer_.start(syncIntervalMs_);
+}
+
 void SyncController::sourceScrolled(int) {
   if (mode_ == SyncMode::Disabled)
     return;
@@ -76,6 +117,38 @@ void SyncController::sourceScrolled(int) {
     publishMetrics();
     return;
   }
+  if (owner_ == Owner::Preview) {
+    ++metrics_.dropped;
+    publishMetrics();
+    return;
+  }
+
+  const qint64 elapsed = sourceRateClock_.elapsed();
+  if (syncIntervalMs_ == 0 || elapsed >= syncIntervalMs_) {
+    sourceRateClock_.restart();
+    processSourceScroll();
+    return;
+  }
+  if (sourceSyncPending_) {
+    ++metrics_.coalesced;
+    publishMetrics();
+  }
+  sourceSyncPending_ = true;
+  if (!sourceRateTimer_.isActive())
+    sourceRateTimer_.start(syncIntervalMs_ - static_cast<int>(elapsed));
+}
+
+void SyncController::flushSourceScroll() {
+  if (!sourceSyncPending_)
+    return;
+  sourceSyncPending_ = false;
+  sourceRateClock_.restart();
+  processSourceScroll();
+}
+
+void SyncController::processSourceScroll() {
+  if (mode_ == SyncMode::Disabled)
+    return;
   if (owner_ == Owner::Preview) {
     ++metrics_.dropped;
     publishMetrics();
@@ -133,6 +206,45 @@ void SyncController::sourceScrolled(int) {
 }
 
 void SyncController::previewScrolled(const QJsonObject &position) {
+  if (position.value("phase").toString() == QStringLiteral("end")) {
+    if (previewSyncPending_.has_value() || previewRateTimer_.isActive()) {
+      previewEndPending_ = position;
+      return;
+    }
+    processPreviewScroll(position);
+    return;
+  }
+  previewEndPending_.reset();
+  const qint64 elapsed = previewRateClock_.elapsed();
+  if (syncIntervalMs_ == 0 || elapsed >= syncIntervalMs_) {
+    previewRateClock_.restart();
+    processPreviewScroll(position);
+    return;
+  }
+  if (previewSyncPending_.has_value()) {
+    ++metrics_.coalesced;
+    publishMetrics();
+  }
+  previewSyncPending_ = position;
+  if (!previewRateTimer_.isActive())
+    previewRateTimer_.start(syncIntervalMs_ - static_cast<int>(elapsed));
+}
+
+void SyncController::flushPreviewScroll() {
+  if (!previewSyncPending_.has_value())
+    return;
+  const QJsonObject position = std::move(*previewSyncPending_);
+  previewSyncPending_.reset();
+  previewRateClock_.restart();
+  processPreviewScroll(position);
+  if (previewEndPending_.has_value()) {
+    const QJsonObject end = std::move(*previewEndPending_);
+    previewEndPending_.reset();
+    processPreviewScroll(end);
+  }
+}
+
+void SyncController::processPreviewScroll(const QJsonObject &position) {
   if (mode_ == SyncMode::Disabled)
     return;
   if (position.value("owner").toString() != QStringLiteral("preview")) {

@@ -30,11 +30,20 @@ void PreviewBridge::configureDiagramCache(int maxEntries, qint64 maxBytes) {
   persistentCache_->configure(maxEntries, maxBytes);
 }
 
+bool PreviewBridge::clearDiagramCache() {
+  pendingMermaidCacheKeys_.clear();
+  return persistentCache_->clear();
+}
+
 void PreviewBridge::publishRender(const QJsonObject &update) {
   emit renderPublished(update);
 }
 void PreviewBridge::publishSourceScroll(const QJsonObject &target) {
   emit sourceScrollPublished(target);
+}
+void PreviewBridge::publishRuntimeConfiguration(
+    const QJsonObject &configuration) {
+  emit runtimeConfigurationPublished(configuration);
 }
 void PreviewBridge::publishPlantUmlResults(const QJsonObject &batch) {
   emit plantUmlResultsPublished(batch);

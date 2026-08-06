@@ -4,6 +4,7 @@
 #include <QFileSystemWatcher>
 #include <QHash>
 #include <QObject>
+#include <QSet>
 #include <QString>
 #include <QTimer>
 #include <QVector>
@@ -20,6 +21,12 @@ struct WatchedFileState final {
       return digest == other.digest;
     return size == other.size && modifiedMs == other.modifiedMs;
   }
+};
+
+struct WorkspaceWatcherMetrics final {
+  quint64 snapshotsTaken = 0;
+  quint64 filesHashed = 0;
+  quint64 fileStatesReused = 0;
 };
 
 using WorkspaceSnapshot = QHash<QString, WatchedFileState>;
@@ -45,6 +52,8 @@ public:
   // this digest, so an external replacement racing the acknowledgement is not
   // mistaken for an app-owned write.
   void acknowledgeWrite(const QString &path, const QByteArray &content);
+  void acknowledgeRename(const QString &previousPath, const QString &path,
+                         const QByteArray &content);
   // Convenience for callers that cannot retain their write buffer. Prefer the
   // exact-content overload for note mutations.
   void acknowledgeWrite(const QString &path);
@@ -54,6 +63,9 @@ public:
 
   [[nodiscard]] bool isActive() const { return active_; }
   [[nodiscard]] const QString &workspaceRoot() const { return workspaceRoot_; }
+  [[nodiscard]] const WorkspaceWatcherMetrics &metrics() const {
+    return metrics_;
+  }
   [[nodiscard]] static QVector<WorkspaceChange>
   compareSnapshots(const WorkspaceSnapshot &before,
                    const WorkspaceSnapshot &after);
@@ -64,7 +76,9 @@ signals:
 private:
   [[nodiscard]] QString notesRoot() const;
   [[nodiscard]] WorkspaceSnapshot
-  takeSnapshot(QStringList *directories = nullptr) const;
+  takeSnapshot(const WorkspaceSnapshot *previous,
+               const QSet<QString> &forceHashPaths,
+               QStringList *directories = nullptr);
   void scheduleScan();
   void scan();
   void rebuildWatchPaths(const QStringList &directories);
@@ -74,6 +88,8 @@ private:
   QString workspaceRoot_;
   WorkspaceSnapshot snapshot_;
   WorkspaceSnapshot canonicalStates_;
+  QSet<QString> dirtyFiles_;
+  WorkspaceWatcherMetrics metrics_;
   bool active_ = false;
 };
 

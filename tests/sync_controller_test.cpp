@@ -62,6 +62,8 @@ private slots:
   void anchorOnlyBlockIgnoresProgress();
   void percentageModeUsesRawScrollbarRatio();
   void coalescesDuplicateTargets();
+  void changesModeAtRuntime();
+  void limitsBothDirectionsAndKeepsLatestPosition();
 };
 
 void SyncControllerTest::generationFilteringAndRemovedBlocks() {
@@ -198,6 +200,54 @@ void SyncControllerTest::coalescesDuplicateTargets() {
   const quint64 before = controller.metrics().coalesced;
   bridge.reportPreviewScroll(previewPosition(1, "body", 0.25));
   QVERIFY(controller.metrics().coalesced > before);
+}
+
+void SyncControllerTest::changesModeAtRuntime() {
+  QsciScintilla editor;
+  prepareEditor(editor);
+  PreviewBridge bridge;
+  SyncController controller(&editor, &bridge, SyncMode::Semantic);
+  controller.setBlocks({block("body", 0, 880)}, 1);
+  QSignalSpy published(&bridge, &PreviewBridge::sourceScrollPublished);
+
+  controller.setMode(SyncMode::Disabled);
+  editor.verticalScrollBar()->setValue(12);
+  QTest::qWait(20);
+  QCOMPARE(published.count(), 0);
+
+  controller.setMode(SyncMode::Semantic);
+  editor.verticalScrollBar()->setValue(18);
+  QTRY_COMPARE(published.count(), 1);
+}
+
+void SyncControllerTest::limitsBothDirectionsAndKeepsLatestPosition() {
+  QsciScintilla editor;
+  prepareEditor(editor);
+  PreviewBridge bridge;
+  SyncController controller(&editor, &bridge, SyncMode::Semantic);
+  controller.setBlocks({block("body", 0, 880)}, 1);
+  controller.setTargetFps(5);
+  QSignalSpy published(&bridge, &PreviewBridge::sourceScrollPublished);
+
+  QTest::qWait(210);
+  editor.verticalScrollBar()->setValue(10);
+  QCOMPARE(published.count(), 1);
+  editor.verticalScrollBar()->setValue(20);
+  editor.verticalScrollBar()->setValue(30);
+  QCOMPARE(published.count(), 1);
+  QTRY_COMPARE_WITH_TIMEOUT(published.count(), 2, 300);
+  const QJsonObject latestSource = published.last().at(0).toJsonObject();
+  QVERIFY(latestSource.value("progress").toDouble() > 0.3);
+
+  QTRY_COMPARE_WITH_TIMEOUT(controller.owner(), SyncController::Owner::None,
+                            300);
+  QTest::qWait(210);
+  bridge.reportPreviewScroll(previewPosition(1, "body", 0.1));
+  QVERIFY(editor.firstVisibleLine() < 20);
+  bridge.reportPreviewScroll(previewPosition(1, "body", 0.5));
+  bridge.reportPreviewScroll(previewPosition(1, "body", 0.9));
+  QVERIFY(editor.firstVisibleLine() < 20);
+  QTRY_VERIFY_WITH_TIMEOUT(editor.firstVisibleLine() > 60, 300);
 }
 
 QTEST_MAIN(SyncControllerTest)

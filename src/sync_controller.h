@@ -7,6 +7,8 @@
 #include <QObject>
 #include <QTimer>
 
+#include <optional>
+
 class QsciScintilla;
 
 namespace qt_editor {
@@ -34,6 +36,8 @@ public:
   SyncController(QsciScintilla *editor, PreviewBridge *bridge, SyncMode mode,
                  QObject *parent = nullptr);
   void setBlocks(QVector<RenderedBlock> blocks, quint64 generation);
+  void setMode(SyncMode mode);
+  void setTargetFps(int framesPerSecond);
 
   [[nodiscard]] Owner owner() const { return owner_; }
   [[nodiscard]] quint64 generation() const { return generation_; }
@@ -46,6 +50,8 @@ signals:
 private slots:
   void sourceScrolled(int value);
   void previewScrolled(const QJsonObject &position);
+  void flushSourceScroll();
+  void flushPreviewScroll();
   void releaseOwner();
   void rebuildLineOffsets();
 
@@ -55,6 +61,8 @@ private:
   [[nodiscard]] const RenderedBlock *
   blockAtSourceOffset(qsizetype offset) const;
   [[nodiscard]] double sourcePercentage() const;
+  void processSourceScroll();
+  void processPreviewScroll(const QJsonObject &position);
   void acquire(Owner owner);
   void publishMetrics();
 
@@ -66,9 +74,17 @@ private:
   quint64 generation_ = 0;
   Owner owner_ = Owner::None;
   QTimer ownerReleaseTimer_;
+  QTimer sourceRateTimer_;
+  QTimer previewRateTimer_;
   QElapsedTimer metricsClock_;
+  QElapsedTimer sourceRateClock_;
+  QElapsedTimer previewRateClock_;
   Metrics metrics_;
   bool applyingPreviewScroll_ = false;
+  bool sourceSyncPending_ = false;
+  std::optional<QJsonObject> previewSyncPending_;
+  std::optional<QJsonObject> previewEndPending_;
+  int syncIntervalMs_ = 0;
   QString lastPublishedBlock_;
   double lastPublishedProgress_ = -1.0;
 };

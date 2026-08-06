@@ -125,7 +125,7 @@ QScintilla should be built against that Qt installation.
 | note/attachment globbing | `QDirIterator` | None |
 | native spellchecker/WebFrame suggestions | Hunspell service feeding QScintilla indicators and context actions | `libhunspell-dev` |
 | desktop notifications | `QSystemTrayIcon::showMessage`, with platform adapter if needed | None initially |
-| power/battery monitor | Linux UPower over Qt DBus; Windows/macOS native adapters | None on Linux |
+| power/battery monitor | Implemented with Linux UPower over Qt DBus and Windows/macOS native adapters | A running UPower service on Linux |
 | auto-update | project update service over Qt Network; platform installer handoff | No adequate Qt built-in |
 | PDF export | `QWebEnginePage::printToPdf()` | None |
 | Chromium cache clearing | `QWebEngineProfile::clearHttpCache()` | None |
@@ -246,13 +246,16 @@ the shipped application.
 
 ### Updates, notifications, and power state
 
-These need platform adapters, not generic third-party dependencies:
+The native application now checks the repository's GitHub release metadata at
+startup, every 24 hours, or on demand. Stable builds consider only stable
+releases; nightly builds may advance to a newer nightly or stable release. The
+result parser is isolated and tested against malformed or untrusted responses,
+and update handoff is restricted to the official HTTPS GitHub release page.
+Background failures are intentionally silent. Signed in-place installation can
+follow after packaging and signing are settled.
 
-- Start auto-update parity with a signed release-manifest check and an external
-  installer/download handoff. In-place updating can follow after packaging and
-  signing are settled.
-- Use Qt notifications first; add native portal/OS integration only where the
-  Qt implementation proves insufficient.
+Qt dialogs provide the current update result notifications. Add native
+portal/OS notification integration only where those dialogs prove insufficient.
 - Use UPower over Qt DBus on Linux and native power APIs on Windows/macOS.
   Battery-aware rendering must tolerate an unavailable power service.
 

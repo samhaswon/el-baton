@@ -61,7 +61,21 @@ if(EL_BATON_ENABLE_FUZZING AND
     "EL_BATON_ENABLE_FUZZING requires Clang for both C and C++ (libFuzzer).")
 endif()
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Concurrent Core Gui Network PrintSupport Sql Widgets WebChannel WebEngineWidgets Test)
+find_package(Qt6 6.8 REQUIRED COMPONENTS
+  Concurrent
+  Core
+  Gui
+  Network
+  PrintSupport
+  Sql
+  Test
+  WebChannel
+  WebEngineWidgets
+  Widgets
+)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  find_package(Qt6 6.8 REQUIRED COMPONENTS DBus)
+endif()
 find_package(KF6SyntaxHighlighting 6.28 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(ZLIB REQUIRED)
@@ -287,6 +301,7 @@ set(EL_BATON_SOURCES
   src/settings_store.cpp
   src/spell_checker.cpp
   src/sync_controller.cpp
+  src/update_checker.cpp
   src/workspace_repository.cpp
   src/workspace_graph_view.cpp
   src/workspace_watcher.cpp
@@ -341,6 +356,19 @@ target_link_libraries(el_baton_core PUBLIC
   ${QSCINTILLA_TARGET}
 )
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(el_baton_core PRIVATE Qt6::DBus)
+endif()
+
+if(APPLE)
+  find_library(EL_BATON_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+  find_library(EL_BATON_IOKIT_FRAMEWORK IOKit REQUIRED)
+  target_link_libraries(el_baton_core PRIVATE
+    ${EL_BATON_COREFOUNDATION_FRAMEWORK}
+    ${EL_BATON_IOKIT_FRAMEWORK}
+  )
+endif()
+
 if(EL_BATON_ENABLE_FUZZING)
   add_library(el_baton_fuzz_instrumentation INTERFACE)
   target_compile_options(el_baton_fuzz_instrumentation INTERFACE
@@ -370,10 +398,16 @@ if(EL_BATON_ENABLE_FUZZING)
     fuzz/document_file_fuzzer.cpp)
   el_baton_add_fuzzer(enex_import_fuzzer
     fuzz/enex_import_fuzzer.cpp)
+  el_baton_add_fuzzer(workspace_repository_fuzzer
+    fuzz/workspace_repository_fuzzer.cpp)
+  el_baton_add_fuzzer(update_checker_fuzzer
+    fuzz/update_checker_fuzzer.cpp)
   add_custom_target(fuzzers DEPENDS
     markdown_pipeline_fuzzer
     document_file_fuzzer
     enex_import_fuzzer
+    workspace_repository_fuzzer
+    update_checker_fuzzer
   )
 endif()
 
@@ -570,6 +604,10 @@ if(BUILD_TESTING)
   add_executable(reference_icons_tests tests/reference_icons_test.cpp)
   target_link_libraries(reference_icons_tests PRIVATE el_baton_core Qt6::Test)
   add_test(NAME reference_icons_tests COMMAND reference_icons_tests)
+
+  add_executable(update_checker_tests tests/update_checker_test.cpp)
+  target_link_libraries(update_checker_tests PRIVATE el_baton_core Qt6::Test)
+  add_test(NAME update_checker_tests COMMAND update_checker_tests)
 
   add_executable(cheatsheet_content_tests tests/cheatsheet_content_test.cpp)
   target_compile_definitions(cheatsheet_content_tests PRIVATE

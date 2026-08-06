@@ -11,6 +11,7 @@
 #include "preview_bridge.h"
 #include "reference_icons.h"
 #include "sync_controller.h"
+#include "update_checker.h"
 #include "workspace_graph_view.h"
 #include "workspace_watcher.h"
 
@@ -24,6 +25,13 @@
 #include <QContextMenuEvent>
 #include <QCoreApplication>
 #include <QDateTime>
+#ifdef Q_OS_LINUX
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
+#include <QDBusVariant>
+#endif
 #include <QDebug>
 #include <QDesktopServices>
 #include <QDialog>
@@ -87,6 +95,22 @@
 #include <QWindow>
 #include <Qsci/qsciscintilla.h>
 #include <QtConcurrentRun>
+
+#ifdef Q_OS_MACOS
+#include <CoreFoundation/CoreFoundation.h>
+#include <IOKit/ps/IOPSKeys.h>
+#include <IOKit/ps/IOPowerSources.h>
+#endif
+
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 
 #include <algorithm>
 #include <chrono>
@@ -162,6 +186,25 @@ QIcon referenceToggleIcon(const QString &offName, const QString &onName) {
     icon.addPixmap(
         tintedReferencePixmap(onName, size, QColor(QStringLiteral("#777777"))),
         QIcon::Disabled, QIcon::On);
+  }
+  return icon;
+}
+
+QIcon referenceBatteryIcon(bool onBattery) {
+  QIcon icon;
+  static constexpr int sizes[] = {16, 20, 24, 32, 48};
+  const QString name =
+      onBattery ? QStringLiteral("on_battery") : QStringLiteral("on_ac");
+  const QColor color = onBattery ? QColor(QStringLiteral("#3584e4"))
+                                 : QColor(QStringLiteral("#ffffff"));
+  for (const int size : sizes) {
+    const QPixmap enabled = tintedReferencePixmap(name, size, color);
+    const QPixmap disabled =
+        tintedReferencePixmap(name, size, QColor(QStringLiteral("#777777")));
+    icon.addPixmap(enabled, QIcon::Normal, QIcon::Off);
+    icon.addPixmap(enabled, QIcon::Normal, QIcon::On);
+    icon.addPixmap(disabled, QIcon::Disabled, QIcon::Off);
+    icon.addPixmap(disabled, QIcon::Disabled, QIcon::On);
   }
   return icon;
 }
@@ -257,6 +300,57 @@ protected:
   }
 };
 
+class SettingsSwitch final : public QAbstractButton {
+public:
+  explicit SettingsSwitch(QWidget *parent = nullptr) : QAbstractButton(parent) {
+    setCheckable(true);
+    setCursor(Qt::PointingHandCursor);
+    setFocusPolicy(Qt::StrongFocus);
+    setAccessibleName(QStringLiteral("Toggle setting"));
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  }
+
+  [[nodiscard]] QSize sizeHint() const override { return {52, 32}; }
+  [[nodiscard]] QSize minimumSizeHint() const override { return sizeHint(); }
+
+protected:
+  void changeEvent(QEvent *event) override {
+    QAbstractButton::changeEvent(event);
+    if (event->type() == QEvent::EnabledChange) {
+      setCursor(isEnabled() ? Qt::PointingHandCursor : Qt::ArrowCursor);
+    }
+  }
+
+  void paintEvent(QPaintEvent *) override {
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const bool active = isChecked();
+    const QColor track = active ? QColor(QStringLiteral("#3584e4"))
+                                : QColor(QStringLiteral("#454950"));
+    const QColor border =
+        active ? QColor(Qt::transparent) : QColor(QStringLiteral("#8a8e96"));
+    const qreal opacity = isEnabled() ? 1.0 : 0.5;
+    painter.setOpacity(opacity);
+    const QRectF trackRect(0.5, 0.5, width() - 1.0, height() - 1.0);
+    painter.setPen(QPen(border, 1.0));
+    painter.setBrush(track);
+    painter.drawRoundedRect(trackRect, 16.0, 16.0);
+
+    const qreal thumbX = active ? width() - 27.0 : 4.0;
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(active ? QColor(Qt::white)
+                            : QColor(QStringLiteral("#e7e7e7")));
+    painter.drawEllipse(QRectF(thumbX, 4.0, 24.0, 24.0));
+
+    if (hasFocus()) {
+      painter.setBrush(Qt::NoBrush);
+      painter.setPen(QPen(QColor(QStringLiteral("#62a0ea")), 2.0));
+      painter.drawRoundedRect(trackRect.adjusted(1.0, 1.0, -1.0, -1.0), 15.0,
+                              15.0);
+    }
+  }
+};
+
 class WorkspaceRequestInterceptor final
     : public QWebEngineUrlRequestInterceptor {
 public:
@@ -333,6 +427,39 @@ bool writeExportFile(const QString &path, const QByteArray &content,
     return false;
   }
   return true;
+}
+
+QString inferredNoteTitle(const QString &body) {
+  const QStringList lines = body.split(QLatin1Char('\n'));
+  QString title;
+  for (const QString &line : lines) {
+    if (!line.trimmed().isEmpty()) {
+      title = line.trimmed();
+      break;
+    }
+  }
+  if (title.isEmpty())
+    return QStringLiteral("Untitled");
+  title.remove(
+      QRegularExpression(QStringLiteral("^(?:#{1,6}|>|[-+*]|\\d+[.)])\\s+")));
+  title.remove(QRegularExpression(QStringLiteral("<[^>]*>")));
+  title.replace(QRegularExpression(QStringLiteral("[*_~`]+")), QString());
+  title.replace(QRegularExpression(QStringLiteral("\\[([^]]+)\\]\\([^)]*\\)")),
+                QStringLiteral("\\1"));
+  title = title.simplified();
+  return title.isEmpty() ? QStringLiteral("Untitled") : title;
+}
+
+QString safeNoteFileStem(QString title) {
+  title.replace(
+      QRegularExpression(QStringLiteral("[\\x00-\\x1f<>:\"/\\\\|?*]")),
+      QStringLiteral(" "));
+  title = title.simplified();
+  while (title.endsWith(QLatin1Char('.')))
+    title.chop(1);
+  if (title.size() > 120)
+    title.truncate(120);
+  return title.isEmpty() ? QStringLiteral("Untitled") : title;
 }
 
 QString inlineCssResources(QString css, const QString &cssPath) {
@@ -606,19 +733,17 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget *parent)
       "QLabel#settingsCopy { color: #b7bac0; }"
       "QFrame#settingsSeparator { background: #45494f; border: 0; max-height: "
       "1px; }"
-      "QCheckBox#settingsSwitch { spacing: 0; }"
-      "QCheckBox#settingsSwitch::indicator { width: 42px; height: 22px; "
-      "border-radius: 11px; border: 1px solid #73777f; background: #454950; }"
-      "QCheckBox#settingsSwitch::indicator:checked { background: #3584e4; "
-      "border-color: #62a0ea; }"
-      "QCheckBox#settingsSwitch::indicator:disabled { background: #3b3e43; "
-      "border-color: #555960; }"
       "QComboBox#settingsControl, QLineEdit#settingsControl { min-width: "
       "150px; background: #232529; color: #eee; border: 1px solid #555a62; "
       "border-radius: 7px; padding: 6px 9px; }"));
   renderTimer_.setSingleShot(true);
   renderTimer_.setInterval(120);
   connect(&renderTimer_, &QTimer::timeout, this, &MainWindow::renderDocument);
+  fullRenderTimer_.setSingleShot(true);
+  connect(&fullRenderTimer_, &QTimer::timeout, this, [this] {
+    forceFullPreviewRender_ = true;
+    renderDocument();
+  });
   connect(&renderWatcher_, &QFutureWatcher<RenderResult>::finished, this,
           &MainWindow::finishRenderWrite);
   autosaveTimer_.setSingleShot(true);
@@ -668,6 +793,13 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget *parent)
   tableFormatTimer_.setSingleShot(true);
   connect(&tableFormatTimer_, &QTimer::timeout, this,
           &MainWindow::formatTouchedTables);
+  powerStateTimer_.setInterval(5000);
+  connect(&powerStateTimer_, &QTimer::timeout, this,
+          &MainWindow::refreshPowerState);
+  powerStateTimer_.start();
+  updateCheckTimer_.setInterval(24 * 60 * 60 * 1000);
+  connect(&updateCheckTimer_, &QTimer::timeout, this,
+          [this] { checkForUpdates(false); });
   emojiCompletions_ = MarkdownCompletion::loadEmojiMap(
       generatedDataPath(QStringLiteral("emoji-shortcodes.json"),
                         QStringLiteral(QT_EDITOR_EMOJI_JSON)));
@@ -697,8 +829,7 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget *parent)
           });
   connect(&spellcheckTimer_, &QTimer::timeout, this, [this] {
     const bool batterySpellcheckDisabled =
-        globalConfig_.value(QStringLiteral("battery.enabled"), false)
-            .toBool() &&
+        isBatteryModeActive() &&
         globalConfig_.value(QStringLiteral("battery.disableSpellcheck"), false)
             .toBool();
     if (spellcheckWatcher_.isRunning() ||
@@ -860,6 +991,7 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget *parent)
             if (role != QStringLiteral("preview"))
               return;
             previewReady_ = true;
+            applyGlobalConfiguration();
             renderDocument();
           });
 
@@ -872,6 +1004,7 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget *parent)
           ? SyncMode::Disabled
           : options_.syncMode;
   sync_ = new SyncController(editor_, bridge_, configuredSyncMode, this);
+  applyGlobalConfiguration();
   connect(sync_, &SyncController::syncMetricsChanged, this,
           [this](const QJsonObject &metrics) {
             for (auto it = metrics.begin(); it != metrics.end(); ++it)
@@ -902,12 +1035,80 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget *parent)
     workspaceWatcher_->start();
   }
   updateStatus();
+  refreshPowerState();
 }
 
 MainWindow::~MainWindow() {
   if (renderWatcher_.isRunning())
     renderWatcher_.future().waitForFinished();
   delete pipeline_;
+}
+
+void MainWindow::checkForUpdates(bool interactive) {
+  if (updateReply_ != nullptr) {
+    if (interactive) {
+      QMessageBox::information(this, QStringLiteral("Check for Updates"),
+                               QStringLiteral("An update check is already in "
+                                              "progress."));
+    }
+    return;
+  }
+  if (updateNetworkManager_ == nullptr)
+    updateNetworkManager_ = new QNetworkAccessManager(this);
+  QNetworkRequest request(
+      QUrl(QStringLiteral("https://api.github.com/repos/samhaswon/el-baton/"
+                          "releases?per_page=100")));
+  request.setRawHeader("Accept", "application/vnd.github+json");
+  request.setRawHeader("User-Agent", "El-Baton-Update-Check");
+  request.setRawHeader("X-GitHub-Api-Version", "2022-11-28");
+  request.setTransferTimeout(15000);
+  updateReply_ = updateNetworkManager_->get(request);
+  QNetworkReply *reply = updateReply_;
+  connect(reply, &QNetworkReply::finished, this, [this, reply, interactive] {
+    const QByteArray response = reply->readAll();
+    const bool succeeded = reply->error() == QNetworkReply::NoError;
+    const QString networkError = reply->errorString();
+    if (reply == updateReply_)
+      updateReply_ = nullptr;
+    reply->deleteLater();
+    if (!succeeded) {
+      if (interactive) {
+        QMessageBox::warning(
+            this, QStringLiteral("Update check failed"),
+            QStringLiteral("El Baton could not check for updates: %1")
+                .arg(networkError));
+      }
+      return;
+    }
+    const UpdateCheckResult result = UpdateChecker::evaluateGitHubReleases(
+        QCoreApplication::applicationVersion(), response);
+    if (result.status == UpdateCheckStatus::UpToDate) {
+      if (interactive) {
+        QMessageBox::information(
+            this, QStringLiteral("No update available"),
+            QStringLiteral("El Baton %1 is up to date.")
+                .arg(QCoreApplication::applicationVersion()));
+      }
+      return;
+    }
+    if (result.status != UpdateCheckStatus::UpdateAvailable ||
+        !result.release.has_value()) {
+      if (interactive) {
+        QMessageBox::warning(this, QStringLiteral("Update check failed"),
+                             result.errorMessage);
+      }
+      return;
+    }
+    const AvailableRelease &release = *result.release;
+    const auto choice = QMessageBox::information(
+        this, QStringLiteral("Update available"),
+        QStringLiteral("El Baton %1 is available. You are running %2.")
+            .arg(release.version.toString(),
+                 QCoreApplication::applicationVersion()),
+        QMessageBox::Open | QMessageBox::Close, QMessageBox::Open);
+    if (choice == QMessageBox::Open)
+      QDesktopServices::openUrl(release.pageUrl);
+  });
 }
 
 QWidget *MainWindow::createApplicationChrome(QSplitter *documentSplitter) {
@@ -1243,6 +1444,15 @@ QWidget *MainWindow::createDocumentToolbar() {
                         QStringLiteral("Move to trash or restore"), true);
   connect(trash, &QToolButton::clicked, trashAction_, &QAction::trigger);
   bindAction(trash, trashAction_);
+  batteryButton_ = addTool(QIcon(), QString(), true);
+  batteryButton_->setCheckable(true);
+  connect(batteryButton_, &QToolButton::clicked, this, [this] {
+    const bool next =
+        !globalConfig_.value(QStringLiteral("battery.enabled"), false).toBool();
+    setGlobalConfigValue(QStringLiteral("battery.enabled"), next);
+    rebuildSettingsPage();
+  });
+  updateBatteryToolbar();
 
   layout->addWidget(new WindowDragBar(toolbar), 1);
 
@@ -1342,6 +1552,8 @@ QWidget *MainWindow::createFilePanel() {
   addButton(QStringLiteral("Export HTML…"), exportHtmlAction_);
   addButton(QStringLiteral("Export Markdown…"), exportMarkdownAction_);
   addButton(QStringLiteral("Export PDF…"), exportPdfAction_);
+  addSection(QStringLiteral("HELP"));
+  addButton(QStringLiteral("Check for Updates…"), checkForUpdatesAction_);
   layout->addStretch();
   return panel;
 }
@@ -1929,7 +2141,7 @@ QWidget *MainWindow::createSettingsPanel() {
   outer->setContentsMargins(28, 24, 28, 36);
   outer->addStretch();
   auto *sheet = new QWidget(content);
-  sheet->setMaximumWidth(900);
+  sheet->setMaximumWidth(700);
   sheet->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
   auto *layout = new QVBoxLayout(sheet);
   layout->setContentsMargins(0, 0, 0, 0);
@@ -1975,12 +2187,12 @@ QWidget *MainWindow::createSettingsPanel() {
 
   const auto toggle = [this](QWidget *parent, const QString &key,
                              bool inverted = false, bool unavailable = false) {
-    auto *control = new QCheckBox(parent);
+    auto *control = new SettingsSwitch(parent);
     control->setObjectName(QStringLiteral("settingsSwitch"));
     control->setChecked(inverted ? !globalConfig_.value(key).toBool()
                                  : globalConfig_.value(key).toBool());
     control->setEnabled(!globalConfig_.filePath().isEmpty() && !unavailable);
-    connect(control, &QCheckBox::toggled, this,
+    connect(control, &QAbstractButton::toggled, this,
             [this, key, inverted](bool checked) {
               setGlobalConfigValue(key, inverted ? !checked : checked);
             });
@@ -2029,6 +2241,7 @@ QWidget *MainWindow::createSettingsPanel() {
   };
   const auto addRow = [](QVBoxLayout *card, const QString &title,
                          const QString &copy, QWidget *control) {
+    control->setAccessibleName(title);
     if (card->count() > 0) {
       auto *separator = new QFrame;
       separator->setObjectName(QStringLiteral("settingsSeparator"));
@@ -2060,15 +2273,17 @@ QWidget *MainWindow::createSettingsPanel() {
       addSection(QStringLiteral("General"),
                  QStringLiteral("Application-wide behavior and rendering."));
   addRow(general, QStringLiteral("Automatic update checks"),
-         QStringLiteral("Check for new releases when the application starts."),
+         QStringLiteral("Check at startup and once per day for compatible "
+                        "stable or nightly releases."),
          toggle(sheet, QStringLiteral("autoupdate")));
-  addRow(general, QStringLiteral("Disable animations"),
-         QStringLiteral("Reduce interface motion throughout the application."),
-         toggle(sheet, QStringLiteral("ui.disableAnimations")));
-  addRow(general, QStringLiteral("Use GPU acceleration"),
-         QStringLiteral("Accelerate the editor and preview where supported. "
-                        "Requires restart."),
-         toggle(sheet, QStringLiteral("performance.highPerformanceMode")));
+  auto *updateCheck = new QPushButton(QStringLiteral("Check Now"), sheet);
+  updateCheck->setObjectName(QStringLiteral("settingsControl"));
+  connect(updateCheck, &QPushButton::clicked, this,
+          [this] { checkForUpdates(true); });
+  addRow(general, QStringLiteral("Application updates"),
+         QStringLiteral("Check manually and open the official GitHub release "
+                        "page when an update is available."),
+         updateCheck);
 
   auto *battery = addSection(
       QStringLiteral("On-Battery Mode"),
@@ -2109,10 +2324,6 @@ QWidget *MainWindow::createSettingsPanel() {
   addRow(battery, QStringLiteral("Disable autocomplete on battery"),
          QStringLiteral("Run suggestions only while connected to AC power."),
          toggle(sheet, QStringLiteral("battery.disableAutocomplete")));
-  addRow(battery, QStringLiteral("Disable animations on battery"),
-         QStringLiteral("Reduce interface motion while on battery power."),
-         toggle(sheet, QStringLiteral("battery.disableAnimations")));
-
   auto *editor =
       addSection(QStringLiteral("Editor"),
                  QStringLiteral("Source view behavior and formatting."));
@@ -2171,6 +2382,71 @@ QWidget *MainWindow::createSettingsPanel() {
   addRow(spellcheck, QStringLiteral("Disable spellcheck"),
          QStringLiteral("Turn off misspelling markers and suggestions."),
          toggle(sheet, QStringLiteral("spellcheck.disable")));
+  auto *manageWords = new QPushButton(QStringLiteral("Manage Words…"), sheet);
+  manageWords->setEnabled(!globalConfig_.filePath().isEmpty());
+  connect(manageWords, &QPushButton::clicked, this, [this] {
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("Spellcheck Dictionary"));
+    dialog.resize(440, 420);
+    auto *dialogLayout = new QVBoxLayout(&dialog);
+    auto *words = new QListWidget(&dialog);
+    QStringList configuredWords;
+    const QVariant configured =
+        globalConfig_.value(QStringLiteral("spellcheck.addedWords"));
+    for (const QVariant &word : configured.toList())
+      configuredWords.append(word.toString());
+    if (configuredWords.isEmpty())
+      configuredWords = configured.toStringList();
+    configuredWords.removeDuplicates();
+    configuredWords.sort(Qt::CaseInsensitive);
+    words->addItems(configuredWords);
+    dialogLayout->addWidget(words, 1);
+    auto *entryRow = new QHBoxLayout;
+    auto *entry = new QLineEdit(&dialog);
+    entry->setPlaceholderText(QStringLiteral("Add a word"));
+    auto *add = new QPushButton(QStringLiteral("Add"), &dialog);
+    auto *remove = new QPushButton(QStringLiteral("Remove"), &dialog);
+    remove->setEnabled(false);
+    entryRow->addWidget(entry, 1);
+    entryRow->addWidget(add);
+    entryRow->addWidget(remove);
+    dialogLayout->addLayout(entryRow);
+    connect(words, &QListWidget::currentItemChanged, remove,
+            [remove](QListWidgetItem *current) {
+              remove->setEnabled(current != nullptr);
+            });
+    const auto addWord = [entry, words] {
+      const QString word = entry->text().trimmed().toLower();
+      static const QRegularExpression valid(
+          QStringLiteral("^[\\p{L}][\\p{L}'’‘-]*$"));
+      if (!valid.match(word).hasMatch())
+        return;
+      const QList<QListWidgetItem *> matches =
+          words->findItems(word, Qt::MatchFixedString);
+      if (matches.isEmpty())
+        words->addItem(word);
+      entry->clear();
+    };
+    connect(add, &QPushButton::clicked, &dialog, addWord);
+    connect(entry, &QLineEdit::returnPressed, &dialog, addWord);
+    connect(remove, &QPushButton::clicked, &dialog,
+            [words] { delete words->takeItem(words->currentRow()); });
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    dialogLayout->addWidget(buttons);
+    if (dialog.exec() != QDialog::Accepted)
+      return;
+    QStringList nextWords;
+    for (int index = 0; index < words->count(); ++index)
+      nextWords.append(words->item(index)->text());
+    nextWords.sort(Qt::CaseInsensitive);
+    setGlobalConfigValue(QStringLiteral("spellcheck.addedWords"), nextWords);
+  });
+  addRow(spellcheck, QStringLiteral("Added words"),
+         QStringLiteral("Review words stored in your personal dictionary."),
+         manageWords);
 
   auto *notes = addSection(QStringLiteral("Notes and Input"), QString());
   addRow(notes, QStringLiteral("Automatic note renaming"),
@@ -2265,6 +2541,39 @@ QWidget *MainWindow::createSettingsPanel() {
                 QStringLiteral("1000")},
                {100, 400, 1000}, QStringLiteral("plantuml.cacheMaxEntries"),
                sheet));
+  addRow(plantUml, QStringLiteral("Cache max size"), QString(),
+         combo({QStringLiteral("16 MiB"), QStringLiteral("32 MiB"),
+                QStringLiteral("64 MiB"), QStringLiteral("128 MiB"),
+                QStringLiteral("256 MiB")},
+               {16 * 1024 * 1024, 32 * 1024 * 1024, 64 * 1024 * 1024,
+                128 * 1024 * 1024, 256 * 1024 * 1024},
+               QStringLiteral("plantuml.cacheMaxBytes"), sheet));
+  auto *clearCaches = new QPushButton(QStringLiteral("Clear Caches"), sheet);
+  connect(clearCaches, &QPushButton::clicked, this, [this, clearCaches] {
+    if (QMessageBox::question(
+            this, QStringLiteral("Clear persistent caches"),
+            QStringLiteral("Cached diagrams will be rendered again when "
+                           "needed.")) != QMessageBox::Yes) {
+      return;
+    }
+    clearCaches->setEnabled(false);
+    const bool plantUmlCleared = plantUmlRenderer_->clearCache();
+    const bool mermaidCleared = bridge_->clearDiagramCache();
+    clearCaches->setEnabled(true);
+    if (!plantUmlCleared || !mermaidCleared) {
+      QMessageBox::warning(this, QStringLiteral("Clear caches"),
+                           QStringLiteral("One or more persistent diagram "
+                                          "caches could not be cleared."));
+      return;
+    }
+    forceFullPreviewRender_ = true;
+    renderTimer_.start(0);
+    statusBar()->showMessage(QStringLiteral("Persistent caches cleared."),
+                             3000);
+  });
+  addRow(plantUml, QStringLiteral("Persistent caches"),
+         QStringLiteral("Remove cached Mermaid and PlantUML render results."),
+         clearCaches);
 
   auto *readOnly =
       new QLabel(QStringLiteral("Changes are written immediately to the "
@@ -2283,9 +2592,13 @@ QWidget *MainWindow::createSettingsPanel() {
 
 void MainWindow::setGlobalConfigValue(const QString &key,
                                       const QVariant &value) {
+  const QVariant previous = globalConfig_.value(key);
   globalConfig_.setValue(key, value);
   QString errorMessage;
   if (!globalConfig_.save(&errorMessage)) {
+    globalConfig_.setValue(key, previous);
+    applyGlobalConfiguration();
+    rebuildSettingsPage();
     QMessageBox::critical(this, QStringLiteral("Settings update failed"),
                           errorMessage);
     return;
@@ -2298,24 +2611,26 @@ void MainWindow::setGlobalConfigValue(const QString &key,
 }
 
 void MainWindow::applyGlobalConfiguration() {
+  updateBatteryToolbar();
+  const bool automaticUpdates =
+      globalConfig_.value(QStringLiteral("autoupdate"), true).toBool();
+  if (automaticUpdates && !updateCheckTimer_.isActive()) {
+    updateCheckTimer_.start();
+    QTimer::singleShot(2500, this, [this] {
+      if (globalConfig_.value(QStringLiteral("autoupdate"), true).toBool())
+        checkForUpdates(false);
+    });
+  } else if (!automaticUpdates) {
+    updateCheckTimer_.stop();
+  }
   if (editor_ == nullptr)
     return;
-  const QString lineNumbers =
-      globalConfig_
-          .value(QStringLiteral("monaco.editorOptions.lineNumbers"),
-                 QStringLiteral("on"))
-          .toString();
-  editor_->setMarginLineNumbers(0, lineNumbers != QStringLiteral("off"));
-  if (lineNumbers == QStringLiteral("off"))
-    editor_->setMarginWidth(0, 0);
-  else
-    editor_->setMarginWidth(0, QStringLiteral("000000"));
+  updateEditorLineNumbers();
   editor_->setTabWidth(std::clamp(
       globalConfig_.value(QStringLiteral("monaco.editorOptions.tabSize"), 2)
           .toInt(),
       1, 8));
-  const bool batteryMode =
-      globalConfig_.value(QStringLiteral("battery.enabled"), false).toBool();
+  const bool batteryMode = isBatteryModeActive();
   const bool suggestionsDisabled =
       globalConfig_
           .value(QStringLiteral("monaco.editorOptions.disableSuggestions"),
@@ -2384,6 +2699,164 @@ void MainWindow::applyGlobalConfiguration() {
             .toString());
     bridge_->configureDiagramCache(cacheMaxEntries, cacheMaxBytes);
   }
+  if (sync_ != nullptr) {
+    const int effectiveTargetFps =
+        batteryMode
+            ? std::clamp(
+                  globalConfig_.value(QStringLiteral("battery.targetFps"), 30)
+                      .toInt(),
+                  1, 60)
+            : 60;
+    sync_->setMode(
+        globalConfig_
+                .value(QStringLiteral("preview.disableSplitViewSync"), false)
+                .toBool()
+            ? SyncMode::Disabled
+            : options_.syncMode);
+    sync_->setTargetFps(effectiveTargetFps);
+    bridge_->publishRuntimeConfiguration(
+        {{QStringLiteral("syncTargetFps"), effectiveTargetFps}});
+  }
+}
+
+bool MainWindow::isBatteryModeActive() const {
+  if (globalConfig_.value(QStringLiteral("battery.enabled"), false).toBool())
+    return true;
+  return globalConfig_.value(QStringLiteral("battery.autoDetect"), true)
+             .toBool() &&
+         onBatteryPower_.value_or(false);
+}
+
+void MainWindow::updateBatteryToolbar() {
+  if (batteryButton_ == nullptr)
+    return;
+  const bool manualMode =
+      globalConfig_.value(QStringLiteral("battery.enabled"), false).toBool();
+  const bool activeMode = isBatteryModeActive();
+  const bool physicalBattery = onBatteryPower_.value_or(false);
+  const QString powerLabel =
+      onBatteryPower_.has_value()
+          ? (physicalBattery ? QStringLiteral("Battery") : QStringLiteral("AC"))
+          : QStringLiteral("Unknown");
+  batteryButton_->setIcon(referenceBatteryIcon(physicalBattery));
+  batteryButton_->setChecked(manualMode);
+  batteryButton_->setToolTip(QStringLiteral("%1 manual on-battery mode\n"
+                                            "On-battery mode: %2\n"
+                                            "Power source: %3")
+                                 .arg(manualMode ? QStringLiteral("Disable")
+                                                 : QStringLiteral("Enable"),
+                                      activeMode ? QStringLiteral("Active")
+                                                 : QStringLiteral("Inactive"),
+                                      powerLabel));
+  batteryButton_->setAccessibleName(QStringLiteral("On-battery mode"));
+  batteryButton_->setAccessibleDescription(
+      QStringLiteral("Manual mode: %1; effective mode: %2; power source: %3")
+          .arg(manualMode ? QStringLiteral("Active")
+                          : QStringLiteral("Inactive"),
+               activeMode ? QStringLiteral("Active")
+                          : QStringLiteral("Inactive"),
+               powerLabel));
+}
+
+void MainWindow::refreshPowerState() {
+#ifdef Q_OS_LINUX
+  if (powerStateRequestPending_)
+    return;
+  powerStateRequestPending_ = true;
+  QDBusMessage request = QDBusMessage::createMethodCall(
+      QStringLiteral("org.freedesktop.UPower"),
+      QStringLiteral("/org/freedesktop/UPower"),
+      QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("Get"));
+  request.setArguments(
+      {QStringLiteral("org.freedesktop.UPower"), QStringLiteral("OnBattery")});
+  auto *watcher = new QDBusPendingCallWatcher(
+      QDBusConnection::systemBus().asyncCall(request), this);
+  connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, watcher] {
+    const QDBusPendingReply<QDBusVariant> reply = *watcher;
+    powerStateRequestPending_ = false;
+    if (reply.isError())
+      setDetectedPowerState(std::nullopt);
+    else
+      setDetectedPowerState(reply.value().variant().toBool());
+    watcher->deleteLater();
+  });
+#elif defined(Q_OS_WIN)
+  SYSTEM_POWER_STATUS status{};
+  if (GetSystemPowerStatus(&status) == 0 || status.ACLineStatus == 255)
+    setDetectedPowerState(std::nullopt);
+  else
+    setDetectedPowerState(status.ACLineStatus == 0);
+#elif defined(Q_OS_MACOS)
+  CFTypeRef snapshot = IOPSCopyPowerSourcesInfo();
+  if (snapshot == nullptr) {
+    setDetectedPowerState(std::nullopt);
+  } else {
+    const CFStringRef source = IOPSGetProvidingPowerSourceType(snapshot);
+    if (source == nullptr)
+      setDetectedPowerState(std::nullopt);
+    else
+      setDetectedPowerState(CFEqual(source, kIOPSBatteryPowerValue) != 0);
+    CFRelease(snapshot);
+  }
+#else
+  setDetectedPowerState(std::nullopt);
+#endif
+}
+
+void MainWindow::setDetectedPowerState(std::optional<bool> onBattery) {
+  if (onBatteryPower_ == onBattery)
+    return;
+  onBatteryPower_ = onBattery;
+  applyGlobalConfiguration();
+}
+
+void MainWindow::updateEditorLineNumbers() {
+  if (editor_ == nullptr)
+    return;
+  const QString mode =
+      globalConfig_
+          .value(QStringLiteral("monaco.editorOptions.lineNumbers"),
+                 QStringLiteral("on"))
+          .toString();
+  if (relativeMarginStartLine_ >= 0) {
+    for (int line = relativeMarginStartLine_; line <= relativeMarginEndLine_;
+         ++line) {
+      editor_->clearMarginText(line);
+    }
+    relativeMarginStartLine_ = -1;
+    relativeMarginEndLine_ = -1;
+  }
+  if (mode == QStringLiteral("off")) {
+    editor_->setMarginLineNumbers(0, false);
+    editor_->setMarginWidth(0, 0);
+    return;
+  }
+  editor_->setMarginWidth(0, QStringLiteral("000000"));
+  if (mode != QStringLiteral("relative")) {
+    editor_->setMarginType(0, QsciScintilla::NumberMargin);
+    editor_->setMarginLineNumbers(0, true);
+    return;
+  }
+  editor_->setMarginLineNumbers(0, false);
+  editor_->setMarginType(0, QsciScintilla::TextMarginRightJustified);
+  int cursorLine = 0;
+  int cursorIndex = 0;
+  editor_->getCursorPosition(&cursorLine, &cursorIndex);
+  const int first = std::max(0, editor_->firstVisibleLine() - 2);
+  const int last =
+      std::min(editor_->lines() - 1,
+               first +
+                   std::max(1, static_cast<int>(editor_->SendScintilla(
+                                   QsciScintilla::SCI_LINESONSCREEN))) +
+                   4);
+  for (int line = first; line <= last; ++line) {
+    const int displayed =
+        line == cursorLine ? line + 1 : std::abs(line - cursorLine);
+    editor_->setMarginText(line, QString::number(displayed),
+                           QsciScintilla::STYLE_LINENUMBER);
+  }
+  relativeMarginStartLine_ = first;
+  relativeMarginEndLine_ = last;
 }
 
 void MainWindow::rebuildSettingsPage() {
@@ -2625,6 +3098,9 @@ void MainWindow::handleWorkspaceChanges(
   };
 
   for (const WorkspaceChange &change : changes) {
+    workspace_.invalidatePath(change.path);
+    if (change.kind == WorkspaceChangeKind::Renamed)
+      workspace_.invalidatePath(change.previousPath);
     if (change.kind == WorkspaceChangeKind::Added)
       continue;
 
@@ -2903,6 +3379,12 @@ void MainWindow::configureEditor() {
   editor_->setIndentationsUseTabs(false);
   editor_->setTabWidth(2);
   editor_->setEolMode(QsciScintilla::EolUnix);
+  editor_->SendScintilla(QsciScintilla::SCI_SETMULTIPLESELECTION, 1);
+  editor_->SendScintilla(QsciScintilla::SCI_SETADDITIONALSELECTIONTYPING, 1);
+  connect(editor_, &QsciScintilla::cursorPositionChanged, this,
+          [this](int, int) { updateEditorLineNumbers(); });
+  connect(editor_->verticalScrollBar(), &QScrollBar::valueChanged, this,
+          [this] { updateEditorLineNumbers(); });
   spellcheckIndicator_ =
       editor_->indicatorDefine(QsciScintilla::SquiggleIndicator);
   editor_->setIndicatorForegroundColor(QColor(QStringLiteral("#e06c75")),
@@ -3052,6 +3534,11 @@ void MainWindow::createMenus() {
   connect(pinAction_, &QAction::triggered, this, &MainWindow::togglePinned);
   trashAction_ = new QAction(QStringLiteral("Move to Trash"), this);
   connect(trashAction_, &QAction::triggered, this, &MainWindow::toggleDeleted);
+
+  checkForUpdatesAction_ =
+      new QAction(QStringLiteral("Check for Updates…"), this);
+  connect(checkForUpdatesAction_, &QAction::triggered, this,
+          [this] { checkForUpdates(true); });
   updateDocumentActions();
 }
 
@@ -3614,8 +4101,7 @@ void MainWindow::toggleTaskLines(bool toggleDone) {
 }
 
 void MainWindow::updateMarkdownCompletions(bool explicitRequest) {
-  const bool batteryMode =
-      globalConfig_.value(QStringLiteral("battery.enabled"), false).toBool();
+  const bool batteryMode = isBatteryModeActive();
   if (viewMode_ == EditorViewMode::Preview ||
       globalConfig_
           .value(QStringLiteral("monaco.editorOptions.disableSuggestions"),
@@ -4173,7 +4659,7 @@ void MainWindow::startAutosaveWrite() {
 
   const DocumentFile previous = *document_;
   const DocumentFile next =
-      document_->withBody(bodySnapshot, true, editorModifiedAt_);
+      documentForSave(*document_, bodySnapshot, editorModifiedAt_);
   const int documentIndex = activeDocumentIndex_;
   const quint64 saveGeneration = ++saveGeneration_;
   activeAutosave_.emplace(AutosaveSnapshot{saveGeneration, documentIndex,
@@ -4189,11 +4675,32 @@ void MainWindow::startAutosaveWrite() {
     state.body = bodySnapshot;
     state.modified = true;
   }
-  workspaceWatcher_->acceptDiskState(next.path(), next.serializedContent());
+  const bool renamed = previous.path() != next.path();
+  if (renamed) {
+    currentPath_ = next.path();
+    if (documentIndex >= 0 && documentIndex < noteTabs_->count()) {
+      noteTabs_->setTabData(documentIndex, next.path());
+      noteTabs_->setTabText(documentIndex, QFileInfo(next.path()).fileName());
+      noteTabs_->setTabToolTip(documentIndex,
+                               QFileInfo(next.path()).fileName());
+    }
+    workspaceWatcher_->acknowledgeRename(previous.path(), next.path(),
+                                         next.serializedContent());
+    persistOpenTabs();
+  } else {
+    workspaceWatcher_->acceptDiskState(next.path(), next.serializedContent());
+  }
 
-  autosaveWriteWatcher_.setFuture(QtConcurrent::run([next] {
+  autosaveWriteWatcher_.setFuture(QtConcurrent::run([previous, next] {
     QString errorMessage;
-    const bool success = next.writeToDisk(&errorMessage);
+    bool success = next.writeToDisk(&errorMessage);
+    if (success && previous.path() != next.path() &&
+        !QFile::remove(previous.path())) {
+      errorMessage = QStringLiteral("Unable to remove renamed source file: %1")
+                         .arg(previous.path());
+      QFile::remove(next.path());
+      success = false;
+    }
     return AsyncDocumentSaveResult{success, errorMessage};
   }));
 }
@@ -4218,14 +4725,36 @@ void MainWindow::finishAutosaveWrite(bool startPendingWrite) {
         state.document = snapshot.previous;
         state.modified = true;
       }
+      if (snapshot.previous.path() != snapshot.next.path()) {
+        currentPath_ = snapshot.previous.path();
+        if (snapshot.documentIndex >= 0 &&
+            snapshot.documentIndex < noteTabs_->count()) {
+          noteTabs_->setTabData(snapshot.documentIndex,
+                                snapshot.previous.path());
+          noteTabs_->setTabText(snapshot.documentIndex,
+                                QFileInfo(snapshot.previous.path()).fileName());
+        }
+        workspaceWatcher_->acknowledgeRename(
+            snapshot.next.path(), snapshot.previous.path(),
+            snapshot.previous.serializedContent());
+        persistOpenTabs();
+      }
     }
     qWarning() << "Autosave failed for" << snapshot.next.path()
                << result.errorMessage;
     statusBar()->showMessage(
         QStringLiteral("Autosave failed: %1").arg(result.errorMessage), 5000);
   } else if (currentGeneration) {
-    workspaceWatcher_->acknowledgeWrite(snapshot.next.path(),
-                                        snapshot.next.serializedContent());
+    if (snapshot.previous.path() != snapshot.next.path()) {
+      workspaceWatcher_->acknowledgeRename(snapshot.previous.path(),
+                                           snapshot.next.path(),
+                                           snapshot.next.serializedContent());
+      workspace_.refresh();
+      refreshWorkspaceViews();
+    } else {
+      workspaceWatcher_->acknowledgeWrite(snapshot.next.path(),
+                                          snapshot.next.serializedContent());
+    }
     const bool editorStillMatches = currentPath_ == snapshot.next.path() &&
                                     editor_->text() == snapshot.body;
     if (editorStillMatches) {
@@ -4268,7 +4797,7 @@ bool MainWindow::saveActiveDocument(bool reportSuccess) {
   const QString bodySnapshot = editor_->text();
   const DocumentFile previous = *document_;
   const DocumentFile next =
-      document_->withBody(bodySnapshot, true, editorModifiedAt_);
+      documentForSave(*document_, bodySnapshot, editorModifiedAt_);
   ++saveGeneration_;
   const int documentIndex = activeDocumentIndex_;
   if (documentIndex >= 0 && documentIndex < openDocuments_.size()) {
@@ -4277,13 +4806,30 @@ bool MainWindow::saveActiveDocument(bool reportSuccess) {
     state.body = bodySnapshot;
   }
   document_ = next;
-  workspaceWatcher_->acceptDiskState(next.path(), next.serializedContent());
+  const bool renamed = previous.path() != next.path();
+  if (renamed)
+    workspaceWatcher_->acknowledgeRename(previous.path(), next.path(),
+                                         next.serializedContent());
+  else
+    workspaceWatcher_->acceptDiskState(next.path(), next.serializedContent());
 
   QString errorMessage;
-  if (!next.writeToDisk(&errorMessage)) {
+  bool written = next.writeToDisk(&errorMessage);
+  if (written && renamed && !QFile::remove(previous.path())) {
+    errorMessage = QStringLiteral("Unable to remove renamed source file: %1")
+                       .arg(previous.path());
+    QFile::remove(next.path());
+    written = false;
+  }
+  if (!written) {
     document_ = previous;
-    workspaceWatcher_->acceptDiskState(previous.path(),
-                                       previous.serializedContent());
+    if (renamed) {
+      workspaceWatcher_->acknowledgeRename(next.path(), previous.path(),
+                                           previous.serializedContent());
+    } else {
+      workspaceWatcher_->acceptDiskState(previous.path(),
+                                         previous.serializedContent());
+    }
     if (documentIndex >= 0 && documentIndex < openDocuments_.size()) {
       openDocuments_[documentIndex].document = previous;
     }
@@ -4297,6 +4843,18 @@ bool MainWindow::saveActiveDocument(bool reportSuccess) {
           QStringLiteral("Autosave failed: %1").arg(errorMessage), 5000);
     }
     return false;
+  }
+  if (renamed) {
+    currentPath_ = next.path();
+    if (documentIndex >= 0 && documentIndex < noteTabs_->count()) {
+      noteTabs_->setTabData(documentIndex, next.path());
+      noteTabs_->setTabText(documentIndex, QFileInfo(next.path()).fileName());
+      noteTabs_->setTabToolTip(documentIndex,
+                               QFileInfo(next.path()).fileName());
+    }
+    workspace_.refresh();
+    refreshWorkspaceViews();
+    persistOpenTabs();
   }
   workspaceWatcher_->acknowledgeWrite(document_->path(),
                                       document_->serializedContent());
@@ -4315,6 +4873,36 @@ bool MainWindow::saveActiveDocument(bool reportSuccess) {
     statusBar()->showMessage(
         QString("Saved %1").arg(QDir::toNativeSeparators(currentPath_)), 3000);
   return true;
+}
+
+DocumentFile MainWindow::documentForSave(const DocumentFile &previous,
+                                         const QString &body,
+                                         const QDateTime &modified) const {
+  DocumentFile next = previous.withBody(body, true, modified);
+  if (inferredNoteTitle(previous.body()) == inferredNoteTitle(body))
+    return next;
+  const QString title = inferredNoteTitle(body);
+  next = next.withPathAndTitle(previous.path(), title);
+  if (globalConfig_
+          .value(QStringLiteral("notes.disableAutomaticRenaming"), false)
+          .toBool()) {
+    return next;
+  }
+  if (title == previous.title())
+    return next;
+  const QFileInfo previousInfo(previous.path());
+  const QString suffix = previousInfo.suffix().isEmpty()
+                             ? QStringLiteral("md")
+                             : previousInfo.suffix();
+  const QString requested = safeNoteFileStem(title) + QLatin1Char('.') + suffix;
+  QString destination = QDir(previousInfo.absolutePath()).filePath(requested);
+  if (QFileInfo(destination).absoluteFilePath() !=
+          previousInfo.absoluteFilePath() &&
+      QFileInfo::exists(destination)) {
+    destination =
+        NoteTransferService::uniquePath(previousInfo.absolutePath(), requested);
+  }
+  return next.withPathAndTitle(destination, title);
 }
 
 bool MainWindow::maybeSave() {
@@ -4433,6 +5021,28 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
   const bool editorEventTarget =
       watched == editor_ || watched == editor_->viewport();
+  if (editorEventTarget && event->type() == QEvent::MouseButtonPress &&
+      static_cast<QMouseEvent *>(event)->button() == Qt::MiddleButton &&
+      globalConfig_
+          .value(QStringLiteral("input.disableMiddleClickPaste"), false)
+          .toBool()) {
+    auto *mouse = static_cast<QMouseEvent *>(event);
+    const QPoint viewportPosition =
+        watched == editor_->viewport()
+            ? mouse->position().toPoint()
+            : editor_->viewport()->mapFrom(editor_,
+                                           mouse->position().toPoint());
+    const ScintillaPosition position =
+        editor_->SendScintilla(QsciScintilla::SCI_POSITIONFROMPOINTCLOSE,
+                               viewportPosition.x(), viewportPosition.y());
+    if (position >= 0) {
+      editor_->setFocus();
+      editor_->SendScintilla(QsciScintilla::SCI_ADDSELECTION, position,
+                             position);
+    }
+    event->accept();
+    return true;
+  }
   if (editorEventTarget && event->type() == QEvent::KeyPress &&
       handleMarkdownAutoPair(static_cast<QKeyEvent *>(event))) {
     event->accept();
@@ -4544,6 +5154,16 @@ void MainWindow::scheduleRender() {
   // debounce and starve rendering until typing stopped.
   if (!renderTimer_.isActive())
     renderTimer_.start();
+  constexpr qsizetype kLargeDocumentThreshold = 100000;
+  if (editor_->text().size() >= kLargeDocumentThreshold) {
+    fullRenderTimer_.start(std::clamp(
+        globalConfig_
+            .value(QStringLiteral("preview.largeNoteFullRenderDelay"), 500)
+            .toInt(),
+        0, 5000));
+  } else {
+    fullRenderTimer_.stop();
+  }
 }
 
 void MainWindow::renderDocument() {

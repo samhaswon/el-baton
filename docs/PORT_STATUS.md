@@ -1,6 +1,6 @@
 # Native port status
 
-Updated: 2026-07-29
+Updated: 2026-08-05
 
 This matrix records functional parity with the retained Electron/TypeScript
 implementation. “Working” means the core workflow is usable and covered by the
@@ -25,13 +25,15 @@ stub being mistaken for finished work.
 | Area | Status | Notes |
 | --- | --- | --- |
 | Open, create, edit, and save | Working | Markdown body editing preserves YAML front matter. |
-| Autosave and filesystem watching | Working | Editing uses a 750 ms trailing debounce and serialized background commits; edits made during a commit are coalesced into the next save. Focus/view/tab transitions flush immediately. Memory-first writes make self-events idempotent and external conflicts are detected. |
+| Autosave and filesystem watching | Working | Editing uses a 750 ms trailing debounce and serialized background commits; edits made during a commit are coalesced into the next save. Focus/view/tab transitions flush immediately. Memory-first writes make self-events idempotent and external conflicts are detected. Watcher rescans hash only new, metadata-changed, or explicitly signaled files while still detecting same-size/same-timestamp edits. |
+| Workspace refresh scalability | Working | Refreshes strictly decode changed notes once, reuse unchanged note and attachment metadata, and retain the graph when its inputs are unchanged. The first workspace discovery remains synchronous and is a future startup-time optimization target. |
+| Text integrity | Working | Documents with invalid UTF-8 are rejected without rewriting their bytes and are omitted from workspace indexes until repaired. |
 | Favorites, pinning, trash, tags, and attachments | Working | Backed by workspace/front-matter data and reference-style actions. |
 | Note, web, attachment, and local file links | Working | `file://` navigation is restricted to the configured workspace to prevent path traversal. |
 | Search | Working | Results include contextual note previews with highlighted matches and are populated incrementally. |
 | Info and attachment metadata | Working | Heading entries navigate to source positions; file size/timestamps/text counts/link counts and referenced attachment MIME/size/timestamps are exposed with open actions. |
 | Import/export | Partial | Markdown and ENEX imports run natively off the UI thread. ENEX source files are capped at 64 MiB and resources are streamed through bounded temporary files with a 32 MiB decoded-resource limit. The active note exports to canonical Markdown, self-contained HTML, or a paginated print-CSS PDF with rendered diagrams; HTML/PDF capture waits for the exact saved preview generation. Multi-note archives and the remaining platform import formats still need parity work. |
-| Automatic note renaming | Not ported | The setting is shown as unavailable. |
+| Automatic note renaming | Working | Changing the first non-empty Markdown line updates the title metadata and, when enabled, safely renames the note without surfacing the app-owned watcher event. |
 
 ## Source editor
 
@@ -67,7 +69,7 @@ stub being mistaken for finished work.
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Settings page | Working | GNOME-inspired rows read and write the workspace YAML configuration. Unsupported options are disabled rather than silently accepted. |
+| Settings page | Working | GNOME-style switch controls read and write the workspace YAML configuration. Settings shown by the native port drive runtime behavior; irrelevant animation and GPU controls are hidden while their existing YAML values are preserved. The unsafe script-sanitization escape hatch remains deliberately locked. Personal dictionary and persistent diagram cache management are included. |
 | Cheatsheet | Working | Content is generated from the reference TypeScript source and rendered through the native preview pipeline. |
 | YAML scalar/container fidelity | Working | Strings and spellcheck word collections round-trip as their intended types rather than byte arrays. |
 | Persistent diagram cache | Working | Versioned Mermaid and PlantUML results share a compressed SQLite LRU cache bounded by the configured entry and byte limits. |
@@ -79,12 +81,12 @@ stub being mistaken for finished work.
 | Diagnostics | Working | Debug defaults on, Release defaults off; command-line overrides and separate UI/render counters are available. |
 | Release optimization | Working | GCC/Clang use `-O3` and LTO; MSVC uses `/O2 /Qpar` and `/GL` when the capability probe succeeds. |
 | C/C++ formatting | Working | Native application and test sources have been normalized with `clang-format`; contributor and build documentation records the format/check commands and excludes vendored code. |
-| Native unit tests | Working | CTest covers rendering, serialization, watching, spellcheck, diagrams, generated assets, and paths. |
+| Native unit tests | Working | CTest covers rendering, serialization, watching, spellcheck, diagrams, generated assets, and paths. Data-integrity and scalability regressions additionally assert strict UTF-8 rejection, unchanged-note/attachment reuse, graph invalidation, and watcher detection when file size and timestamps are unchanged. |
 | Code scanning | Working | CodeQL analyzes workflow and JavaScript/TypeScript sources plus a manual native C/C++ build on Ubuntu. |
 | Build CI | Working | Clean Release builds and CTest run on Ubuntu x64/ARM64, Windows x64, and macOS ARM64. Linux publishes AppImage, DEB, and RPM artifacts for both architectures; Windows publishes a deployed x64 ZIP. Intel macOS is intentionally excluded, while Windows ARM64 is unavailable because the official Qt packages omit Qt WebEngine. |
 | Packaging and signing | Partial | CI publishes tagged releases and nightly prereleases with unsigned ZIP/tar bundles, AppImage, DEB, RPM, and SHA-256 manifests. Platform installers, signing, and macOS notarization remain to be implemented. |
-| Updater and notifications | Not ported | Platform services remain in the reference implementation. |
-| Battery-aware behavior | Partial | User-configured throttling/disable behavior exists; native automatic battery-state integration is not complete. |
+| Updater and notifications | Partial | Channel-aware stable/nightly checks run at startup, daily, and on demand. Available releases are reported with Qt dialogs and handed off to the official HTTPS GitHub release page. Background failures remain silent; signed in-place installation and native desktop notification integration are deferred until packaging and signing are settled. |
+| Battery-aware behavior | Working | The toolbar uses the reference AC/battery icons with native power-source detection on Linux, Windows, and macOS. Manual and automatic activation drive preview render delay, spellcheck/autocomplete policy, and a coalescing bidirectional scroll-sync frame-rate cap. |
 
 ## Near-term priorities
 

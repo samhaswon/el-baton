@@ -35,6 +35,8 @@ class QsciScintilla;
 class QCloseEvent;
 class QEvent;
 class QKeyEvent;
+class QNetworkAccessManager;
+class QNetworkReply;
 
 namespace qt_editor {
 
@@ -112,6 +114,12 @@ private:
   void updateDocumentActions();
   void setGlobalConfigValue(const QString &key, const QVariant &value);
   void applyGlobalConfiguration();
+  [[nodiscard]] bool isBatteryModeActive() const;
+  void refreshPowerState();
+  void setDetectedPowerState(std::optional<bool> onBattery);
+  void updateBatteryToolbar();
+  void updateEditorLineNumbers();
+  void checkForUpdates(bool interactive = false);
   void rebuildSettingsPage();
   void activateDocument(int index);
   void closeDocument(int index);
@@ -126,6 +134,9 @@ private:
   void captureCurrentPreviewHtml(std::function<void(QString)> callback);
   void finishPreviewCapture(qint64 generation);
   [[nodiscard]] bool saveActiveDocument(bool reportSuccess);
+  [[nodiscard]] DocumentFile documentForSave(const DocumentFile &previous,
+                                             const QString &body,
+                                             const QDateTime &modified) const;
   [[nodiscard]] bool maybeSave();
   void updateWindowTitle();
   void showFindBar(bool replaceMode);
@@ -161,6 +172,7 @@ private:
   QToolButton *replaceModeButton_ = nullptr;
   QToolButton *replaceCurrentButton_ = nullptr;
   QToolButton *replaceAllButton_ = nullptr;
+  QToolButton *batteryButton_ = nullptr;
   QLabel *findStatus_ = nullptr;
   QCheckBox *findCaseSensitive_ = nullptr;
   QCheckBox *findWholeWord_ = nullptr;
@@ -194,18 +206,22 @@ private:
   QAction *favoriteAction_ = nullptr;
   QAction *pinAction_ = nullptr;
   QAction *trashAction_ = nullptr;
+  QAction *checkForUpdatesAction_ = nullptr;
   MarkdownPipeline *pipeline_ = nullptr;
   PreviewBridge *bridge_ = nullptr;
   PlantUmlRenderer *plantUmlRenderer_ = nullptr;
   WorkspaceWatcher *workspaceWatcher_ = nullptr;
   SyncController *sync_ = nullptr;
   QTimer renderTimer_;
+  QTimer fullRenderTimer_;
   QTimer usageTimer_;
   QTimer autosaveTimer_;
   QTimer infoRefreshTimer_;
   QTimer searchTimer_;
   QTimer spellcheckTimer_;
   QTimer tableFormatTimer_;
+  QTimer powerStateTimer_;
+  QTimer updateCheckTimer_;
   QFutureWatcher<RenderResult> renderWatcher_;
   QFutureWatcher<AsyncDocumentSaveResult> autosaveWriteWatcher_;
   QFutureWatcher<QVector<SpellingIssue>> spellcheckWatcher_;
@@ -282,6 +298,12 @@ private:
   bool forceFullPreviewRender_ = false;
   bool applyingEditorTransform_ = false;
   bool updatingViewModeActions_ = false;
+  bool powerStateRequestPending_ = false;
+  std::optional<bool> onBatteryPower_;
+  QNetworkAccessManager *updateNetworkManager_ = nullptr;
+  QNetworkReply *updateReply_ = nullptr;
+  int relativeMarginStartLine_ = -1;
+  int relativeMarginEndLine_ = -1;
   EditorViewMode viewMode_ = EditorViewMode::Split;
   EditorViewMode previousSingleViewMode_ = EditorViewMode::Edit;
   QList<int> splitViewSizes_ = {720, 720};

@@ -3,6 +3,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -20,7 +21,10 @@ private slots:
   void classifiesSnapshotChanges();
   void pairsMovedFilesAsRenames();
   void watchesNewNotesInNestedDirectories();
+  void reusesHashesForUnchangedNotes();
+  void detectsSameMetadataExternalChanges();
   void suppressesAcknowledgedAppWrites();
+  void suppressesAcknowledgedAppRenames();
   void reportsExternalWriteRacingAppAcknowledgement();
   void retainsCanonicalHashAcrossLaterWatcherStates();
 };
@@ -106,6 +110,58 @@ void WorkspaceWatcherTest::watchesNewNotesInNestedDirectories() {
   QVERIFY(found);
 }
 
+void WorkspaceWatcherTest::reusesHashesForUnchangedNotes() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  QDir root(directory.path());
+  QVERIFY(root.mkpath(QStringLiteral("notes")));
+  QVERIFY(writeFile(root.filePath(QStringLiteral("notes/existing.md")),
+                    QByteArrayLiteral("# Existing\n")));
+
+  WorkspaceWatcher watcher;
+  watcher.setWorkspaceRoot(directory.path());
+  QSignalSpy changesSpy(&watcher, &WorkspaceWatcher::changesDetected);
+  watcher.start();
+  QCOMPARE(watcher.metrics().filesHashed, quint64{1});
+  QCOMPARE(watcher.metrics().fileStatesReused, quint64{0});
+
+  QVERIFY(writeFile(root.filePath(QStringLiteral("notes/added.md")),
+                    QByteArrayLiteral("# Added\n")));
+  QTRY_VERIFY_WITH_TIMEOUT(!changesSpy.isEmpty(), 3000);
+  QCOMPARE(watcher.metrics().filesHashed, quint64{2});
+  QVERIFY(watcher.metrics().fileStatesReused >= 1);
+}
+
+void WorkspaceWatcherTest::detectsSameMetadataExternalChanges() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  QDir root(directory.path());
+  QVERIFY(root.mkpath(QStringLiteral("notes")));
+  const QString path = root.filePath(QStringLiteral("notes/note.md"));
+  QVERIFY(writeFile(path, QByteArrayLiteral("# AAAAA\n")));
+  const QDateTime originalModified = QFileInfo(path).lastModified();
+
+  WorkspaceWatcher watcher;
+  watcher.setWorkspaceRoot(directory.path());
+  QSignalSpy changesSpy(&watcher, &WorkspaceWatcher::changesDetected);
+  watcher.start();
+
+  QVERIFY(writeFile(path, QByteArrayLiteral("# BBBBB\n")));
+  QFile file(path);
+  QVERIFY(file.open(QIODevice::ReadWrite));
+  QVERIFY(
+      file.setFileTime(originalModified, QFileDevice::FileModificationTime));
+  file.close();
+
+  QTRY_COMPARE_WITH_TIMEOUT(changesSpy.size(), 1, 3000);
+  const QVector<WorkspaceChange> changes =
+      qvariant_cast<QVector<WorkspaceChange>>(
+          changesSpy.constFirst().constFirst());
+  QCOMPARE(changes.size(), 1);
+  QCOMPARE(changes.constFirst().kind, WorkspaceChangeKind::Modified);
+  QCOMPARE(changes.constFirst().path, path);
+}
+
 void WorkspaceWatcherTest::suppressesAcknowledgedAppWrites() {
   QTemporaryDir directory;
   QVERIFY(directory.isValid());
@@ -140,6 +196,38 @@ void WorkspaceWatcherTest::suppressesAcknowledgedAppWrites() {
   QCOMPARE(changes.size(), 1);
   QCOMPARE(changes.constFirst().kind, WorkspaceChangeKind::Modified);
   QCOMPARE(changes.constFirst().path, path);
+}
+
+void WorkspaceWatcherTest::suppressesAcknowledgedAppRenames() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  QDir root(directory.path());
+  QVERIFY(root.mkpath(QStringLiteral("notes")));
+  const QString previousPath =
+      root.filePath(QStringLiteral("notes/Previous.md"));
+  const QString nextPath = root.filePath(QStringLiteral("notes/Next.md"));
+  QVERIFY(writeFile(previousPath, QByteArrayLiteral("# Previous\n")));
+
+  WorkspaceWatcher watcher;
+  watcher.setWorkspaceRoot(directory.path());
+  QSignalSpy changesSpy(&watcher, &WorkspaceWatcher::changesDetected);
+  watcher.start();
+
+  const QByteArray nextContent = QByteArrayLiteral("# Next\n");
+  watcher.acknowledgeRename(previousPath, nextPath, nextContent);
+  QVERIFY(writeFile(nextPath, nextContent));
+  QVERIFY(QFile::remove(previousPath));
+  QTest::qWait(400);
+  QCOMPARE(changesSpy.size(), 0);
+
+  QVERIFY(writeFile(nextPath, QByteArrayLiteral("# External\n")));
+  QTRY_COMPARE_WITH_TIMEOUT(changesSpy.size(), 1, 3000);
+  const QVector<WorkspaceChange> changes =
+      qvariant_cast<QVector<WorkspaceChange>>(
+          changesSpy.constFirst().constFirst());
+  QCOMPARE(changes.size(), 1);
+  QCOMPARE(changes.constFirst().kind, WorkspaceChangeKind::Modified);
+  QCOMPARE(changes.constFirst().path, nextPath);
 }
 
 void WorkspaceWatcherTest::reportsExternalWriteRacingAppAcknowledgement() {

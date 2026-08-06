@@ -18,7 +18,7 @@ env:
 
 jobs:
   fuzz:
-    name: libFuzzer (${{ matrix.target }})
+    name: libFuzzer (${{ matrix.fuzzer }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -31,6 +31,10 @@ jobs:
             corpus: document
           - fuzzer: enex_import
             corpus: enex
+          - fuzzer: workspace_repository
+            corpus: workspace
+          - fuzzer: update_checker
+            corpus: update
 
     steps:
       - name: Checkout
@@ -126,6 +130,7 @@ jobs:
                 "build/fuzz/corpus/${{ matrix.corpus }}" \
                 -max_total_time=300 \
                 -max_len=65536 \
+                -print_funcs=0 \
                 -artifact_prefix="build/fuzz/artifacts/${{ matrix.fuzzer }}/"
 
       - name: Upload failure artifacts

@@ -17,6 +17,8 @@ class DataSourcesTest final : public QObject {
 private slots:
   void preservesUnrelatedReferenceSettings();
   void discoversAndSearchesWorkspaceNotes();
+  void rejectsInvalidUtf8WorkspaceNotes();
+  void reusesOnlyUnchangedWorkspaceNotes();
   void resolvesWorkspaceLinksSafely();
   void buildsWorkspaceGraphAndAttachmentMetadata();
   void readsAndWritesWorkspaceConfiguration();
@@ -125,6 +127,123 @@ void DataSourcesTest::discoversAndSearchesWorkspaceNotes() {
                .searchWithSnippets(QStringLiteral("[invalid"),
                                    qt_editor::SearchMode::Regex)
                .size(),
+           0);
+}
+
+void DataSourcesTest::rejectsInvalidUtf8WorkspaceNotes() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  QDir root(directory.path());
+  QVERIFY(root.mkpath(QStringLiteral("notes")));
+
+  QFile valid(root.filePath(QStringLiteral("notes/valid.md")));
+  QVERIFY(valid.open(QIODevice::WriteOnly));
+  QCOMPARE(valid.write("# Valid\n"), 8);
+  valid.close();
+
+  const QByteArray invalidBytes =
+      QByteArray::fromHex("2320496e76616c69640ac3280a");
+  QFile invalid(root.filePath(QStringLiteral("notes/invalid.md")));
+  QVERIFY(invalid.open(QIODevice::WriteOnly));
+  QCOMPARE(invalid.write(invalidBytes), invalidBytes.size());
+  invalid.close();
+
+  qt_editor::WorkspaceRepository repository;
+  repository.setWorkspaceRoot(directory.path());
+  repository.refresh();
+  QCOMPARE(repository.notes().size(), 1);
+  QCOMPARE(repository.notes().constFirst().title, QStringLiteral("Valid"));
+
+  QVERIFY(invalid.open(QIODevice::ReadOnly));
+  QCOMPARE(invalid.readAll(), invalidBytes);
+}
+
+void DataSourcesTest::reusesOnlyUnchangedWorkspaceNotes() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  QDir root(directory.path());
+  QVERIFY(root.mkpath(QStringLiteral("notes")));
+  QVERIFY(root.mkpath(QStringLiteral("attachments")));
+
+  const auto write = [&root](const QString &name, const QByteArray &content) {
+    QFile file(root.filePath(QStringLiteral("notes/") + name));
+    return file.open(QIODevice::WriteOnly | QIODevice::Truncate) &&
+           file.write(content) == content.size();
+  };
+  QVERIFY(write(QStringLiteral("alpha.md"), QByteArrayLiteral("# Alpha\n")));
+  QVERIFY(write(QStringLiteral("beta.md"), QByteArrayLiteral("# Beta\n")));
+  QFile attachment(root.filePath(QStringLiteral("attachments/reference.txt")));
+  QVERIFY(attachment.open(QIODevice::WriteOnly));
+  QCOMPARE(attachment.write("reference"), 9);
+  attachment.close();
+
+  qt_editor::WorkspaceRepository repository;
+  repository.setWorkspaceRoot(directory.path());
+  repository.refresh();
+  QCOMPARE(repository.lastRefreshMetrics().notesRead, 2);
+  QCOMPARE(repository.lastRefreshMetrics().notesReused, 0);
+  QCOMPARE(repository.lastRefreshMetrics().attachmentsRead, 1);
+  QCOMPARE(repository.lastRefreshMetrics().attachmentsReused, 0);
+  QVERIFY(repository.lastRefreshMetrics().graphRebuilt);
+
+  repository.refresh();
+  QCOMPARE(repository.lastRefreshMetrics().notesRead, 0);
+  QCOMPARE(repository.lastRefreshMetrics().notesReused, 2);
+  QCOMPARE(repository.lastRefreshMetrics().attachmentsRead, 0);
+  QCOMPARE(repository.lastRefreshMetrics().attachmentsReused, 1);
+  QVERIFY(!repository.lastRefreshMetrics().graphRebuilt);
+
+  const QString alphaPath = root.filePath(QStringLiteral("notes/alpha.md"));
+  const QDateTime alphaModified = QFileInfo(alphaPath).lastModified();
+  QVERIFY(write(QStringLiteral("alpha.md"), QByteArrayLiteral("# Omega\n")));
+  QFile alphaFile(alphaPath);
+  QVERIFY(alphaFile.open(QIODevice::ReadWrite));
+  QVERIFY(
+      alphaFile.setFileTime(alphaModified, QFileDevice::FileModificationTime));
+  alphaFile.close();
+  repository.invalidatePath(alphaPath);
+  repository.refresh();
+  QCOMPARE(repository.lastRefreshMetrics().notesRead, 1);
+  QCOMPARE(repository.lastRefreshMetrics().notesReused, 1);
+  QCOMPARE(repository.search(QStringLiteral("Omega")).size(), 1);
+
+  QVERIFY(write(QStringLiteral("alpha.md"),
+                QByteArrayLiteral("# Alpha changed substantially\n"
+                                  "[Beta](beta.md)\n")));
+  repository.refresh();
+  QCOMPARE(repository.lastRefreshMetrics().notesRead, 1);
+  QCOMPARE(repository.lastRefreshMetrics().notesReused, 1);
+  QVERIFY(repository.lastRefreshMetrics().graphRebuilt);
+  QCOMPARE(repository.search(QStringLiteral("substantially")).size(), 1);
+  QCOMPARE(std::count_if(repository.graph().edges.cbegin(),
+                         repository.graph().edges.cend(),
+                         [](const auto &edge) {
+                           return edge.kind ==
+                                  qt_editor::WorkspaceGraphEdgeKind::NoteLink;
+                         }),
+           1);
+
+  QVERIFY(attachment.open(QIODevice::WriteOnly | QIODevice::Truncate));
+  QCOMPARE(attachment.write("reference changed"), 17);
+  attachment.close();
+  repository.refresh();
+  QCOMPARE(repository.lastRefreshMetrics().notesRead, 0);
+  QCOMPARE(repository.lastRefreshMetrics().notesReused, 2);
+  QCOMPARE(repository.lastRefreshMetrics().attachmentsRead, 1);
+  QVERIFY(repository.lastRefreshMetrics().graphRebuilt);
+
+  QVERIFY(QFile::remove(root.filePath(QStringLiteral("notes/beta.md"))));
+  repository.refresh();
+  QCOMPARE(repository.notes().size(), 1);
+  QCOMPARE(repository.lastRefreshMetrics().notesRead, 0);
+  QCOMPARE(repository.lastRefreshMetrics().notesReused, 1);
+  QVERIFY(repository.lastRefreshMetrics().graphRebuilt);
+  QCOMPARE(std::count_if(repository.graph().edges.cbegin(),
+                         repository.graph().edges.cend(),
+                         [](const auto &edge) {
+                           return edge.kind ==
+                                  qt_editor::WorkspaceGraphEdgeKind::NoteLink;
+                         }),
            0);
 }
 

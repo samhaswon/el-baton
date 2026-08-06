@@ -9,6 +9,7 @@
 #include <QSet>
 
 #include <algorithm>
+#include <utility>
 
 namespace qt_editor {
 namespace {
@@ -48,7 +49,10 @@ WorkspaceWatcher::WorkspaceWatcher(QObject *parent) : QObject(parent) {
   connect(&fileSystemWatcher_, &QFileSystemWatcher::directoryChanged, this,
           [this](const QString &) { scheduleScan(); });
   connect(&fileSystemWatcher_, &QFileSystemWatcher::fileChanged, this,
-          [this](const QString &) { scheduleScan(); });
+          [this](const QString &path) {
+            dirtyFiles_.insert(QFileInfo(path).absoluteFilePath());
+            scheduleScan();
+          });
 }
 
 void WorkspaceWatcher::setWorkspaceRoot(const QString &path) {
@@ -69,7 +73,7 @@ void WorkspaceWatcher::start() {
     return;
   active_ = true;
   QStringList directories;
-  snapshot_ = takeSnapshot(&directories);
+  snapshot_ = takeSnapshot(nullptr, {}, &directories);
   canonicalStates_ = snapshot_;
   rebuildWatchPaths(directories);
 }
@@ -85,6 +89,8 @@ void WorkspaceWatcher::stop() {
     fileSystemWatcher_.removePaths(watchedDirectories);
   snapshot_.clear();
   canonicalStates_.clear();
+  dirtyFiles_.clear();
+  metrics_ = {};
 }
 
 void WorkspaceWatcher::acknowledgeWrite(const QString &path,
@@ -97,6 +103,29 @@ void WorkspaceWatcher::acknowledgeWrite(const QString &path,
   acceptDiskState(absolutePath, content);
   if (!fileSystemWatcher_.files().contains(absolutePath))
     fileSystemWatcher_.addPath(absolutePath);
+  scheduleScan();
+}
+
+void WorkspaceWatcher::acknowledgeRename(const QString &previousPath,
+                                         const QString &path,
+                                         const QByteArray &content) {
+  if (!active_)
+    return;
+  const QString previousAbsolute = QFileInfo(previousPath).absoluteFilePath();
+  const QString absolutePath = QFileInfo(path).absoluteFilePath();
+  const WatchedFileState state{
+      content.size(), 0,
+      QCryptographicHash::hash(content, QCryptographicHash::Sha256)};
+  canonicalStates_.remove(previousAbsolute);
+  canonicalStates_.insert(absolutePath, state);
+  snapshot_.remove(previousAbsolute);
+  snapshot_.insert(absolutePath, state);
+  if (fileSystemWatcher_.files().contains(previousAbsolute))
+    fileSystemWatcher_.removePath(previousAbsolute);
+  if (QFileInfo::exists(absolutePath) &&
+      !fileSystemWatcher_.files().contains(absolutePath)) {
+    fileSystemWatcher_.addPath(absolutePath);
+  }
   scheduleScan();
 }
 
@@ -136,7 +165,10 @@ QString WorkspaceWatcher::notesRoot() const {
 }
 
 WorkspaceSnapshot
-WorkspaceWatcher::takeSnapshot(QStringList *directories) const {
+WorkspaceWatcher::takeSnapshot(const WorkspaceSnapshot *previous,
+                               const QSet<QString> &forceHashPaths,
+                               QStringList *directories) {
+  ++metrics_.snapshotsTaken;
   WorkspaceSnapshot result;
   const QString rootPath = notesRoot();
   const QFileInfo rootInfo(rootPath);
@@ -159,7 +191,18 @@ WorkspaceWatcher::takeSnapshot(QStringList *directories) const {
     }
     if (!info.isFile() || !isSupportedNote(path))
       continue;
+    if (previous != nullptr) {
+      const auto cached = previous->constFind(path);
+      if (cached != previous->cend() && !forceHashPaths.contains(path) &&
+          cached->size == info.size() &&
+          cached->modifiedMs == info.lastModified().toMSecsSinceEpoch()) {
+        result.insert(path, cached.value());
+        ++metrics_.fileStatesReused;
+        continue;
+      }
+    }
     result.insert(path, readFileState(path));
+    ++metrics_.filesHashed;
   }
   return result;
 }
@@ -223,7 +266,9 @@ void WorkspaceWatcher::scan() {
   if (!active_)
     return;
   QStringList directories;
-  const WorkspaceSnapshot current = takeSnapshot(&directories);
+  const QSet<QString> dirtyFiles = std::exchange(dirtyFiles_, {});
+  const WorkspaceSnapshot current =
+      takeSnapshot(&snapshot_, dirtyFiles, &directories);
   const QVector<WorkspaceChange> detected =
       compareSnapshots(snapshot_, current);
   QVector<WorkspaceChange> changes;

@@ -29,6 +29,7 @@ public:
 
   void configure(int timeoutMs, int cacheMaxEntries, qint64 cacheMaxBytes,
                  const QString &externalServerUrl = {});
+  [[nodiscard]] bool clearCache();
   [[nodiscard]] static QString normalizeSource(const QString &source);
   [[nodiscard]] static QString normalizeLocalError(const QString &message);
   [[nodiscard]] static QString normalizeServerUrl(const QString &url);

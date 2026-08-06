@@ -7,6 +7,7 @@
   const state = {
     bridge: null, generation: 0, geometry: [], geometryDirty: true, blockNodes: new Map(), blockRanges: new Map(),
     resizeObserver: null, applyingSourceScroll: false, previewScrollFrame: 0,
+    previewSyncTimer: 0, previewSyncPending: false, lastPreviewSyncAt: 0, syncIntervalMs: 0,
     applyingUpdate: false, pendingUpdates: [], syncTimes: [], droppedSync: 0,
     frameTimes: [], renderTimes: [], activeUntil: 0, samplingFrames: false, lastFrameReportAt: 0,
     metrics: {}, diagnosticsEnabled: false, documentBaseUrl: '', mermaidCache: new Map(), hiddenMermaidNodes: new Map(),
@@ -314,20 +315,55 @@
     return answer || state.geometry[0];
   }
 
+  function publishPreviewScroll() {
+    state.previewSyncPending = false;
+    state.lastPreviewSyncAt = performance.now();
+    const scrollTop = scrollContainer.scrollTop;
+    const item = geometryAt(scrollTop);
+    if (!item || !state.bridge) return;
+    const progress = item.height > 0 ? Math.max(0, Math.min(1, (scrollTop - item.top) / item.height)) : 0;
+    state.bridge.reportPreviewScroll({ owner: 'preview', blockId: item.id, progress, generation: state.generation,
+      percentage: scrollTop / Math.max(1, scrollContainer.scrollHeight - scrollContainer.clientHeight) });
+    state.syncTimes.push(performance.now());
+  }
+
+  function schedulePreviewSync() {
+    const remaining = state.syncIntervalMs - (performance.now() - state.lastPreviewSyncAt);
+    if (state.syncIntervalMs <= 0 || remaining <= 0) {
+      publishPreviewScroll();
+      return;
+    }
+    state.previewSyncPending = true;
+    state.droppedSync++;
+    if (state.previewSyncTimer) return;
+    state.previewSyncTimer = setTimeout(() => {
+      state.previewSyncTimer = 0;
+      if (state.previewSyncPending) publishPreviewScroll();
+    }, remaining);
+  }
+
   function onPreviewScroll() {
     markUiActive(500);
     if (state.applyingSourceScroll) return;
     if (state.previewScrollFrame) { state.droppedSync++; return; }
     state.previewScrollFrame = requestAnimationFrame(() => {
       state.previewScrollFrame = 0;
-      const scrollTop = scrollContainer.scrollTop;
-      const item = geometryAt(scrollTop);
-      if (!item || !state.bridge) return;
-      const progress = item.height > 0 ? Math.max(0, Math.min(1, (scrollTop - item.top) / item.height)) : 0;
-      state.bridge.reportPreviewScroll({ owner: 'preview', blockId: item.id, progress, generation: state.generation,
-        percentage: scrollTop / Math.max(1, scrollContainer.scrollHeight - scrollContainer.clientHeight) });
-      state.syncTimes.push(performance.now());
+      schedulePreviewSync();
     });
+  }
+
+  function applyRuntimeConfiguration(configuration) {
+    const fps = Math.max(1, Math.min(60, Math.round(Number(configuration.syncTargetFps) || 60)));
+    state.syncIntervalMs = fps >= 60 ? 0 : Math.floor(1000 / fps);
+    if (state.previewSyncTimer) clearTimeout(state.previewSyncTimer);
+    state.previewSyncTimer = 0;
+    if (!state.previewSyncPending) return;
+    if (state.syncIntervalMs === 0) return publishPreviewScroll();
+    const remaining = Math.max(0, state.syncIntervalMs - (performance.now() - state.lastPreviewSyncAt));
+    state.previewSyncTimer = setTimeout(() => {
+      state.previewSyncTimer = 0;
+      if (state.previewSyncPending) publishPreviewScroll();
+    }, remaining);
   }
 
   function applySourceScroll(target) {
@@ -516,6 +552,7 @@
     state.bridge = channel.objects.previewBridge;
     state.bridge.renderPublished.connect(enqueueUpdate);
     state.bridge.sourceScrollPublished.connect(applySourceScroll);
+    state.bridge.runtimeConfigurationPublished.connect(applyRuntimeConfiguration);
     state.bridge.mermaidResultsPublished.connect(applyHiddenMermaidResults);
     state.bridge.plantUmlResultsPublished.connect(applyPlantUmlResults);
     state.bridge.reportReady('preview');

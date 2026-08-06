@@ -20,17 +20,21 @@ public:
   ~PreviewBridge() override;
 
   void configureDiagramCache(int maxEntries, qint64 maxBytes);
+  [[nodiscard]] bool clearDiagramCache();
 
   // Sends one batched document update to the preview.
   void publishRender(const QJsonObject &update);
   // Sends a semantic source-owned scroll target to the preview.
   void publishSourceScroll(const QJsonObject &target);
+  // Updates runtime-only preview policy without rebuilding the document DOM.
+  void publishRuntimeConfiguration(const QJsonObject &configuration);
   // Returns locally rendered PlantUML SVG/errors to the visible preview.
   void publishPlantUmlResults(const QJsonObject &batch);
 
 signals:
   void renderPublished(const QJsonObject &update);
   void sourceScrollPublished(const QJsonObject &target);
+  void runtimeConfigurationPublished(const QJsonObject &configuration);
   void mermaidRenderRequested(const QJsonObject &batch);
   void mermaidResultsPublished(const QJsonObject &batch);
   void plantUmlRenderRequested(const QJsonObject &batch);

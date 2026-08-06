@@ -21,6 +21,7 @@ public:
 
   [[nodiscard]] const QString &path() const { return path_; }
   [[nodiscard]] const QString &body() const { return body_; }
+  [[nodiscard]] QString title() const;
   [[nodiscard]] const QString &metadataPrefix() const {
     return metadataPrefix_;
   }
@@ -30,6 +31,8 @@ public:
   [[nodiscard]] DocumentFile withBody(const QString &body,
                                       bool updateModified = false,
                                       const QDateTime &modified = {}) const;
+  [[nodiscard]] DocumentFile withPathAndTitle(const QString &path,
+                                              const QString &title) const;
   [[nodiscard]] bool writeToDisk(QString *errorMessage = nullptr) const;
   [[nodiscard]] bool metadataFlag(NoteFlag flag) const;
   [[nodiscard]] QStringList tags() const;

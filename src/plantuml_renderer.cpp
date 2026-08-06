@@ -50,6 +50,12 @@ void PlantUmlRenderer::configure(int timeoutMs, int cacheMaxEntries,
   }
 }
 
+bool PlantUmlRenderer::clearCache() {
+  cache_.clear();
+  cacheOrder_.clear();
+  return persistentCache_->clear();
+}
+
 QString PlantUmlRenderer::normalizeSource(const QString &rawSource) {
   QString source = rawSource;
   source.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));

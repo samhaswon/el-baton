@@ -6,6 +6,8 @@
     <file alias="note.svg">../font_icons/note.svg</file>
     <file alias="notebook.svg">../font_icons/notebook.svg</file>
     <file alias="notebook-multiple.svg">../font_icons/notebook-multiple.svg</file>
+    <file alias="on_ac.svg">../font_icons/on_ac.svg</file>
+    <file alias="on_battery.svg">../font_icons/on_battery.svg</file>
     <file alias="paperclip.svg">../font_icons/paperclip.svg</file>
     <file alias="pencil.svg">../font_icons/pencil.svg</file>
     <file alias="pin.svg">../font_icons/pin.svg</file>

@@ -13,6 +13,7 @@ private slots:
   void removesFrontMatterBodyGutterFromEditorContent();
   void treatsUnclosedFrontMatterAsMarkdown();
   void createsAndDuplicatesNotes();
+  void updatesTitleAndPathWithoutLosingMetadata();
   void persistsMetadataFlags();
   void readsInlineAndBlockMetadataLists();
   void replacesCompleteBlockMetadataLists();
@@ -125,6 +126,26 @@ void DocumentFileTest::createsAndDuplicatesNotes() {
   QVERIFY2(copy.has_value(), qPrintable(error));
   QVERIFY(copy->metadataPrefix().contains(QStringLiteral("title: 'Alpha 2'")));
   QCOMPARE(copy->body(), QStringLiteral("# Changed\n"));
+}
+
+void DocumentFileTest::updatesTitleAndPathWithoutLosingMetadata() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString path = writeFile(
+      directory, QByteArrayLiteral(
+                     "---\ntitle: 'Old title'\ntags: [one]\n---\n\n# Old\n"));
+  const auto document = qt_editor::DocumentFile::load(path);
+  QVERIFY(document.has_value());
+  QCOMPARE(document->title(), QStringLiteral("Old title"));
+
+  const QString renamedPath =
+      directory.filePath(QStringLiteral("New title.md"));
+  const qt_editor::DocumentFile renamed =
+      document->withPathAndTitle(renamedPath, QStringLiteral("New title"));
+  QCOMPARE(renamed.path(), QFileInfo(renamedPath).absoluteFilePath());
+  QCOMPARE(renamed.title(), QStringLiteral("New title"));
+  QCOMPARE(renamed.tags(), QStringList({QStringLiteral("one")}));
+  QCOMPARE(renamed.body(), document->body());
 }
 
 void DocumentFileTest::persistsMetadataFlags() {
