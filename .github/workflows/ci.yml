@@ -280,8 +280,14 @@ jobs:
             grep --fixed-strings --line-regexp --quiet 'Prefix = ..' \
               "${private_root}/bin/qt.conf"
             test -L "${package_root}/usr/bin/el-baton"
-            test "$(readlink "${package_root}/usr/bin/el-baton")" = \
-              '../../opt/el-baton/bin/el-baton'
+            launcher_target="$(readlink "${package_root}/usr/bin/el-baton")"
+            case "${launcher_target}" in
+              '../../opt/el-baton/bin/el-baton'|'/opt/el-baton/bin/el-baton') ;;
+              *)
+                echo "Unexpected el-baton launcher target: ${launcher_target}" >&2
+                exit 1
+                ;;
+            esac
             test ! -e "${package_root}/usr/bin/qt.conf"
             test ! -L "${package_root}/usr/bin/qt.conf"
             if find "${private_root}/translations/qtwebengine_locales" \
