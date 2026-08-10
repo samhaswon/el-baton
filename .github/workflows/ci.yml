@@ -255,7 +255,7 @@ jobs:
 
           mapfile -d '' webengine_configs < <(
             find build/ci/packages/_CPack_Packages \
-              -path '*/usr/libexec/qt.conf' \
+              -path '*/opt/el-baton/libexec/qt.conf' \
               -type f \
               -print0
           )
@@ -269,13 +269,22 @@ jobs:
               echo "QtWebEngineProcess configuration contains a build path: ${config}" >&2
               exit 1
             fi
-            package_usr="$(dirname "$(dirname "${config}")")"
-            test -x "${package_usr}/libexec/QtWebEngineProcess"
-            test -f "${package_usr}/resources/icudtl.dat"
-            test -f "${package_usr}/resources/qtwebengine_resources.pak"
-            test ! -f "${package_usr}/resources/qtwebengine_devtools_resources.pak"
-            test -f "${package_usr}/translations/qtwebengine_locales/en-US.pak"
-            if find "${package_usr}/translations/qtwebengine_locales" \
+            private_root="$(dirname "$(dirname "${config}")")"
+            package_root="$(dirname "$(dirname "${private_root}")")"
+            test -x "${private_root}/bin/el-baton"
+            test -x "${private_root}/libexec/QtWebEngineProcess"
+            test -f "${private_root}/resources/icudtl.dat"
+            test -f "${private_root}/resources/qtwebengine_resources.pak"
+            test ! -f "${private_root}/resources/qtwebengine_devtools_resources.pak"
+            test -f "${private_root}/translations/qtwebengine_locales/en-US.pak"
+            grep --fixed-strings --line-regexp --quiet 'Prefix = ..' \
+              "${private_root}/bin/qt.conf"
+            test -L "${package_root}/usr/bin/el-baton"
+            test "$(readlink "${package_root}/usr/bin/el-baton")" = \
+              '../../opt/el-baton/bin/el-baton'
+            test ! -e "${package_root}/usr/bin/qt.conf"
+            test ! -L "${package_root}/usr/bin/qt.conf"
+            if find "${private_root}/translations/qtwebengine_locales" \
                 -type f -name '*.pak' ! -name 'en-US.pak' -print -quit | grep -q .; then
               echo "Linux package retained an unselected WebEngine locale." >&2
               exit 1
@@ -283,8 +292,8 @@ jobs:
           done
 
           appdir="${GITHUB_WORKSPACE}/build/ci/AppDir"
-          cmake --install build/ci --prefix "${appdir}/usr" --strip
-          du -sh "${appdir}/usr"
+          cmake --install build/ci --prefix "${appdir}" --strip
+          du -sh "${appdir}"
 
           tool="${RUNNER_TEMP}/linuxdeploy-${{ matrix.package_arch }}.AppImage"
           url="https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-${{ matrix.package_arch }}.AppImage"

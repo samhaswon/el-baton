@@ -324,10 +324,11 @@ that the installed tree includes the executable, preview assets, and
 `QtWebEngineProcess.exe`. The macOS ARM64 job publishes its deployed application
 bundle.
 
-Linux packages replace Qt's generated `QtWebEngineProcess` configuration with
-a relocatable `qt.conf`. The helper therefore resolves its resources and
-translations from the installed `/usr` prefix rather than CPack's temporary
-staging directory.
+Linux packages keep the executable and its private Qt runtime under
+`/opt/el-baton`. A relative `/usr/bin/el-baton` symlink and the desktop/icon
+metadata are the only files installed under `/usr`. Both the application and
+`QtWebEngineProcess` configurations therefore stay inside the private tree;
+neither package installs the process-wide `/usr/bin/qt.conf` file.
 
 Release deployment strips application targets and excludes Qt translation
 catalogs, QML debugging/tooling plugins, and Chromium DevTools resources that

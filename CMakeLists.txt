@@ -450,7 +450,14 @@ set_target_properties(el-baton PROPERTIES
   QT_QML_MODULE_NO_IMPORT_SCAN TRUE
 )
 if(UNIX AND NOT APPLE)
-  set_property(TARGET el-baton PROPERTY INSTALL_RPATH "\$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
+  set(EL_BATON_LINUX_ROOT "opt/el-baton")
+  set(EL_BATON_BIN_DESTINATION "${EL_BATON_LINUX_ROOT}/bin")
+  set(EL_BATON_LIB_DESTINATION "${EL_BATON_LINUX_ROOT}/lib")
+  set(EL_BATON_LIBEXEC_DESTINATION "${EL_BATON_LINUX_ROOT}/libexec")
+  set(EL_BATON_DATA_DESTINATION "${EL_BATON_LINUX_ROOT}/share/el-baton")
+  set_property(TARGET el-baton PROPERTY INSTALL_RPATH "\$ORIGIN/../lib")
+else()
+  set(EL_BATON_BIN_DESTINATION "${CMAKE_INSTALL_BINDIR}")
 endif()
 
 # Chromium-side renderers are copied into the build tree so they can be used by
@@ -486,15 +493,13 @@ target_compile_definitions(el_baton_core PUBLIC QT_EDITOR_PLANTUML_JAR="${CMAKE_
 
 install(TARGETS el-baton
   BUNDLE DESTINATION .
-  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+  RUNTIME DESTINATION "${EL_BATON_BIN_DESTINATION}"
 )
 
 if(APPLE)
   set(EL_BATON_DATA_DESTINATION "el-baton.app/Contents/Resources")
 elseif(WIN32)
   set(EL_BATON_DATA_DESTINATION "${CMAKE_INSTALL_BINDIR}")
-else()
-  set(EL_BATON_DATA_DESTINATION "${CMAKE_INSTALL_DATADIR}/el-baton")
 endif()
 
 install(DIRECTORY "${QT_EDITOR_WEB_DIR}/"
@@ -509,21 +514,49 @@ install(FILES
 
 if(UNIX AND NOT APPLE)
   install(FILES resources/packaging/el-baton.desktop
-    DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+    DESTINATION "usr/share/applications")
   foreach(icon_size IN ITEMS 16 24 32 48 64 96 128 256 512 1024)
     install(FILES "resources/icon/${icon_size}x${icon_size}.png"
-      DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/${icon_size}x${icon_size}/apps"
+      DESTINATION "usr/share/icons/hicolor/${icon_size}x${icon_size}/apps"
       RENAME el-baton.png)
   endforeach()
+
+  configure_file(
+    cmake/InstallLinuxLauncher.cmake.in
+    "${CMAKE_CURRENT_BINARY_DIR}/InstallLinuxLauncher.cmake"
+    @ONLY
+  )
+  install(SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/InstallLinuxLauncher.cmake")
 endif()
 
-qt_generate_deploy_app_script(
-  TARGET el-baton
-  OUTPUT_SCRIPT EL_BATON_DEPLOY_SCRIPT
+if(UNIX AND NOT APPLE)
+  # The convenience deploy script assumes a system-wide GNUInstallDirs layout.
+  # Use Qt's lower-level API so all private runtime files stay under /opt.
+  qt_generate_deploy_script(
+    TARGET el-baton
+    OUTPUT_SCRIPT EL_BATON_DEPLOY_SCRIPT
+    CONTENT "
+set(QT_DEPLOY_BIN_DIR \"${EL_BATON_BIN_DESTINATION}\")
+set(QT_DEPLOY_LIB_DIR \"${EL_BATON_LIB_DESTINATION}\")
+set(QT_DEPLOY_LIBEXEC_DIR \"${EL_BATON_LIBEXEC_DESTINATION}\")
+set(QT_DEPLOY_DATA_DIR \"${EL_BATON_LINUX_ROOT}\")
+set(QT_DEPLOY_PLUGINS_DIR \"${EL_BATON_LINUX_ROOT}/plugins\")
+set(QT_DEPLOY_TRANSLATIONS_DIR \"${EL_BATON_LINUX_ROOT}/translations\")
+qt6_deploy_runtime_dependencies(
+  EXECUTABLE \"$<TARGET_FILE:el-baton>\"
+  GENERATE_QT_CONF
   NO_TRANSLATIONS
   EXCLUDE_PLUGIN_TYPES qmltooling
-  NO_UNSUPPORTED_PLATFORM_ERROR
-)
+)")
+else()
+  qt_generate_deploy_app_script(
+    TARGET el-baton
+    OUTPUT_SCRIPT EL_BATON_DEPLOY_SCRIPT
+    NO_TRANSLATIONS
+    EXCLUDE_PLUGIN_TYPES qmltooling
+    NO_UNSUPPORTED_PLATFORM_ERROR
+  )
+endif()
 install(SCRIPT "${EL_BATON_DEPLOY_SCRIPT}")
 
 # Qt's WebEngine deployment hook installs every Chromium locale and its
@@ -537,12 +570,16 @@ configure_file(
 )
 install(SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/PruneDeployment.cmake")
 if(UNIX AND NOT APPLE)
-  # Qt's deployment helper writes an absolute CPack staging prefix into the
-  # QtWebEngineProcess qt.conf. Replace it after deployment so an installed
-  # helper resolves /usr/resources and /usr/translations relative to /usr.
-  install(FILES resources/packaging/qt-linux.conf
-    DESTINATION "${CMAKE_INSTALL_LIBEXECDIR}"
-    RENAME qt.conf)
+  # Replace Qt's generated configuration after deployment. Both processes can
+  # then resolve the private runtime relative to /opt/el-baton without a build
+  # or package-staging path.
+  foreach(qt_conf_destination IN ITEMS
+      "${EL_BATON_BIN_DESTINATION}"
+      "${EL_BATON_LIBEXEC_DESTINATION}")
+    install(FILES resources/packaging/qt-linux.conf
+      DESTINATION "${qt_conf_destination}"
+      RENAME qt.conf)
+  endforeach()
 endif()
 
 set(CPACK_PACKAGE_NAME "el-baton")
@@ -558,6 +595,9 @@ set(CPACK_PACKAGE_FILE_NAME
 set(CPACK_PACKAGE_DIRECTORY "${CMAKE_BINARY_DIR}/packages")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 set(CPACK_STRIP_FILES TRUE)
+if(UNIX AND NOT APPLE)
+  set(CPACK_PACKAGING_INSTALL_PREFIX "/")
+endif()
 if(WIN32)
   set(CPACK_PACKAGE_FILE_NAME
     "el-baton-${CPACK_PACKAGE_VERSION}-windows-x64-setup")
