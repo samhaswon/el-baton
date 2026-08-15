@@ -810,14 +810,23 @@ MainWindow::MainWindow(BenchmarkOptions options, QWidget *parent)
     if (lineCount <= 0)
       return;
     constexpr int lineBuffer = 8;
-    const int firstVisibleLine =
-        std::clamp(editor_->firstVisibleLine(), 0, lineCount - 1);
-    const int visibleLineCount =
+    const int firstVisibleDisplayLine =
+        std::max(0, static_cast<int>(editor_->SendScintilla(
+                        QsciScintilla::SCI_GETFIRSTVISIBLELINE)));
+    const int visibleDisplayLineCount =
         std::max(1, static_cast<int>(editor_->SendScintilla(
                         QsciScintilla::SCI_LINESONSCREEN)));
+    const int firstVisibleLine = std::clamp(
+        static_cast<int>(editor_->SendScintilla(
+            QsciScintilla::SCI_DOCLINEFROMVISIBLE, firstVisibleDisplayLine)),
+        0, lineCount - 1);
+    const int lastVisibleLine =
+        std::clamp(static_cast<int>(editor_->SendScintilla(
+                       QsciScintilla::SCI_DOCLINEFROMVISIBLE,
+                       firstVisibleDisplayLine + visibleDisplayLineCount - 1)),
+                   firstVisibleLine, lineCount - 1);
     const int startLine = std::max(0, firstVisibleLine - lineBuffer);
-    const int endLine = std::min(
-        lineCount - 1, firstVisibleLine + visibleLineCount + lineBuffer);
+    const int endLine = std::min(lineCount - 1, lastVisibleLine + lineBuffer);
     const int startByte = editor_->positionFromLineIndex(startLine, 0);
     const int endByte = endLine + 1 < lineCount
                             ? editor_->positionFromLineIndex(endLine + 1, 0)
