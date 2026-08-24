@@ -15,7 +15,7 @@
   "devDependencies": {
     "dompurify": "3.4.11",
     "gemoji": "8.1.0",
-    "katex": "0.17.0",
+    "katex": "0.18.4",
     "mermaid": "11.15.0",
     "prismjs": "1.30.0",
     "typescript": "6.0.3"
