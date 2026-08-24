@@ -13,7 +13,7 @@
     "generate": "npm run generate:emoji && npm run generate:cheatsheet"
   },
   "devDependencies": {
-    "dompurify": "3.4.11",
+    "dompurify": "3.4.14",
     "gemoji": "8.1.0",
     "katex": "0.17.0",
     "mermaid": "11.15.0",
